@@ -316,7 +316,6 @@ C-----------------------------------------------------------------------
 
       if (nbd.eq.2) then
        if (ifgeom) then
-        write(6,*) istep,' makebdq AAA'
         do i=1,n
          h2=const*vtrans(i,1,1,1,ifield)
          tb=bd(2)*bm1(i,1,1,1)*t(i,1,1,1,ifield-1)
@@ -324,7 +323,6 @@ C-----------------------------------------------------------------------
          bq(i,1,1,1,ifield-1)=bq(i,1,1,1,ifield-1)+h2*(tb+ta*bd(3))
         enddo
        else
-        write(6,*) istep,' makebdq BAA'
         do i=1,n
          h2=const*vtrans(i,1,1,1,ifield)
          tb=bd(2)*bm1(i,1,1,1)*t(i,1,1,1,ifield-1)
@@ -333,13 +331,8 @@ C-----------------------------------------------------------------------
         enddo
        endif
       else
-        write(6,*) istep,' makebdq CAA'
         call makebdq1
       endif
-      tl0=t   (1,1,1,1,1)
-      tl1=tlag(1,1,1,1,1,1)
-      write(6,1) istep,h2,tb,ta,bq(1,1,1,1,1),tl0,tl1
-    1 format(i4,'tabq: ',1p6e12.4)
 
       return
       end
