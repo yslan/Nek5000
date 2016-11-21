@@ -3460,23 +3460,18 @@ C
       nadvc=icalld
       etime1=dnekclock()
 #endif
-C
-      NXYZ1 = NX1*NY1*NZ1
-      NTOT1 = NX1*NY1*NZ1*NELV
-      NTOTZ = NX1*NY1*NZ1*nelfld(ifield)
-C
-      CALL RZERO  (CONV,NTOTZ)
-C
-      if (param(86).ne.0.0) then  ! skew-symmetric form
+
+      nxyz1 = nx1*ny1*nz1
+      ntot1 = nx1*ny1*nz1*nelv
+      ntotz = nx1*ny1*nz1*nelfld(ifield)
+
+      call rzero  (conv,ntotz)
+
+      if (ifdg) then
+           call convect_dg (conv,fi,.false.,vxd,vyd,vzd,.true.)
+      elseif (param(86).ne.0.0) then  ! skew-symmetric form
          call convopo(conv,fi)
-         goto 100
-      endif
-
-c     write(6,*) istep,param(99),' CONVOP',ifpert
-c     ip99 = param(99)
-c     if (istep.gt.5) call exitti(' CONVOP dbg: $',ip99)
-
-      if (param(99).eq.2.or.param(99).eq.3) then  
+      elseif (param(99).eq.2.or.param(99).eq.3) then  
          call conv1d(conv,fi)  !    use dealiased form
       elseif (param(99).eq.4) then
          if (ifpert) then
