@@ -981,10 +981,9 @@ c
          call copy(rr,r,ntot)
 c        call col2(rr,mult,ntot)
       endif
-c      if (nid.eq.0.and.icalld.eq.0) write(6,*) 'In fdm_h1',nel
       icalld = icalld+1
-c
-c
+
+
       do ie=1,nel
          if (if3d) then
 c           Transfer to wave space:  
@@ -1285,6 +1284,9 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine set_fdm_prec_h1b(d,h1,h2,nel)
+
+c     iet up diagonal for FDM for each spectral element 
+
       include 'SIZE'
       include 'FDMH1'
       include 'INPUT'
@@ -1292,9 +1294,8 @@ c-----------------------------------------------------------------------
       real d (nx1,ny1,nz1,1)
       real h1(nx1,ny1,nz1,1)
       real h2(nx1,ny1,nz1,1)
-c
-c     Set up diagonal for FDM for each spectral element 
-c
+
+
       nxyz = nx1*ny1*nz1
       if (if3d) then
          do ie=1,nel
@@ -1317,11 +1318,6 @@ c
                   d(i1,i2,i3,ie) = 1./den
                else
                   d(i1,i2,i3,ie) = 0.
-c
-c                 write(6,3) 'd=0:'
-c    $                 ,h1(i1,i2,i3,ie),dd(i1,k1),dd(i2,k2),dd(i3,k3)
-c    $                 ,i1,i2,i3,ie,kfldfdm,k1,k2,k3
-    3             format(a4,1p4e12.4,8i8)
 c
                endif
             enddo
@@ -1350,18 +1346,9 @@ c
                if (ifbhalf) den = den/vol
                if (den.ne.0) then
                   d(i1,i2,i3,ie) = 1./den
-c                 write(6,3) 'dn0:'
-c    $                 ,d(i1,i2,i3,ie),dd(i1,k1),dd(i2,k2)
-c    $                 ,i1,i2,i3,ie,kfldfdm,k1,k2
                else
                   d(i1,i2,i3,ie) = 0.
-c                 write(6,3) 'd=0:'
-c    $                 ,h1(i1,i2,i3,ie),dd(i1,k1),dd(i2,k2)
-c    $                 ,i1,i2,i3,ie,kfldfdm,k1,k2
-    2             format(a4,1p3e12.4,8i8)
                endif
-c           write(6,1) ie,i1,i2,k1,k2,'d:',d(i1,i2,i3,ie),vol,vl1,vl2
-c   1       format(5i3,2x,a2,1p4e12.4)
             enddo
             enddo
          enddo
