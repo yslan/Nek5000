@@ -12,9 +12,9 @@ c-----------------------------------------------------------------------
       include 'TOTAL'
       include 'NEWTON'
       include 'CTIMER'
-      include 'RTIMER'
+c     include 'RTIMER'
 
-      parameter (lcdim=1)
+      parameter (lcdim=ldim)
 
       real alpha,tt
       real tolNT,tolGMRES
@@ -45,7 +45,7 @@ c     nsteps = 200         ! steps for pseudo-transient continuation
       tolGMRES = 1e-10     ! tol for GMRES
       tolNT = 1e-5         ! tol for Newton method
 
-      dtNT = param(1) ! pseudo-transient time step
+      dtNT = 1.!param(1) ! pseudo-transient time step
                       ! it can grow as istep increase 
       max_dtNT  = 1E5   ! Max. of dtNT, avoid NaN
       min_tol   = 1E-12 ! Min. of tol,  avoid NaN
@@ -56,6 +56,8 @@ c     nsteps = 200         ! steps for pseudo-transient continuation
       cpu_t = 0.0
       cpu_chk = 0.0
 
+      npts = lx1*ly1*lz1*nelv
+
 C     Initialization
       do ic = 1,lcdim
         call rzero(sk(1,ic),npts)
@@ -64,13 +66,18 @@ C     Initialization
         call rzero(cn_n(1,ic),npts) ! working array in Pseudo time
         call rzero(cn_k(1,ic),npts) ! working array in NT
       enddo
-      
+
+      call copy(cn_k(1,1),vx,npts)
+      call copy(cn_k(1,2),vy,npts)
+c     call copy(cn_k(1,3),vz,npts)
+
       call compute_f_nt(fk,cn_k,lcdim,npts)
-      call compute_gk(gk,fk,cn_k,cn_n,lcdim,npts) ! compute rhs g_k for GMRES
+      call compute_gk(gk,fk,cn_k,cn_n,lcdim,npts) ! compute rhs g_k for gmres
+
       do ic = 1,lcdim
         call chsign (gk(1,ic),npts)
       enddo
-
+      
       do ic = 1,lcdim
         fnorms(ic) = glsc3(fk(1,ic),fk(1,ic),vmult,npts)
         fnorms(ic) = sqrt(fnorms(ic))
@@ -78,9 +85,9 @@ C     Initialization
       fnorm = glmax(fnorms,lcdim)
       f_now = fnorm
 
-
 C     Start pseudo-time step
       do istep = 1,nsteps 
+         write (6,*) 'istep=',istep
 
 c       cpu_dtime = dclock() !FIXME
 
@@ -106,26 +113,33 @@ C       Start Newton iteration
             call drift_hmh_gmres_newton(sk(1,ic),gk(1,ic)
      $           ,cn_k,fk(1,ic),vmult,lcdim,npts,tolGMRES,ic)
           enddo
+          write (6,*) 'check 1'
           do ic = 1,lcdim ! update Newton iteration
             call add2s2(cn_k(1,ic),sk(1,ic),alpha,npts) ! cp_k=cp_k+alpha*sp_k
           enddo
+          write (6,*) 'check 2'
 
           call compute_f_nt(fk,cn_k,lcdim,npts)
           call compute_gk(gk,fk,cn_k,cn_n,lcdim,npts)  ! checking tol. + next NT iter
+          write (6,*) 'check 3'
           do ic = 1,lcdim
             call chsign(gk(1,ic),npts)
           enddo
+          write (6,*) 'check 4'
 
           do ic = 1,lcdim
             rnorms(ic) = glsc3(gk(1,ic),gk(1,ic),vmult,npts)
             rnorms(ic) = sqrt(rnorms(ic))
           enddo
+          write (6,*) 'check 5'
           rnorm = glmax(rnorms,lcdim)
           if (iterNT.eq.1) rinorm=rnorm
           ratio=rnorm/rinorm 
+          write (6,*) 'check 6'
 
           if ((nid.eq.0).and.(mod(istep,iocomm).eq.0)) write(6,90)
      $       istep,iterNT,ratio,rnorm,rinorm,dtNT,dt
+          write (6,*) 'check 7'
 
           if (ratio.lt.tolNT) goto 900 ! Newton conv
 c          if (rnorm.lt.new_tol) goto 900 ! Newton conv
@@ -161,6 +175,8 @@ c         call copy(cN(1,ic),cn_k(1,ic),npts) ! just for cem_out
 c       enddo
 c       call userchk
 c       call cem_out
+
+         call errorchk(cn_k(1,1),cn_k(1,2))
       
       enddo
       
@@ -188,18 +204,20 @@ c-----------------------------------------------------------------------
      $   , c0n (lx1*ly1*lz1*lelt,nion)
      $   , f   (lx1*ly1*lz1*lelt,nion)
 
-c     do ic = 1,nion
+      do ic = 1,nion
+         write (6,*) 'ic=',ic
 c       call add3s3(gout(1,ic),ckn(1,ic),f(1,ic),c0n(1,ic)
 c    $       ,1.0,-1.0*dtNT,-1.0,n)
 
-      ic = 1
-
 c     call sub3s2(gout,ckn,f,1.,-dtnt,n)
-      call add3s2(gout,ckn,f,-1.-dtnt,n)
+      call add3s2(gout(1,ic),ckn(1,ic),f(1,ic),-1.,-dtnt,n)
+         write (6,*) 'after add3s2'
 
-      call sub2(gout,c0n,n)
+      call sub2(gout(1,ic),c0n(1,ic),n)
+         write (6,*) 'after sub2'
       call cmult(gout(1,ic),dtNTinv,n)   ! case with divided by dt_newton
-c     enddo
+         write (6,*) 'after cmult'
+      enddo
 
       return
       end
@@ -219,12 +237,18 @@ c-----------------------------------------------------------------------
       real cin (lx1*ly1*lz1*lelt,nion) ! c input
       real cout(lx1*ly1*lz1*lelt,nion) ! c output (sem_bdf)
 
+      write (6,*) 'check first'
+
       call cem_drift_sem_bdf1_newton(cin,cout,nion,n,0)
+
+      write (6,*) 'check second'
 
       do ic = 1,nion
         call sub3(fout(1,ic),cout(1,ic),cin(1,ic),n)
         call cmult(fout(1,ic),dtinv,n)
       enddo
+
+      write (6,*) 'check third'
 
       return
       end
@@ -305,8 +329,8 @@ c      if (nid.eq.0) write(6,*) 'start: hmh_gmres'
       tolpss= tolps
       iconv = 0
       
-      call rzero(x,n)
-      call rzero(h,m*m)
+      call rzero(x_gmres,n)
+      call rzero(h_gmres,m*m)
 
       outer = 0
       do while (iconv.eq.0.and.iter.lt.500)
@@ -331,7 +355,7 @@ c      if (nid.eq.0) write(6,*) 'start: hmh_gmres'
          rnorm = 0.
          if(gamma_gmres(1) .eq. 0.) goto 9000
          temp = 1./gamma_gmres(1)
-         call cmult2(v_gmres(1,1),r,temp,n)             !  v  = r / gamma_gmres
+         call cmult2(v_gmres(1,1),r_gmres,temp,n)             !  v  = r / gamma_gmres
                                                   !  1            1
          !write(6,*) 'start form m-th krylov subspace'
          do j=1,m
@@ -356,7 +380,7 @@ c      if (nid.eq.0) write(6,*) 'start: hmh_gmres'
      $         + c_gmres(i)*h_gmres(i+1,j)
             enddo
                                               !            ______
-            alpha = sqrt(glsc3(w,w,wt,n))     ! alpha =  \/ (w,w)
+            alpha = sqrt(glsc3(w_gmres,w_gmres,wt,n))     ! alpha =  \/ (w,w)
             if(alpha.eq.0.) goto 900 !converged
             l = sqrt(h_gmres(j,j)*h_gmres(j,j)+alpha*alpha)
             temp = 1./l
@@ -422,29 +446,40 @@ C     bdf1 time swapper in here
 c---------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
-      include 'ZPER'
 c     include 'BCS'
 
       integer iflag,nion,n,ic
       real cinput(lx1*ly1*lz1*lelt,nion)
       real coutput(lx1*ly1*lz1*lelt,nion)
 
+      real dummy(lx2,ly2,lz2,lelt)
 
 C     Copy into working array of sem_bdf1
-      do ic = 1,nion
-c       call copy(cN(1,ic),cinput(1,ic),n)
-      enddo
+
+      write (6,*) 'check pre'
+
+      if (ldim.eq.3) call opcopy(vx,vy,vz,
+     $                           cinput(1,1),cinput(1,2),cinput(1,3))
+
+      if (ldim.eq.2) call opcopy(vx,vy,vz,
+     $                           cinput(1,1),cinput(1,2),cinput(1,2))
+
+      write (6,*) 'check pre'
 
 C     Call sem_bdf1
 C     vvvv Put sem_bdf subroutine here
 
 c     call cem_drift_op_bdf !FIXME
 
+      if (ldim.eq.3)
+     $ call midstep(coutput(1,1),coutput(1,2),coutput(1,3),dummy,0,dt)
+
+      if (ldim.eq.2)
+     $ call midstep(coutput(1,1),coutput(1,2),coutput(1,2),dummy,0,dt)
+
+      write (6,*) 'check post'
 
 C     Copy out working array of sem_bdf1
-      do ic = 1,nion
-c       call copy(coutput(1,ic),cN(1,ic),n)
-      enddo
 
       return
       end
