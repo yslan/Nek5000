@@ -5,7 +5,7 @@ c-----------------------------------------------------------------------
       include 'TOTAL'
 
       real cn(lx1,ly1,lz1,lelt),
-     $     sk(lx1,ly1,lz1,lelt)
+     $     sk(lx1,ly1,lz1,lelt),
      $     gk(lx1,ly1,lz1,lelt)
 
       ! set parameters
