@@ -1207,7 +1207,7 @@ c-----------------------------------------------------------------------
       tstop=dnekclock()
       tttstp=ttime         ! sum over all timesteps
 
-c      call opcount(3)      ! print op-counters
+c     call opcount(3)      ! print op-counters
 
       call nek_comm_getstat(comm_timers,comm_counters)
       tgp2     = comm_timers(1)
