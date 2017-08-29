@@ -1,0 +1,23 @@
+c
+c     GMRES variables
+c
+c     w is a work vector
+c     c and s store the Givens rotations
+c     V stores the orthogonal Krylov subspace basis
+c          -1
+c     Z = M   V
+c
+      real x_gmres(lx1*ly1*lz1*lelv), r_gmres(lx1*ly1*lz1*lelv)
+     $   , w_gmres(lx1*ly1*lz1*lelv), h_gmres(lgmres,lgmres) 
+     $   , gamma_gmres(lgmres+1), c_gmres(lgmres), s_gmres(lgmres)
+      common /gmres1/ x_gmres, r_gmres, w_gmres, h_gmres, 
+     $               gamma_gmres, c_gmres, s_gmres
+    
+      real           v_gmres(lx1*ly1*lz1*lelv,lgmres)
+      common /gmre11/ v_gmres
+
+      real           z_gmres(lx1*ly1*lz1*lelv,lgmres)
+      common /gmre12/ z_gmres
+
+      real ml_gmres(lx1*ly1*lz1*lelv), mu_gmres(lx1*ly1*lz1*lelv)
+      common /spltprec1/ ml_gmres, mu_gmres

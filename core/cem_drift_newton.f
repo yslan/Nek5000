@@ -36,6 +36,8 @@ c     include 'RTIMER'
      $     cn_n(lx1*ly1*lz1*lelt,lcdim),  ! working array in Pseudo time step
      $     cn_k(lx1*ly1*lz1*lelt,lcdim)   ! working array in Newton iteration
 
+      common /ctmp1e/ uxe (lx1,ly1,lz1,lelv), uye (lx1,ly1,lz1,lelv)
+
 C     Parametar settings ToDo: move to user file, Lan
 
       alphan = 1.            ! Newton relaxation parameter alphan in (0,1]
@@ -79,10 +81,12 @@ C     Initialization
       call compute_f_nt(fk,cn_k,lcdim,npts) ! compute f(u_0)
       call compute_gk(gk,fk,cn_k,cn_n,lcdim,npts) ! compute rhs g_k for gmres
 
+      if (nio.eq.0) then
       do i=1,lx1*ly1*lz1*nelv
          write (6,*) 'vx=',fk(i,1)
          write (6,*) 'vy=',fk(i,2)
       enddo
+      endif
 c     stop
 
       do ic = 1,lcdim
@@ -99,12 +103,13 @@ c     stop
 
 C     Start pseudo-time step
       do istepn = 1,nsteps 
+         if (nio.eq.0) write (6,*) 'pseudo step',istepn
          if (mod(istepn,iostep).eq.0) then
             istep=istepn
             call outpost(cn_n(1,1),cn_n(1,2),vz,pr,t,'   ')
             istep=1
          endif
-         write (6,*) 'istepn=',istepn
+         if (nio.eq.0) write (6,*) 'istepn=',istepn
 
 c       cpu_dtime = dclock() !FIXME
 
@@ -158,57 +163,61 @@ c           stop
           enddo
           write (6,*) 'check 2'
 
-          call compute_f_nt(fk,cn_k,lcdim,npts)
-          call compute_gk(gk,fk,cn_k,cn_n,lcdim,npts)  ! checking tol. + next NT iter
-          write (6,*) 'check 3'
-          do ic = 1,lcdim
-            call chsign(gk(1,ic),npts)
-          enddo
-          write (6,*) 'check 4'
+        call compute_f_nt(fk,cn_k,lcdim,npts)
+        call compute_gk(gk,fk,cn_k,cn_n,lcdim,npts)  ! checking tol. + next NT iter
+        write (6,*) 'check 3'
+        do ic = 1,lcdim
+           call chsign(gk(1,ic),npts)
+        enddo
+        write (6,*) 'check 4'
 
-          do ic = 1,lcdim
-            rnorms(ic) = glsc3(gk(1,ic),gk(1,ic),vmult,npts)
-            rnorms(ic) = sqrt(rnorms(ic))
-          enddo
+        do ic = 1,lcdim
+           rnorms(ic) = glsc3(gk(1,ic),gk(1,ic),vmult,npts)
+           rnorms(ic) = sqrt(rnorms(ic))
+        enddo
 
-          write (6,*) 'check 5'
-          rnorm = glmax(rnorms,lcdim)
-          if (iterNT.eq.1) rinorm=rnorm
-          ratio=rnorm/rinorm 
-          write (6,*) 'check 6'
+        write (6,*) 'check 5'
+        rnorm = glmax(rnorms,lcdim)
+        if (iterNT.eq.1) rinorm=rnorm
+        ratio=rnorm/rinorm 
+        write (6,*) 'check 6'
 
-c         if ((nid.eq.0).and.(mod(istepn,iocomm).eq.0)) 
-          write(6,90)
-     $       istepn,iterNT,ratio,rnorm,rinorm,dtNT,dt
-          write (6,*) 'check 7'
+c       if ((nid.eq.0).and.(mod(istepn,iocomm).eq.0)) 
+        write(6,90)
+     $     istepn,iterNT,ratio,rnorm,rinorm,dtNT,dt
+        write (6,*) 'check 7'
 
-          if (ratio.lt.tolNT) goto 900 ! Newton conv
-c          if (rnorm.lt.new_tol) goto 900 ! Newton conv
+        if (ratio.lt.tolNT) goto 900 ! Newton conv
+c       if (rnorm.lt.new_tol) goto 900 ! Newton conv
 
         enddo
  90     format('newton iter',2i6,1p5e12.4)   
 900     continue
 
         do ic = 1,lcdim
-          call copy(cn_n(1,ic),cn_k(1,ic),npts)   ! update cn_n for computing gn
+           call copy(cn_n(1,ic),cn_k(1,ic),npts)   ! update cn_n for computing gn
         enddo                                     ! and next pseudo-time step
 
 c       Compute the norm of f
         do ic = 1,lcdim
-          fnorms(ic) = glsc3(fk(1,ic),fk(1,ic),vmult,npts)  
-          fnorms(ic) = sqrt(fnorms(ic))
+           fnorms(ic) = glsc3(fk(1,ic),fk(1,ic),vmult,npts)  
+           fnorms(ic) = sqrt(fnorms(ic))
         enddo
+
         fnorm  = glmax(fnorms,lcdim)
         f_pre = f_now  ! set up old fnorm to f_pre
         f_now = fnorm  ! set up new fnorm to f_now
 
 c       Compute the CPU_time
 c       cpu_dtime = dclock()-cpu_dtime !FIXME
+
         cpu_t = cpu_t+cpu_dtime
         cpu_t_step = cpu_t/istep
         cpu_p_t = glsum(cpu_t_step /npts,1)/np
 
         time = time + dt
+
+c       call errchk(cn_k(1,1),cn_k(1,2))
 
 C       Copy for cem_out and cem_chk
 c       do ic = 1,lcdim
@@ -217,8 +226,8 @@ c       enddo
 c       call userchk
 c       call cem_out
 
-c        call errorchk(cn_k(1,1),cn_k(1,2))
-      
+c       call errorchk(cn_k(1,1),cn_k(1,2))
+
       enddo
       
 c     call cem_end !FIXME
@@ -513,14 +522,9 @@ C     Copy into working array of sem_bdf1
       if (ldim.eq.2) call opcopy(vx,vy,vz,
      $                           cinput(1,1),cinput(1,2),dummy1)
 
-      write (6,*) 'check pre'
+      call plan5(2)
 
-      if (ldim.eq.3) then
-         call midstep(coutput(1,1),coutput(1,2),coutput(1,3),
-     $   dummy2,0,dt)
-      else
-         call midstep(coutput(1,1),coutput(1,2),dummy1,dummy2,0,dt)
-      endif
+      call opcopy(coutput(1,1),coutput(1,2),dummy1,vx,vy,vz)
 
       write (6,*) 'check post'
 
