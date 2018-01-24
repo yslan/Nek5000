@@ -49,15 +49,27 @@ c     Operator splitting technique.
 
       call midstep(vx,vy,vz,pr,0,dt2)      ! One step of Pn-Pn-2, dt/2
 
+C Force to use one step, fixme by Lan
       do i=1,n
-         vx(i,1,1,1)=2*vx(i,1,1,1)-vxlag(i,1,1,1,1)
-         vy(i,1,1,1)=2*vy(i,1,1,1)-vylag(i,1,1,1,1)
-         vz(i,1,1,1)=2*vz(i,1,1,1)-vzlag(i,1,1,1,1)
+         vx(i,1,1,1)=0*vx(i,1,1,1)+vxlag(i,1,1,1,1)
+         vy(i,1,1,1)=0*vy(i,1,1,1)+vylag(i,1,1,1,1)
+         vz(i,1,1,1)=0*vz(i,1,1,1)+vzlag(i,1,1,1,1)
       enddo
 
       do i=1,n2
-         pr(i,1,1,1)=2*pr(i,1,1,1)-prlag(i,1,1,1,1)
+         pr(i,1,1,1)=0*pr(i,1,1,1)+prlag(i,1,1,1,1)
       enddo
+
+c Original plan5, commend out by Lan
+c      do i=1,n
+c         vx(i,1,1,1)=2*vx(i,1,1,1)-vxlag(i,1,1,1,1)
+c         vy(i,1,1,1)=2*vy(i,1,1,1)-vylag(i,1,1,1,1)
+c         vz(i,1,1,1)=2*vz(i,1,1,1)-vzlag(i,1,1,1,1)
+c      enddo
+c
+c      do i=1,n2
+c         pr(i,1,1,1)=2*pr(i,1,1,1)-prlag(i,1,1,1,1)
+c      enddo
 
       call ortho(pr)
 

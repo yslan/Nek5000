@@ -139,7 +139,7 @@ c
          if (mod(istep,iostep).eq.0) call outpost(vx,vy,vz,pr,t,'   ')
          write (6,*) 'before errchk'
          call errchk(ux,uy)
-         write (6,*) 'after errchk'
+         write (6,*) 'after  errchk'
       enddo
       stop
 

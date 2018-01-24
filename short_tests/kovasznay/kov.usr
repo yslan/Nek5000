@@ -46,12 +46,43 @@ c-----------------------------------------------------------------------
 
       include 'SIZE'
       include 'TOTAL'
+      include 'NEWTON'  !istepNT
 
       common /ctmp1e/ uxe (lx1,ly1,lz1,lelv), uye (lx1,ly1,lz1,lelv)
       common /scruz/  erru(lx1,ly1,lz1,lelv), errv(lx1,ly1,lz1,lelv)
      $               ,errw(lx1,ly1,lz1,lelv)
       real uxn(lx1,ly1,lz1,lelt)
       real uyn(lx1,ly1,lz1,lelt)
+
+      real xp(ldim,10)
+
+      write(6,*)'Lan check'
+
+      ntot=nx1*ny1*nz1*nelv
+
+      a1=1.0
+      if (icalld.eq.0) then
+         icalld=1
+c
+         vis=  param(2)
+         if (vis.lt.0) vis = 1./abs(vis)
+         one  =1.0
+         twopi=8.0*atan(one)
+         reyn=1.0/vis
+         ccc = 0.25*reyn**2 + twopi*twopi
+         rlam=reyn/2.0 - sqrt( ccc )
+c
+c        Compute the exact solution
+c
+         do 100 i=1,ntot
+            x=xm1(i,1,1,1)
+            y=ym1(i,1,1,1)
+            uxe(i,1,1,1) =  1.0  - exp(rlam*x)*cos(twopi*y)
+            uye(i,1,1,1) =  rlam * exp(rlam*x)*sin(twopi*y)/twopi
+            errw(i,1,1,1) = 0.0
+  100    continue
+  101    format(3g14.7)
+      endif
 
 c       Compute the error
 c
@@ -78,7 +109,7 @@ c
         hl2_wt = hl2/hl2e
 c
         npoly = lx1-1
-        if (nid.eq.0) write(6,301) istep,npoly,h1,semi,hl2,hlinf,time
+        if (nid.eq.0) write(6,301) istepnt,npoly,h1,semi,hl2,hlinf,time
   301   format(i6,i3,1p5e13.5,' err')
 
       return
@@ -152,7 +183,7 @@ c
         hl2_wt = hl2/hl2e
 c
         npoly = lx1-1
-        if (nid.eq.0) write(6,301) istep,npoly,h1,semi,hl2,hlinf,time
+        if (nid.eq.0) write(6,301) 0,npoly,h1,semi,hl2,hlinf,time
   301   format(i6,i3,1p5e13.5,' err')
 
       call cem_drift_newton

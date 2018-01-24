@@ -35,6 +35,7 @@ c     include 'RTIMER'
      $     gk  (lx1*ly1*lz1*lelt,lcdim),  !
      $     cn_n(lx1*ly1*lz1*lelt,lcdim),  ! working array in Pseudo time step
      $     cn_k(lx1*ly1*lz1*lelt,lcdim)   ! working array in Newton iteration
+      real dummy1(lx1*ly1*lz1*lelt)        ! dummy field for third dimension
 
       common /ctmp1e/ uxe (lx1,ly1,lz1,lelv), uye (lx1,ly1,lz1,lelv)
 
@@ -42,11 +43,11 @@ C     Parametar settings ToDo: move to user file, Lan
 
       alphan = 1.            ! Newton relaxation parameter alphan in (0,1]
 c     nsteps = 200         ! steps for pseudo-transient continuation
-      maxit = 100           ! #iter of Newton method
-      jaceps = 1.e-8        ! eps for approx. Jacobian
+      maxit = 20           ! #iter of Newton method
+      jaceps = 1e-8        ! eps for approx. Jacobian
       epsinv = 1./jaceps
-      tolGMRES = 1.e-10     ! tol for GMRES
-      tolNT = 1.e-5         ! tol for Newton method
+      tolGMRES = 1e-10     ! tol for GMRES
+      tolNT = 1e-5         ! tol for Newton method
 
       dtNT = 1.!param(1) ! pseudo-transient time step
                       ! it can grow as istep increase 
@@ -102,26 +103,29 @@ c     stop
       call outpost(cn_n(1,1),cn_n(1,2),vz,pr,t,'   ')
 
 C     Start pseudo-time step
-      do istepn = 1,nsteps 
-         if (nio.eq.0) write (6,*) 'pseudo step',istepn
-         if (mod(istepn,iostep).eq.0) then
-            istep=istepn
+      do istepNT = 1,nsteps 
+         if (nio.eq.0) write (6,*) 'pseudo step',istepNT
+         if (mod(istepNT,iostep).eq.0) then
+            istep=istepNT
             call outpost(cn_n(1,1),cn_n(1,2),vz,pr,t,'   ')
             istep=1
          endif
-         if (nio.eq.0) write (6,*) 'istepn=',istepn
+         if (nio.eq.0) write (6,*) 'istepnt=',istepNT
 
 c       cpu_dtime = dclock() !FIXME
 
 C       SER, dt, dtNT varying
         write (6,*) 'f_pre,f_now',f_pre,f_now
-        if ((istepn .eq. 1)) then
+        if ((istepnt .eq. 1)) then
           dtNT = param(1)
 c          dt = dtNT
         else
-          if (f_now.lt.min_tol) f_now = min_tol
-          dtNT = dtNT * f_pre/f_now
+          if (f_now.lt.min_tol) then
+            dtNT = max_dtNT
+          else
+            dtNT = dtNT * f_pre/f_now
 c            dt = dtNT
+          endif
         endif
         if (dtNT.gt.max_dtNT) dtNT = max_dtNT
 
@@ -131,10 +135,10 @@ c            dt = dtNT
 
 C       Start Newton iteration
         do iterNT=1,maxit
-            write (6,*) 'iternt=',iternt
+            if(nio.eq.0) write (6,*) 'iternt_before_gmres(NT)=',iternt
 
           do ic = 1,lcdim ! solving newton sk
-            write (6,*) 'ic=',ic
+            if(nio.eq.0) write (6,*) 'ic=',ic
 
 c           call hmh_gmres_newton4(gk(1,ic),vmult,iter)
             
@@ -154,38 +158,38 @@ c           stop
 c           write (6,*) 'gmres iter=',iter
 c           stop
           enddo
-          write (6,*) 'newton int=',iternt
+          if(nio.eq.0) write (6,*) 'iternt_after _gmres(NT)=',iternt
 c           stop
 
-          write (6,*) 'check 1'
+c          write (6,*) 'check 1'
           do ic = 1,lcdim ! update Newton iteration
             call add2s2(cn_k(1,ic),sk(1,ic),alphan,npts) ! cp_k=cp_k+alphan*sp_k
           enddo
-          write (6,*) 'check 2'
+c          write (6,*) 'check 2'
 
         call compute_f_nt(fk,cn_k,lcdim,npts)
         call compute_gk(gk,fk,cn_k,cn_n,lcdim,npts)  ! checking tol. + next NT iter
-        write (6,*) 'check 3'
+c        write (6,*) 'check 3'
         do ic = 1,lcdim
            call chsign(gk(1,ic),npts)
         enddo
-        write (6,*) 'check 4'
+c        write (6,*) 'check 4'
 
         do ic = 1,lcdim
            rnorms(ic) = glsc3(gk(1,ic),gk(1,ic),vmult,npts)
            rnorms(ic) = sqrt(rnorms(ic))
         enddo
 
-        write (6,*) 'check 5'
+c        write (6,*) 'check 5'
         rnorm = glmax(rnorms,lcdim)
         if (iterNT.eq.1) rinorm=rnorm
         ratio=rnorm/rinorm 
-        write (6,*) 'check 6'
+c        write (6,*) 'check 6'
 
 c       if ((nid.eq.0).and.(mod(istepn,iocomm).eq.0)) 
-        write(6,90)
-     $     istepn,iterNT,ratio,rnorm,rinorm,dtNT,dt
-        write (6,*) 'check 7'
+        if (nio.eq.0) write(6,90)
+     $     istepnt,iterNT,ratio,rnorm,rinorm,dtNT,dt
+c        write (6,*) 'check 7'
 
         if (ratio.lt.tolNT) goto 900 ! Newton conv
 c       if (rnorm.lt.new_tol) goto 900 ! Newton conv
@@ -212,7 +216,7 @@ c       Compute the CPU_time
 c       cpu_dtime = dclock()-cpu_dtime !FIXME
 
         cpu_t = cpu_t+cpu_dtime
-        cpu_t_step = cpu_t/istep
+        cpu_t_step = cpu_t/istepnt
         cpu_p_t = glsum(cpu_t_step /npts,1)/np
 
         time = time + dt
@@ -223,8 +227,19 @@ C       Copy for cem_out and cem_chk
 c       do ic = 1,lcdim
 c         call copy(cN(1,ic),cn_k(1,ic),npts) ! just for cem_out
 c       enddo
+        if (ldim.eq.3) call opcopy(vx,vy,vz,
+     $                           cn_k(1,1),cn_k(1,2),cn_k(1,3))
+        if (ldim.eq.2) call opcopy(vx,vy,vz,
+     $                           cn_k(1,1),cn_k(1,2),dummy1)
+
 c       call userchk
+       if(nio.eq.0) write(6,*)'before errchk'
+       call errchk(vx(1,1,1,1),vy(1,1,1,1)) ! in user file
+       if(nio.eq.0) write(6,*)'after  errchk'
 c       call cem_out
+       if(nio.eq.0) write(6,*)'before outpost'
+c       call outpost(vx,vy,vz,pr,t,'   ')
+       if(nio.eq.0) write(6,*)'after  outpost'
 
 c       call errorchk(cn_k(1,1),cn_k(1,2))
 
@@ -366,6 +381,7 @@ c     GMRES iteration.
 c     include 'FDMH1'
 c     include 'GMRES1'
       include 'NGMRES'
+      include 'NEWTON'
 
       integer  n,nion,outer,iflag
       real     phi(lx1*ly1*lz1*lelt),res(lx1*ly1*lz1*lelt),
@@ -450,7 +466,7 @@ c      if (nid.eq.0) write(6,*) 'start: hmh_gmres'
 
 c            if ((nid.eq.0).and.(istep.le.2))
 c                 write (6,*) rnorm,'newton'
-                  write (6,66) iter,tolpsss,rnorm,istep
+                  write (6,66) iter,tolpsss,rnorm,istepnt
    66       format(i5,1p2e12.5,i8,' gmres_newton rnorm')
 
             if (rnorm .lt. tolpsss) goto 900 !converged
@@ -488,10 +504,10 @@ c     write(6,*) 'end of solving least squre problem'
 c     call ortho   (res) ! Orthogonalize wrt null space, if present
 
 c     if ((nid.eq.0).and. (mod(istep,iocomm).eq.0) ) then
-          write(6,9999) istep,newton_iter,iter,tolpss
+      if (nio.eq.0)  write(6,9999) istepnt,iterNT,iter,rnorm,tolpss
 c     endif
 
- 9999 format(' ',' ',i9,i6,'  gmres_newton_iteration#',i6,1p1e12.4)
+ 9999 format(' ',' ',i9,i6,'  gmres(newton)_iteration#',i6,2(1p1e12.4))
 
       return
       end
@@ -522,13 +538,18 @@ C     Copy into working array of sem_bdf1
       if (ldim.eq.2) call opcopy(vx,vy,vz,
      $                           cinput(1,1),cinput(1,2),dummy1)
 
+C     main bdf1 solver
       call plan5(2)
 
-      call opcopy(coutput(1,1),coutput(1,2),dummy1,vx,vy,vz)
-
-      write (6,*) 'check post'
 
 C     Copy out working array of sem_bdf1
+
+      if (ldim.eq.2)
+     $      call opcopy(coutput(1,1),coutput(1,2),dummy1,vx,vy,vz)
+      if (ldim.eq.3) 
+     $      call opcopy(coutput(1,1),coutput(1,2),coutput(1,3),vx,vy,vz)
+
+      write (6,*) 'check post'
 
       return
       end
@@ -546,6 +567,7 @@ c     GMRES iteration.
       include 'TOTAL'
       include 'FDMH1'
       include 'NGMRES'
+      include 'NEWTON' !istepNT
 
       common  /ctolpr/ divex
       common  /cprint/ ifprint
@@ -742,7 +764,7 @@ c           enddo
             rnorm = abs(gamma_gmres(j+1))*norm_fac
             ratio = rnorm/div0
             if (ifprint.and.nio.eq.0) 
-     $         write (6,66) iter,tolpss,rnorm,div0,ratio,istep
+     $         write (6,66) iter,tolpss,rnorm,div0,ratio,istepnt
    66       format(i5,1p4e12.5,i8,' Divergence newton')
 
 #ifndef TST_WSCAL
@@ -782,8 +804,8 @@ c        if(iconv.eq.1) call dbg_write(x,nx1,ny1,nz1,nelv,'esol',3)
       call ortho   (res) ! Orthogonalize wrt null space, if present
 
       etime1 = dnekclock()-etime1
-      if (nio.eq.0) write(6,9999) istep,iter,divex,div0,tolpss,etime_p,
-     &                            etime1,if_hyb
+      if (nio.eq.0) write(6,9999) istepnt,iter,divex,div0,tolpss,
+     $                            etime_p,etime1,if_hyb
 c     call flush_hack
  9999 format(4x,i7,'  newton gmres ',4x,i5,1p5e13.4,1x,l4)
 
