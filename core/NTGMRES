@@ -1,0 +1,20 @@
+c     GMRES in Newton(JFNK)
+
+      common /ntgmres/ x_ntgmres(lx1*ly1*lz1*lelv)
+     $               , r_ntgmres(lx1*ly1*lz1*lelv)
+     $               , w_ntgmres(lx1*ly1*lz1*lelv)
+     $               , h_ntgmres(lgmres,lgmres), gamma_ntgmres(lgmres+1)
+     $               , c_ntgmres(lgmres), s_ntgmres(lgmres)
+
+      common /ntgmre1/  v_ntgmres(lx1*ly1*lz1*lelv,lgmres)
+      common /ntgmre2/  z_ntgmres(lx1*ly1*lz1*lelv,lgmres)
+
+      common /ntspltprec/ ml_ntgmres(lx1*ly1*lz1*lelv),
+     $                   mu_ntgmres(lx1*ly1*lz1*lelv)
+      real ml_ntgmres,mu_ntgmres
+      
+c     w is a work vector
+c     c and s store the Givens rotations
+c     V stores the orthogonal Krylov subspace basis
+c          -1
+c     Z = M   V

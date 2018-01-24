@@ -377,8 +377,9 @@ c-----------------------------------------------------------------------
 C     GMRES that solving Newton iteration. Use JacMacVec as Ax
 C     This solve linear system for single array, but the other arrays
 C     are also invloved as a referenced points
+C     from NekCEM (and NekCEM from Nek5000)
       subroutine drift_hmh_gmres_newton
-     $           (phi,res,uc,f,wt,nion,n,tol,iflag)
+     $           (phi,res,uc,f,wt,nion,n,tol,ic)
 c-----------------------------------------------------------------------
 c     Solve the Helmholtz equation by right-preconditioned
 c     GMRES iteration.
@@ -386,13 +387,13 @@ c     GMRES iteration.
       include 'TOTAL'
 c     include 'FDMH1'
 c     include 'GMRES1'
-      include 'NGMRES' ! fixme
+      include 'NTGMRES' ! fixme
       include 'NEWTON'
 
-      integer  n,nion,outer,iflag
+      integer  n,nion,outer,ic
       real     phi(lx1*ly1*lz1*lelt),res(lx1*ly1*lz1*lelt),
      $         wt(lx1*ly1*lz1*lelt)
-      real     tol,alphan,l,temp
+      real     tol,alphant,l,temp
       real     eps,uc(lx1*ly1*lz1*lelt,nion),f(lx1*ly1*lz1*lelt)
       real*8   etime1,dnekclock
 
@@ -405,25 +406,25 @@ c      if (nid.eq.0) write(6,*) 'start: hmh_gmres'
       tolpss= tolps
       iconv = 0
       
-      call rzero(x_gmres,n)
-      call rzero(h_gmres,m*m)
+      call rzero(x_ntgmres,n)
+      call rzero(h_ntgmres,m*m)
 
       outer = 0
       do while (iconv.eq.0.and.iter.lt.500)
          outer = outer+1
          if(iter.eq.0) then
-            call copy  (r_gmres,res,n)                  ! r = res
+            call copy  (r_ntgmres,res,n)                  ! r = res
          else
             !update residual
-            call copy   (r_gmres,res,n)                  ! r = res
-            call JacobiMatVec(w_gmres,x_gmres,uc,f,nion,n,iflag)! w = A x
-            call add2s2 (r_gmres,w_gmres,-1.,n) ! r = r - w
+            call copy   (r_ntgmres,res,n)                  ! r = res
+            call JacobiMatVec(w_ntgmres,x_ntgmres,uc,f,nion,n,ic)! w = A x
+            call add2s2 (r_ntgmres,w_ntgmres,-1.,n) ! r = r - w
          endif
 
-         gamma_gmres(1) = glsc3(r_gmres,r_gmres,wt,n)                ! gamma_gmres  = (r,r)
-         gamma_gmres(1) = sqrt(gamma_gmres(1))                 ! gamma_gmres  = sqrt{ (r,r) }
+         gamma_ntgmres(1) = glsc3(r_ntgmres,r_ntgmres,wt,n)          ! gamma_gmres  = (r,r)
+         gamma_ntgmres(1) = sqrt(gamma_ntgmres(1))           ! gamma_gmres  = sqrt{ (r,r) }
 
-         tolps = 0.1*gamma_gmres(1)  ! tolerance for gmres                   
+         tolps = 0.1*gamma_ntgmres(1)  ! tolerance for gmres                   
          tolpss = tolps        ! by using inexact Newton method
                                ! 0.1 for forcing term and is changable
          tolpsss = tolpss
@@ -432,43 +433,43 @@ c      if (nid.eq.0) write(6,*) 'start: hmh_gmres'
 
          !check for lucky convergence
          rnorm = 0.
-         if(gamma_gmres(1) .eq. 0.) goto 9000
-         temp = 1./gamma_gmres(1)
-         call cmult2(v_gmres(1,1),r_gmres,temp,n)             !  v  = r / gamma_gmres
+         if(gamma_ntgmres(1) .eq. 0.) goto 9000
+         temp = 1./gamma_ntgmres(1)
+         call cmult2(v_ntgmres(1,1),r_ntgmres,temp,n)             !  v  = r / gamma_gmres
                                                   !  1            1
          !write(6,*) 'start form m-th krylov subspace'
          do j=1,m
             iter = iter+1
 
-            call JacobiMatVec(w_gmres,v_gmres(1,j),uc,f,nion,n,iflag) ! w = A v
+            call JacobiMatVec(w_ntgmres,v_ntgmres(1,j),uc,f,nion,n,ic) ! w = A v
 
             !modified Gram-Schmidt
             do i=1,j
-               h_gmres(i,j)=glsc3(w_gmres,v_gmres(1,i),wt,n)        ! h    = (w,v )
+               h_ntgmres(i,j)=glsc3(w_ntgmres,v_ntgmres(1,i),wt,n)     ! h    = (w,v )
                                                   ! i,j       i
-               call add2s2(w_gmres,v_gmres(1,i),-h_gmres(i,j),n)    ! w = w - h    v
+               call add2s2(w_ntgmres,v_ntgmres(1,i),-h_ntgmres(i,j),n) ! w = w - h    v
             enddo                                 !         i,j  i
 
             !apply Givens rotations to new column
             do i=1,j-1
-               temp = h_gmres(i,j)
-               h_gmres(i  ,j)=  c_gmres(i)*temp 
-     $         + s_gmres(i)*h_gmres(i+1,j)
-               h_gmres(i+1,j)= -s_gmres(i)*temp 
-     $         + c_gmres(i)*h_gmres(i+1,j)
+               temp = h_ntgmres(i,j)
+               h_ntgmres(i  ,j)=  c_ntgmres(i)*temp 
+     $         + s_ntgmres(i)*h_ntgmres(i+1,j)
+               h_ntgmres(i+1,j)= -s_ntgmres(i)*temp 
+     $         + c_ntgmres(i)*h_ntgmres(i+1,j)
             enddo
                                               !            ______
-            alphan = sqrt(glsc3(w_gmres,w_gmres,wt,n))     ! alphan =  \/ (w,w)
-            if(alphan.eq.0.) goto 900 !converged
-            l = sqrt(h_gmres(j,j)*h_gmres(j,j)+alphan*alphan)
+            alphant = sqrt(glsc3(w_ntgmres,w_ntgmres,wt,n))     ! alphan =  \/ (w,w)
+            if(alphant.eq.0.) goto 900 !converged
+            l = sqrt(h_ntgmres(j,j)*h_ntgmres(j,j)+alphant*alphant)
             temp = 1./l
-            c_gmres(j) = h_gmres(j,j) * temp
-            s_gmres(j) = alphan  * temp
-            h_gmres(j,j) = l
-            gamma_gmres(j+1) = -s_gmres(j) * gamma_gmres(j)
-            gamma_gmres(j)   =  c_gmres(j) * gamma_gmres(j)
+            c_ntgmres(j) = h_ntgmres(j,j) * temp
+            s_ntgmres(j) = alphant  * temp
+            h_ntgmres(j,j) = l
+            gamma_ntgmres(j+1) = -s_ntgmres(j) * gamma_ntgmres(j)
+            gamma_ntgmres(j)   =  c_ntgmres(j) * gamma_ntgmres(j)
 
-            rnorm = abs(gamma_gmres(j+1))
+            rnorm = abs(gamma_ntgmres(j+1))
 
 c            if ((nid.eq.0).and.(istep.le.2))
 c                 write (6,*) rnorm,'newton'
@@ -478,8 +479,8 @@ c                 write (6,*) rnorm,'newton'
             if (rnorm .lt. tolpsss) goto 900 !converged
             if (j.eq.m) goto 1000 !not converged, restart
 
-            temp = 1./alphan
-            call cmult2(v_gmres(1,j+1),w_gmres,temp,n)   ! v    = w / alphan
+            temp = 1./alphant
+            call cmult2(v_ntgmres(1,j+1),w_ntgmres,temp,n)   ! v    = w / alphan
                                              !  j+1
          enddo
 c        write(6,*) 'end of forming m-th krylov subspace'
@@ -491,21 +492,21 @@ c             -1
 c        c = H   gamma_gmres
 c        write(6,*) 'start solving least squre problem'
          do k=j,1,-1
-            temp = gamma_gmres(k)
+            temp = gamma_ntgmres(k)
             do i=j,k+1,-1
-               temp = temp - h_gmres(k,i)*c_gmres(i)
+               temp = temp - h_ntgmres(k,i)*c_ntgmres(i)
             enddo
-            c_gmres(k) = temp/h_gmres(k,k)
+            c_ntgmres(k) = temp/h_ntgmres(k,k)
          enddo
          !sum up Arnoldi vectors
          do i=1,j
-            call add2s2(x_gmres,v_gmres(1,i),c_gmres(i),n)     ! x = x + c  z
+            call add2s2(x_ntgmres,v_ntgmres(1,i),c_ntgmres(i),n)     ! x = x + c  z
          enddo                               !          i  i
 c     write(6,*) 'end of solving least squre problem'
       enddo
  9000 continue
 
-      call copy(phi,x_gmres,n)
+      call copy(phi,x_ntgmres,n)
 
 c     call ortho   (res) ! Orthogonalize wrt null space, if present
 
@@ -560,266 +561,266 @@ C     Copy out working arrays from sem_bdf1
       return
       end
 c-----------------------------------------------------------------------
-c     subroutine hmh_gmres_newton(res,h1,h2,wt,iter)
-      subroutine hmh_gmres_newton(out,res,uc,f,wt,n,tol,isd)
-
-c           call hmh_gmres_newton(sk(1,ic),gk(1,ic),cn_k,fk(1,ic),vmult,
-c    $                            lcdim,npts,tolgmres,ic)
-
-c     Solve the Helmholtz equation by right-preconditioned 
-c     GMRES iteration.
-
-      include 'SIZE'
-      include 'TOTAL'
-      include 'FDMH1'
-      include 'NGMRES'
-      include 'NEWTON' !istepNT
-
-      common  /ctolpr/ divex
-      common  /cprint/ ifprint
-      logical          ifprint
-
-      real             res  (lx1*ly1*lz1*lelv)
-c     real             h1   (lx1,ly1,lz1,lelv)
-c     real             h2   (lx1,ly1,lz1,lelv)
-      real             wt   (lx1,ly1,lz1,lelv)
-
-      common /scrcg/ d(lx1*ly1*lz1*lelv),wk(lx1*ly1*lz1*lelv)
-
-      common /cgmres1/ y(lgmres)
-      common /ctmp0/   wk1(lgmres),wk2(lgmres)
-
-      real alpha, l, temp
-      integer outer
-
-      logical iflag,if_hyb
-      save    iflag,if_hyb
-c     data    iflag,if_hyb  /.false. , .true. /
-      data    iflag,if_hyb  /.false. , .false. /
-      real    norm_fac
-      save    norm_fac
-
-      real*8 etime1,dnekclock
-
-      n = nx1*ny1*nz1*nelv
-
-      etime1  = dnekclock()
-      etime_p = 0.
-      divex   = 0.
-      iter    = 0
-      m       = lgmres
-
-      write (6,*) 'gm 1'
-
-      if (.not.iflag) then
-         iflag=.true.
-         call uzawa_gmres_split(ml_gmres,mu_gmres,bm1,binvm1,
-     $                          nx1*ny1*nz1*nelv)
-         norm_fac = 1./sqrt(volvm1)
-      endif
-
-      write (6,*) 'gm 2'
-
-c     if (param(100).ne.2) call set_fdm_prec_h1b(d,h1,h2,nelv)
-      do i=1,lx1*ly1*lz1*nelv
-         d(i) = 1.
-      enddo
-
-      write (6,*) 'gm 3'
-
-c     call chktcg1(tolps,res,h1,h2,pmask,vmult,1,1)
-
-c     if (param(21).gt.0.and.tolps.gt.abs(param(21))) 
-c    $   tolps = abs(param(21))
-c     if (istep.eq.0) tolps = 1.e-4
-      tolps=tol
-      tolpss = tolps
-
-      iconv = 0
-      call rzero(x_gmres,n)
-
-      outer = 0
-      do while (iconv.eq.0.and.iter.lt.500)
-         outer = outer+1
-
-         if (iter.eq.0) then                   !      -1
-            call col3(r_gmres,ml_gmres,res,n) ! r = L  res
-c           call copy(r,res,n)
-         else
-            !update residual
-            call copy  (r_gmres,res,n)           ! r = res
-
-            call jacobimatvec(w_gmres,x_gmres,uc,f,ldim,n,isd)
-            call copy(w_gmres,x_gmres,n)
-c           call ax    (w_gmres,x_gmres,h1,h2,n) ! w = A x
-            call add2s2(r_gmres,w_gmres,-1.,n)   ! r = r - w
-                                                 !      -1
-            call col2(r_gmres,ml_gmres,n)        ! r = L   r
-         endif
-                                                            !            ______
-         gamma_gmres(1) = sqrt(glsc3(r_gmres,r_gmres,wt,n)) ! gamma  = \/ (r,r) 
-                                                            !      1
-         if(iter.eq.0) then
-            div0 = gamma_gmres(1)*norm_fac
-            if (param(21).lt.0) tolpss=abs(param(21))*div0
-         endif
-
-         !check for lucky convergence
-         rnorm = 0.
-         if (gamma_gmres(1) .eq. 0.) goto 9000
-         temp = 1./gamma_gmres(1)
-         call cmult2(v_gmres(1,1),r_gmres,temp,n) ! v  = r / gamma
-                                                  !  1            1
-
-         ifmgrid=.false.
-
-         do j=1,m
-            iter = iter+1
-                                                       !       -1
-            call col3(w_gmres,mu_gmres,v_gmres(1,j),n) ! w  = U   v
-                                                       !           j
-
-c . . . . . Overlapping Schwarz + coarse-grid . . . . . . .
-
-            etime2 = dnekclock()
-
-c           if (outer.gt.2) if_hyb = .true.       ! Slow outer convergence
-            if (ifmgrid) then
-               call h1mg_solve(z_gmres(1,j),w_gmres,if_hyb) ! z  = M   w
-            else                                            !  j
-               kfldfdm = ndim+1
-               if (param(100).eq.2) then
-                   call h1_overlap_2 (z_gmres(1,j),w_gmres,pmask)
-               else
-                   call fdm_h1
-     $               (z_gmres(1,j),w_gmres,d,pmask,vmult,nelv,
-     $                ktype(1,1,kfldfdm),wk)
-               endif
-               call crs_solve_h1 (wk,w_gmres)        ! z  = M   w
-               call add2         (z_gmres(1,j),wk,n) !  j        
-            endif
-
-            call ortho        (z_gmres(1,j)) ! Orthogonalize wrt null space, if present
-            etime_p = etime_p + dnekclock()-etime2
-c . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
-
-            call jacobimatvec(w_gmres,z_gmres(1,j),uc,f,ldim,n,isd)
-            call copy(w_gmres,z_gmres(1,j),n)
-
-c           call ax  (w_gmres,z_gmres(1,j),h1,h2,n) ! w = A z
-                                                    !        j
-     
-                                                    !      -1
-            call col2(w_gmres,ml_gmres,n)           ! w = L   w
-
-c           !modified Gram-Schmidt
-
-c           do i=1,j
-c              h_gmres(i,j)=glsc3(w_gmres,v_gmres(1,i),wt,n) ! h    = (w,v )
-c                                                            !  i,j       i
-
-c              call add2s2(w_gmres,v_gmres(1,i),-h_gmres(i,j),n) ! w = w - h    v
-c           enddo                                                !          i,j  i
-
-c           2-PASS GS, 1st pass:
-
-            do i=1,j
-               h_gmres(i,j)=vlsc3(w_gmres,v_gmres(1,i),wt,n) ! h    = (w,v )
-            enddo                                            !  i,j       i
-
-            call gop(h_gmres(1,j),wk1,'+  ',j)          ! sum over P procs
-
-            do i=1,j
-               call add2s2(w_gmres,v_gmres(1,i),-h_gmres(i,j),n) ! w = w - h    v
-            enddo                                                !          i,j  i
-
-
-c           2-PASS GS, 2nd pass:
+cc     subroutine hmh_gmres_newton(res,h1,h2,wt,iter)
+c      subroutine hmh_gmres_newton(out,res,uc,f,wt,n,tol,isd)
 c
-c           do i=1,j
-c              wk1(i)=vlsc3(w_gmres,v_gmres(1,i),wt,n) ! h    = (w,v )
-c           enddo                                      !  i,j       i
-c                                                      !
-c           call gop(wk1,wk2,'+  ',j)                  ! sum over P procs
+cc           call hmh_gmres_newton(sk(1,ic),gk(1,ic),cn_k,fk(1,ic),vmult,
+cc    $                            lcdim,npts,tolgmres,ic)
 c
-c           do i=1,j
-c              call add2s2(w_gmres,v_gmres(1,i),-wk1(i),n)    ! w = w - h    v
-c              h_gmres(i,j) = h_gmres(i,j) + wk1(i)           !          i,j  i
-c           enddo
-
-            !apply Givens rotations to new column
-            do i=1,j-1
-               temp = h_gmres(i,j)                   
-               h_gmres(i  ,j)=  c_gmres(i)*temp 
-     $                        + s_gmres(i)*h_gmres(i+1,j)  
-               h_gmres(i+1,j)= -s_gmres(i)*temp 
-     $                        + c_gmres(i)*h_gmres(i+1,j)
-            enddo
-                                                      !            ______
-            alpha = sqrt(glsc3(w_gmres,w_gmres,wt,n)) ! alpha =  \/ (w,w)
-            rnorm = 0.
-            if(alpha.eq.0.) goto 900  !converged
-            l = sqrt(h_gmres(j,j)*h_gmres(j,j)+alpha*alpha)
-            temp = 1./l
-            c_gmres(j) = h_gmres(j,j) * temp
-            s_gmres(j) = alpha  * temp
-            h_gmres(j,j) = l
-            gamma_gmres(j+1) = -s_gmres(j) * gamma_gmres(j)
-            gamma_gmres(j)   =  c_gmres(j) * gamma_gmres(j)
-
-            rnorm = abs(gamma_gmres(j+1))*norm_fac
-            ratio = rnorm/div0
-            if (ifprint.and.nio.eq.0) 
-     $         write (6,66) iter,tolpss,rnorm,div0,ratio,istepnt
-   66       format(i5,1p4e12.5,i8,' Divergence newton')
-
-#ifndef TST_WSCAL
-            if (rnorm .lt. tolpss) goto 900  !converged
-#else
-            if (iter.gt.param(151)-1) goto 900
-#endif
-            if (j.eq.m) goto 1000 !not converged, restart
-
-            temp = 1./alpha
-            call cmult2(v_gmres(1,j+1),w_gmres,temp,n) ! v    = w / alpha
-                                                       !  j+1            
-         enddo
-  900    iconv = 1
- 1000    continue
-         !back substitution
-         !     -1
-         !c = H   gamma
-         do k=j,1,-1
-            temp = gamma_gmres(k)
-            do i=j,k+1,-1
-               temp = temp - h_gmres(k,i)*c_gmres(i)
-            enddo
-            c_gmres(k) = temp/h_gmres(k,k)
-         enddo
-         !sum up Arnoldi vectors
-         do i=1,j
-            call add2s2(x_gmres,z_gmres(1,i),c_gmres(i),n) ! x = x + c  z
-         enddo                                             !          i  i
-c        if(iconv.eq.1) call dbg_write(x,nx1,ny1,nz1,nelv,'esol',3)
-      enddo
- 9000 continue
-
-      divex = rnorm
-      call copy(out,x_gmres,n)
-
-      call ortho   (res) ! Orthogonalize wrt null space, if present
-
-      etime1 = dnekclock()-etime1
-      if (nio.eq.0) write(6,9999) istepnt,iter,divex,div0,tolpss,
-     $                            etime_p,etime1,if_hyb
-c     call flush_hack
- 9999 format(4x,i7,'  newton gmres ',4x,i5,1p5e13.4,1x,l4)
-
-      if (outer.le.2) if_hyb = .false.
-
-      return
-      end
-c-----------------------------------------------------------------------
+cc     Solve the Helmholtz equation by right-preconditioned 
+cc     GMRES iteration.
+c
+c      include 'SIZE'
+c      include 'TOTAL'
+c      include 'FDMH1'
+cc      include 'NTGMRES'
+c      include 'NEWTON' !istepNT
+c
+c      common  /ctolpr/ divex
+c      common  /cprint/ ifprint
+c      logical          ifprint
+c
+c      real             res  (lx1*ly1*lz1*lelv)
+cc     real             h1   (lx1,ly1,lz1,lelv)
+cc     real             h2   (lx1,ly1,lz1,lelv)
+c      real             wt   (lx1,ly1,lz1,lelv)
+c
+c      common /scrcg/ d(lx1*ly1*lz1*lelv),wk(lx1*ly1*lz1*lelv)
+c
+c      common /cgmres1/ y(lgmres)
+c      common /ctmp0/   wk1(lgmres),wk2(lgmres)
+c
+c      real alpha, l, temp
+c      integer outer
+c
+c      logical iflag,if_hyb
+c      save    iflag,if_hyb
+cc     data    iflag,if_hyb  /.false. , .true. /
+c      data    iflag,if_hyb  /.false. , .false. /
+c      real    norm_fac
+c      save    norm_fac
+c
+c      real*8 etime1,dnekclock
+c
+c      n = nx1*ny1*nz1*nelv
+c
+c      etime1  = dnekclock()
+c      etime_p = 0.
+c      divex   = 0.
+c      iter    = 0
+c      m       = lgmres
+c
+c      write (6,*) 'gm 1'
+c
+c      if (.not.iflag) then
+c         iflag=.true.
+c         call uzawa_gmres_split(ml_gmres,mu_gmres,bm1,binvm1,
+c     $                          nx1*ny1*nz1*nelv)
+c         norm_fac = 1./sqrt(volvm1)
+c      endif
+c
+c      write (6,*) 'gm 2'
+c
+cc     if (param(100).ne.2) call set_fdm_prec_h1b(d,h1,h2,nelv)
+c      do i=1,lx1*ly1*lz1*nelv
+c         d(i) = 1.
+c      enddo
+c
+c      write (6,*) 'gm 3'
+c
+cc     call chktcg1(tolps,res,h1,h2,pmask,vmult,1,1)
+c
+cc     if (param(21).gt.0.and.tolps.gt.abs(param(21))) 
+cc    $   tolps = abs(param(21))
+cc     if (istep.eq.0) tolps = 1.e-4
+c      tolps=tol
+c      tolpss = tolps
+c
+c      iconv = 0
+c      call rzero(x_gmres,n)
+c
+c      outer = 0
+c      do while (iconv.eq.0.and.iter.lt.500)
+c         outer = outer+1
+c
+c         if (iter.eq.0) then                   !      -1
+c            call col3(r_gmres,ml_gmres,res,n) ! r = L  res
+cc           call copy(r,res,n)
+c         else
+c            !update residual
+c            call copy  (r_gmres,res,n)           ! r = res
+c
+c            call jacobimatvec(w_gmres,x_gmres,uc,f,ldim,n,isd)
+c            call copy(w_gmres,x_gmres,n)
+cc           call ax    (w_gmres,x_gmres,h1,h2,n) ! w = A x
+c            call add2s2(r_gmres,w_gmres,-1.,n)   ! r = r - w
+c                                                 !      -1
+c            call col2(r_gmres,ml_gmres,n)        ! r = L   r
+c         endif
+c                                                            !            ______
+c         gamma_gmres(1) = sqrt(glsc3(r_gmres,r_gmres,wt,n)) ! gamma  = \/ (r,r) 
+c                                                            !      1
+c         if(iter.eq.0) then
+c            div0 = gamma_gmres(1)*norm_fac
+c            if (param(21).lt.0) tolpss=abs(param(21))*div0
+c         endif
+c
+c         !check for lucky convergence
+c         rnorm = 0.
+c         if (gamma_gmres(1) .eq. 0.) goto 9000
+c         temp = 1./gamma_gmres(1)
+c         call cmult2(v_gmres(1,1),r_gmres,temp,n) ! v  = r / gamma
+c                                                  !  1            1
+c
+c         ifmgrid=.false.
+c
+c         do j=1,m
+c            iter = iter+1
+c                                                       !       -1
+c            call col3(w_gmres,mu_gmres,v_gmres(1,j),n) ! w  = U   v
+c                                                       !           j
+c
+cc . . . . . Overlapping Schwarz + coarse-grid . . . . . . .
+c
+c            etime2 = dnekclock()
+c
+cc           if (outer.gt.2) if_hyb = .true.       ! Slow outer convergence
+c            if (ifmgrid) then
+c               call h1mg_solve(z_gmres(1,j),w_gmres,if_hyb) ! z  = M   w
+c            else                                            !  j
+c               kfldfdm = ndim+1
+c               if (param(100).eq.2) then
+c                   call h1_overlap_2 (z_gmres(1,j),w_gmres,pmask)
+c               else
+c                   call fdm_h1
+c     $               (z_gmres(1,j),w_gmres,d,pmask,vmult,nelv,
+c     $                ktype(1,1,kfldfdm),wk)
+c               endif
+c               call crs_solve_h1 (wk,w_gmres)        ! z  = M   w
+c               call add2         (z_gmres(1,j),wk,n) !  j        
+c            endif
+c
+c            call ortho        (z_gmres(1,j)) ! Orthogonalize wrt null space, if present
+c            etime_p = etime_p + dnekclock()-etime2
+cc . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
+c
+c            call jacobimatvec(w_gmres,z_gmres(1,j),uc,f,ldim,n,isd)
+c            call copy(w_gmres,z_gmres(1,j),n)
+c
+cc           call ax  (w_gmres,z_gmres(1,j),h1,h2,n) ! w = A z
+c                                                    !        j
+c     
+c                                                    !      -1
+c            call col2(w_gmres,ml_gmres,n)           ! w = L   w
+c
+cc           !modified Gram-Schmidt
+c
+cc           do i=1,j
+cc              h_gmres(i,j)=glsc3(w_gmres,v_gmres(1,i),wt,n) ! h    = (w,v )
+cc                                                            !  i,j       i
+c
+cc              call add2s2(w_gmres,v_gmres(1,i),-h_gmres(i,j),n) ! w = w - h    v
+cc           enddo                                                !          i,j  i
+c
+cc           2-PASS GS, 1st pass:
+c
+c            do i=1,j
+c               h_gmres(i,j)=vlsc3(w_gmres,v_gmres(1,i),wt,n) ! h    = (w,v )
+c            enddo                                            !  i,j       i
+c
+c            call gop(h_gmres(1,j),wk1,'+  ',j)          ! sum over P procs
+c
+c            do i=1,j
+c               call add2s2(w_gmres,v_gmres(1,i),-h_gmres(i,j),n) ! w = w - h    v
+c            enddo                                                !          i,j  i
+c
+c
+cc           2-PASS GS, 2nd pass:
+cc
+cc           do i=1,j
+cc              wk1(i)=vlsc3(w_gmres,v_gmres(1,i),wt,n) ! h    = (w,v )
+cc           enddo                                      !  i,j       i
+cc                                                      !
+cc           call gop(wk1,wk2,'+  ',j)                  ! sum over P procs
+cc
+cc           do i=1,j
+cc              call add2s2(w_gmres,v_gmres(1,i),-wk1(i),n)    ! w = w - h    v
+cc              h_gmres(i,j) = h_gmres(i,j) + wk1(i)           !          i,j  i
+cc           enddo
+c
+c            !apply Givens rotations to new column
+c            do i=1,j-1
+c               temp = h_gmres(i,j)                   
+c               h_gmres(i  ,j)=  c_gmres(i)*temp 
+c     $                        + s_gmres(i)*h_gmres(i+1,j)  
+c               h_gmres(i+1,j)= -s_gmres(i)*temp 
+c     $                        + c_gmres(i)*h_gmres(i+1,j)
+c            enddo
+c                                                      !            ______
+c            alpha = sqrt(glsc3(w_gmres,w_gmres,wt,n)) ! alpha =  \/ (w,w)
+c            rnorm = 0.
+c            if(alpha.eq.0.) goto 900  !converged
+c            l = sqrt(h_gmres(j,j)*h_gmres(j,j)+alpha*alpha)
+c            temp = 1./l
+c            c_gmres(j) = h_gmres(j,j) * temp
+c            s_gmres(j) = alpha  * temp
+c            h_gmres(j,j) = l
+c            gamma_gmres(j+1) = -s_gmres(j) * gamma_gmres(j)
+c            gamma_gmres(j)   =  c_gmres(j) * gamma_gmres(j)
+c
+c            rnorm = abs(gamma_gmres(j+1))*norm_fac
+c            ratio = rnorm/div0
+c            if (ifprint.and.nio.eq.0) 
+c     $         write (6,66) iter,tolpss,rnorm,div0,ratio,istepnt
+c   66       format(i5,1p4e12.5,i8,' Divergence newton')
+c
+c#ifndef TST_WSCAL
+c            if (rnorm .lt. tolpss) goto 900  !converged
+c#else
+c            if (iter.gt.param(151)-1) goto 900
+c#endif
+c            if (j.eq.m) goto 1000 !not converged, restart
+c
+c            temp = 1./alpha
+c            call cmult2(v_gmres(1,j+1),w_gmres,temp,n) ! v    = w / alpha
+c                                                       !  j+1            
+c         enddo
+c  900    iconv = 1
+c 1000    continue
+c         !back substitution
+c         !     -1
+c         !c = H   gamma
+c         do k=j,1,-1
+c            temp = gamma_gmres(k)
+c            do i=j,k+1,-1
+c               temp = temp - h_gmres(k,i)*c_gmres(i)
+c            enddo
+c            c_gmres(k) = temp/h_gmres(k,k)
+c         enddo
+c         !sum up Arnoldi vectors
+c         do i=1,j
+c            call add2s2(x_gmres,z_gmres(1,i),c_gmres(i),n) ! x = x + c  z
+c         enddo                                             !          i  i
+cc        if(iconv.eq.1) call dbg_write(x,nx1,ny1,nz1,nelv,'esol',3)
+c      enddo
+c 9000 continue
+c
+c      divex = rnorm
+c      call copy(out,x_gmres,n)
+c
+c      call ortho   (res) ! Orthogonalize wrt null space, if present
+c
+c      etime1 = dnekclock()-etime1
+c      if (nio.eq.0) write(6,9999) istepnt,iter,divex,div0,tolpss,
+c     $                            etime_p,etime1,if_hyb
+cc     call flush_hack
+c 9999 format(4x,i7,'  newton gmres ',4x,i5,1p5e13.4,1x,l4)
+c
+c      if (outer.le.2) if_hyb = .false.
+c
+c      return
+c      end
+cc-----------------------------------------------------------------------
 c     subroutine hmh_gmres_newton2(out,res,uc,f,n,tol,isd,wt,iter)
       subroutine hmh_gmres_newton2(res,wt,iter)
 c     subroutine hmh_gmres_newton(out,res,uc,f,wt,n,tol,isd)

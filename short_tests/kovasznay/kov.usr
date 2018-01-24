@@ -56,7 +56,7 @@ c-----------------------------------------------------------------------
 
       real xp(ldim,10)
 
-      write(6,*)'Lan check'
+      write(6,*)'inside errchk, check'
 
       ntot=nx1*ny1*nz1*nelv
 
