@@ -40,9 +40,9 @@ c      common /ctmp1e/ uxe (lx1,ly1,lz1,lelv), uye (lx1,ly1,lz1,lelv)
 
 C     Parametar settings ToDo: move to user file, Lan
 
-      alphaNT = 1.            ! Newton relaxation parameter alphan in (0,1]
+      alphaNT = 1E-3            ! Newton relaxation parameter alphan in (0,1]
 c     nsteps = 200         ! steps for pseudo-transient continuation
-      maxNTit = 20           ! #iter of Newton method
+      maxNTit = 100           ! #iter of Newton method
       jaceps = 1e-8        ! eps for approx. Jacobian
       epsinv = 1./jaceps
       tolNTGMRES = 1e-8     ! tol for GMRES
@@ -279,7 +279,7 @@ c    $       ,1.0,-1.0*dtNT,-1.0,n)
 
 c        call sub3s2(gout,ckn,f,1.,-dtnt,n)
 
-         call add3s2(gout(1,ic),ckn(1,ic),f(1,ic),1.,-dtnt,n)
+         call add3s2(gout(1,ic),ckn(1,ic),f(1,ic),1.,-dtNT,n)
          write (6,*) 'after add3s2'
 
          call sub2(gout(1,ic),c0n(1,ic),n)
@@ -330,7 +330,7 @@ c        J_k s_k = s_k - (dt /eps) *  ( f(u_k + eps*s_k) - f(u_k) )
 c   
 c     where f(u_k) has been store in each Newton iteration
 c           f(u_k + eps*s_k) has to be computed in each GMRES iteration
-      subroutine JacobiMatVec(jacp,p,uc,fi,nion,n,iflag)
+      subroutine JacobiMatVec(jacp,p,uc,fi,nion,n,ifc)
 c-----------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
@@ -346,7 +346,7 @@ c-----------------------------------------------------------------------
 C     Determine eps with norms of p and u_iflag
       pnorm = glsc3(p,p,vmult,n)
       pnorm = sqrt(pnorm)
-      unorm = glsc3(uc(1,iflag),uc(1,iflag),vmult,n)
+      unorm = glsc3(uc(1,ifc),uc(1,ifc),vmult,n)
       unorm = sqrt(unorm)
 
       eps = (1+unorm)*1e-14   ! formula for varing eps
@@ -360,11 +360,11 @@ C     Compute Jp
         call copy(uep(1,ic),uc(1,ic),n)
       enddo
 
-      call add3s2(uep(1,iflag),uc(1,iflag),p,1.0,eps,n) ! uep = u + eps*p
+      call add3s2(uep(1,ifc),uc(1,ifc),p,1.0,eps,n) ! uep = u + eps*p
 
       call compute_fkNT(fo,uep,nion,n)
 
-      call sub3  (foi,fo(1,iflag),fi,n)
+      call sub3  (foi,fo(1,ifc),fi,n)
       call cmult (foi,epsinv*dtNT,n) ! foi = (fo-fi)*dt_newton/eps
       call sub3  (jacp,p,foi,n)
       call cmult (jacp,dtntinv,n)      ! Jp = p/dt_newton - (fo-f)/eps
@@ -379,7 +379,7 @@ C     This solve linear system for single array, but the other arrays
 C     are also invloved as a referenced points
 C     from NekCEM (and NekCEM from Nek5000)
       subroutine drift_hmh_gmres_newton
-     $           (phi,res,uc,f,wt,nion,n,tol,ic)
+     $           (phi,res,uc,f,wt,nion,n,tol,ifc)
 c-----------------------------------------------------------------------
 c     Solve the Helmholtz equation by right-preconditioned
 c     GMRES iteration.
@@ -417,7 +417,7 @@ c      if (nid.eq.0) write(6,*) 'start: hmh_gmres'
          else
             !update residual
             call copy   (r_ntgmres,res,n)                  ! r = res
-            call JacobiMatVec(w_ntgmres,x_ntgmres,uc,f,nion,n,ic)! w = A x
+            call JacobiMatVec(w_ntgmres,x_ntgmres,uc,f,nion,n,ifc)! w = A x
             call add2s2 (r_ntgmres,w_ntgmres,-1.,n) ! r = r - w
          endif
 
@@ -441,7 +441,7 @@ c      if (nid.eq.0) write(6,*) 'start: hmh_gmres'
          do j=1,m
             iter = iter+1
 
-            call JacobiMatVec(w_ntgmres,v_ntgmres(1,j),uc,f,nion,n,ic) ! w = A v
+            call JacobiMatVec(w_ntgmres,v_ntgmres(1,j),uc,f,nion,n,ifc) ! w = A v
 
             !modified Gram-Schmidt
             do i=1,j
@@ -522,13 +522,13 @@ c     endif
 c---------------------------------------------------------------------
 C     This subroutine compute sem_bdf1, user can provide any(*) 
 C     bdf1 time swapper in here
-      subroutine cem_drift_sem_bdf1_newton(cinput,coutput,nion,n,iflag)
+      subroutine cem_drift_sem_bdf1_newton(cinput,coutput,nion,n,ifc)
 c---------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
 c     include 'BCS'
 
-      integer iflag,nion,n,ic
+      integer ifc,nion,n,ic
       real cinput(lx1*ly1*lz1*lelt,nion)
       real coutput(lx1*ly1*lz1*lelt,nion)
 
