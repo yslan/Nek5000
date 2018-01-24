@@ -10,15 +10,14 @@ c     using variables cN and cP in DRIFT
 c-----------------------------------------------------------------------      
       include 'SIZE'
       include 'TOTAL'
-      include 'NGMRES'
       include 'NEWTON'
-      include 'CTIMER'
+      include 'CTIMER' ! nekcem timer, fixme
 c     include 'RTIMER'
 
-      parameter (lcdim=ldim)
+      parameter (lcdim=ldim) ! number of field, lcdim(vx,vy)=2
 
-      real alphan,tt
-      real tolNT,tolGMRES
+      real alphaNT,tt
+      real tolNT,tolNTGMRES
       real glmax,glsc3 
       real rnorm,rnorms(lcdim)
       real rinorm,rinorms(lcdim),ratio
@@ -26,33 +25,33 @@ c     include 'RTIMER'
       real temp(lx1*ly1*lz1*lelt)
 
       integer i,j,k,n,ic
-      integer maxit
+      integer maxNTit
       real glsum
-      real f_pre,f_now
-      real max_dtNT,min_tol      
-      real sk  (lx1*ly1*lz1*lelt,lcdim),  !
-     $     fk  (lx1*ly1*lz1*lelt,lcdim),  !
-     $     gk  (lx1*ly1*lz1*lelt,lcdim),  !
-     $     cn_n(lx1*ly1*lz1*lelt,lcdim),  ! working array in Pseudo time step
-     $     cn_k(lx1*ly1*lz1*lelt,lcdim)   ! working array in Newton iteration
+      real nfNT_pre,nfNT_now                ! norm of fNT
+      real max_dtNT,min_tolNT
+      real skNT  (lx1*ly1*lz1*lelt,lcdim),  !
+     $     fkNT  (lx1*ly1*lz1*lelt,lcdim),  !
+     $     gkNT  (lx1*ly1*lz1*lelt,lcdim),  !
+     $     cnNT  (lx1*ly1*lz1*lelt,lcdim),  ! working array in Pseudo time step
+     $     ckNT  (lx1*ly1*lz1*lelt,lcdim)   ! working array in Newton iteration
       real dummy1(lx1*ly1*lz1*lelt)        ! dummy field for third dimension
 
-      common /ctmp1e/ uxe (lx1,ly1,lz1,lelv), uye (lx1,ly1,lz1,lelv)
+c      common /ctmp1e/ uxe (lx1,ly1,lz1,lelv), uye (lx1,ly1,lz1,lelv)
 
 C     Parametar settings ToDo: move to user file, Lan
 
-      alphan = 1.            ! Newton relaxation parameter alphan in (0,1]
+      alphaNT = 1.            ! Newton relaxation parameter alphan in (0,1]
 c     nsteps = 200         ! steps for pseudo-transient continuation
-      maxit = 20           ! #iter of Newton method
+      maxNTit = 20           ! #iter of Newton method
       jaceps = 1e-8        ! eps for approx. Jacobian
       epsinv = 1./jaceps
-      tolGMRES = 1e-10     ! tol for GMRES
+      tolNTGMRES = 1e-8     ! tol for GMRES
       tolNT = 1e-5         ! tol for Newton method
 
       dtNT = 1.!param(1) ! pseudo-transient time step
                       ! it can grow as istep increase 
       max_dtNT  = 1E8   ! Max. of dtNT, avoid NaN
-      min_tol   = 1E-12 ! Min. of tol,  avoid NaN
+      min_tolNT   = 1E-12 ! Min. of tol,  avoid NaN
 
       dtinv = 1./dt
       dtNTinv = 1./dtNT
@@ -64,80 +63,83 @@ c     nsteps = 200         ! steps for pseudo-transient continuation
 
 C     Initialization
       do ic = 1,lcdim
-        call rzero(sk(1,ic),npts)
-        call rzero(fk(1,ic),npts)
-        call rzero(gk(1,ic),npts)
-        call rzero(cn_n(1,ic),npts) ! working array in Pseudo time
-        call rzero(cn_k(1,ic),npts) ! working array in NT
+        call rzero(skNT(1,ic),npts)
+        call rzero(fkNT(1,ic),npts)
+        call rzero(gkNT(1,ic),npts)
+        call rzero(cnNT(1,ic),npts) ! working array in Pseudo time
+        call rzero(cnNT(1,ic),npts) ! working array in NT
       enddo
 
-      call copy(cn_k(1,1),vx,npts)
-      call copy(cn_k(1,2),vy,npts)
-      if (ldim.eq.3) call copy(cn_k(1,3),vz,npts)
+C     Get initial value
+      call copy(ckNT(1,1),vx,npts) ! initial value
+      call copy(ckNT(1,2),vy,npts)
+      if (ldim.eq.3) call copy(ckNT(1,3),vz,npts)
 
-      call copy(cn_n(1,1),vx,npts)
-      call copy(cn_n(1,2),vy,npts)
-      if (ldim.eq.3) call copy(cn_n(1,3),vz,npts)
+      call copy(cnNT(1,1),vx,npts)
+      call copy(cnNT(1,2),vy,npts)
+      if (ldim.eq.3) call copy(cnNT(1,3),vz,npts)
 
-      call compute_f_nt(fk,cn_k,lcdim,npts) ! compute f(u_0)
-      call compute_gk(gk,fk,cn_k,cn_n,lcdim,npts) ! compute rhs g_k for gmres
+      call compute_fkNT(fkNT,ckNT,lcdim,npts) ! compute f(u_0)
+      call compute_gkNT(gkNT,fkNT,ckNT,cnNT,lcdim,npts) ! compute rhs g_k for gmres
 
-      if (nio.eq.0) then
-      do i=1,lx1*ly1*lz1*nelv
-         write (6,*) 'vx=',fk(i,1)
-         write (6,*) 'vy=',fk(i,2)
-      enddo
-      endif
-c     stop
+c      if (nio.eq.0) then
+c      do i=1,lx1*ly1*lz1*nelv
+c         write (6,*) 'vx=',fk(i,1)
+c         write (6,*) 'vy=',fk(i,2)
+c      enddo
+c      endif
+c      stop
 
       do ic = 1,lcdim
-        call chsign (gk(1,ic),npts)
+        call chsign (gkNT(1,ic),npts)
       enddo
       
       do ic = 1,lcdim
-        fnorms(ic) = glsc3(fk(1,ic),fk(1,ic),vmult,npts)
+        fnorms(ic) = glsc3(fkNT(1,ic),fkNT(1,ic),vmult,npts)
         fnorms(ic) = sqrt(fnorms(ic))
       enddo
       fnorm = glmax(fnorms,lcdim)
-      f_now = fnorm
-      call outpost(cn_n(1,1),cn_n(1,2),vz,pr,t,'   ')
+      nfNT_now = fnorm
+      call outpost(cnNT(1,1),cnNT(1,2),vz,pr,t,'   ')
 
-C     Start pseudo-time step
-      do istepNT = 1,nsteps 
+C     Start pseudo-time step: update cnNT in each iteration
+      do istepNT = 1,nsteps !fixme by lan: istep in Nek5000 is different
          if (nio.eq.0) write (6,*) 'pseudo step',istepNT
          if (mod(istepNT,iostep).eq.0) then
             istep=istepNT
-            call outpost(cn_n(1,1),cn_n(1,2),vz,pr,t,'   ')
+            call outpost(cnNT(1,1),cnNT(1,2),vz,pr,t,'   ')
             istep=1
          endif
          if (nio.eq.0) write (6,*) 'istepnt=',istepNT
 
-c       cpu_dtime = dclock() !FIXME
+c       cpu_dtime = dclock() !FIXME by Lan, NekCEM timer
 
 C       SER, dt, dtNT varying
-        write (6,*) 'f_pre,f_now',f_pre,f_now
-        if ((istepnt .eq. 1)) then
-          dtNT = param(1)
+        if (nio.eq.0) write (6,*) 'nfnt_pre,nfnt_now',nfNT_pre,nfNT_now
+        if ((istepNT .eq. 1)) then
+          dtNT = 1.0 !param(1) fixme by Lan, initial tau
 c          dt = dtNT
         else
-          if (f_now.lt.min_tol) then
+          if (nfNT_now.lt.min_tolNT) then
             dtNT = max_dtNT
           else
-            dtNT = dtNT * f_pre/f_now
+            dtNT = dtNT * nfNT_pre/nfNT_now
 c            dt = dtNT
           endif
         endif
         if (dtNT.gt.max_dtNT) dtNT = max_dtNT
+        if (nio.eq.0) write(6,*) istepNT,'dtnt',dtNT
+        if (nio.eq.0) write (6,*) 'nfnt_pre,nfnt_now',nfNT_pre,nfNT_now
 
         dtinv = 1./dt
         dtNTinv = 1./dtNT
-         write (6,*) 'before newton'
+        if(nio.eq.0) write (6,*) 'before newton iteration'
 
-C       Start Newton iteration
-        do iterNT=1,maxit
-            if(nio.eq.0) write (6,*) 'iternt_before_gmres(NT)=',iternt
+C       Start Newton iteration: update c_{k} = c_{k-1} + s_{k}
+        do iterNT=1,maxNTit
+            if(nio.eq.0) write (6,*) 'before_gmresNT, iternt=',iterNT
 
-          do ic = 1,lcdim ! solving newton sk
+          do ic = 1,lcdim ! solving newton sk by GMRES with JacMatVec
             if(nio.eq.0) write (6,*) 'ic=',ic
 
 c           call hmh_gmres_newton4(gk(1,ic),vmult,iter)
@@ -151,75 +153,76 @@ c    $                             tolgmres,ic,vmult,iter)
 c           call hmh_gmres_newton(sk(1,ic),gk(1,ic),cn_k,fk(1,ic),vmult,
 c    $                            npts,tolgmres,ic)
 c           stop
-
-            call drift_hmh_gmres_newton(sk(1,ic),gk(1,ic)
-     $           ,cn_k,fk(1,ic),vmult,ldim,npts,tolGMRES,ic)
-
-c           write (6,*) 'gmres iter=',iter
-c           stop
+            if(nio.eq.0) write(6,*) 'tolntgmres',tolNTgmres
+            call drift_hmh_gmres_newton(skNT(1,ic),gkNT(1,ic)
+     $           ,ckNT,fkNT(1,ic),vmult,ldim,npts,tolNTGMRES,ic)
           enddo
-          if(nio.eq.0) write (6,*) 'iternt_after _gmres(NT)=',iternt
-c           stop
+          if(nio.eq.0) write (6,*) 'after__gmresNT=',iterNT
 
 c          write (6,*) 'check 1'
           do ic = 1,lcdim ! update Newton iteration
-            call add2s2(cn_k(1,ic),sk(1,ic),alphan,npts) ! cp_k=cp_k+alphan*sp_k
+            call add2s2(ckNT(1,ic),skNT(1,ic),alphaNT,npts) ! cp_k=cp_k+alphan*sp_k
           enddo
 c          write (6,*) 'check 2'
 
-        call compute_f_nt(fk,cn_k,lcdim,npts)
-        call compute_gk(gk,fk,cn_k,cn_n,lcdim,npts)  ! checking tol. + next NT iter
+c       Update fk, gk, check tol
+        call compute_fkNT(fkNT,ckNT,lcdim,npts)
+        call compute_gkNT(gkNT,fkNT,ckNT,cnNT,lcdim,npts)  ! checking tol. + next NT iter
 c        write (6,*) 'check 3'
         do ic = 1,lcdim
-           call chsign(gk(1,ic),npts)
+           call chsign(gkNT(1,ic),npts)
         enddo
 c        write (6,*) 'check 4'
 
         do ic = 1,lcdim
-           rnorms(ic) = glsc3(gk(1,ic),gk(1,ic),vmult,npts)
+           rnorms(ic) = glsc3(gkNT(1,ic),gkNT(1,ic),vmult,npts)
            rnorms(ic) = sqrt(rnorms(ic))
         enddo
 
 c        write (6,*) 'check 5'
         rnorm = glmax(rnorms,lcdim)
+        if (nio.eq.0) write(6,*) istepNT,iterNT,'Lan, rnorm',rnorm
         if (iterNT.eq.1) rinorm=rnorm
         ratio=rnorm/rinorm 
 c        write (6,*) 'check 6'
 
 c       if ((nid.eq.0).and.(mod(istepn,iocomm).eq.0)) 
-        if (nio.eq.0) write(6,90)
-     $     istepnt,iterNT,ratio,rnorm,rinorm,dtNT,dt
+        if (nio.eq.0) write(6,90) istepNT,iterNT,
+     $      ratio,rnorm,rinorm,dtNT,dt
 c        write (6,*) 'check 7'
 
         if (ratio.lt.tolNT) goto 900 ! Newton conv
 c       if (rnorm.lt.new_tol) goto 900 ! Newton conv
 
-        enddo
- 90     format('newton iter',2i6,1p5e12.4)   
+        enddo ! END of Newton Loop
+ 90     format(2i6,'newton iter',1p5e12.4)   
 900     continue
 
         do ic = 1,lcdim
-           call copy(cn_n(1,ic),cn_k(1,ic),npts)   ! update cn_n for computing gn
-        enddo                                     ! and next pseudo-time step
+           call copy(cnNT(1,ic),ckNT(1,ic),npts)   ! update cn_n for computing gn
+        enddo                                      ! and next pseudo-time step
 
 c       Compute the norm of f
         do ic = 1,lcdim
-           fnorms(ic) = glsc3(fk(1,ic),fk(1,ic),vmult,npts)  
+           fnorms(ic) = glsc3(fkNT(1,ic),fkNT(1,ic),vmult,npts)  
            fnorms(ic) = sqrt(fnorms(ic))
+           if (nio.eq.0) write(6,*)'Lan, ic, fnorms',ic,fnorms(ic)
         enddo
 
         fnorm  = glmax(fnorms,lcdim)
-        f_pre = f_now  ! set up old fnorm to f_pre
-        f_now = fnorm  ! set up new fnorm to f_now
+        nfNT_pre = nfNT_now  ! set up old fnorm to f_pre
+        nfNT_now = fnorm  ! set up new fnorm to f_now
+        if (nio.eq.0) write(6,*)'Lan, fnorm nfnt_pre,nfnt_now',fnorm,
+     $   nfNT_pre,nfNT_now
+        
 
 c       Compute the CPU_time
-c       cpu_dtime = dclock()-cpu_dtime !FIXME
-
+c       cpu_dtime = dclock()-cpu_dtime !FIXME by Lan, NekCEM timer
         cpu_t = cpu_t+cpu_dtime
         cpu_t_step = cpu_t/istepnt
         cpu_p_t = glsum(cpu_t_step /npts,1)/np
 
-        time = time + dt
+        time = time + dtNT ! update physical timing
 
 c       call errchk(cn_k(1,1),cn_k(1,2))
 
@@ -228,24 +231,24 @@ c       do ic = 1,lcdim
 c         call copy(cN(1,ic),cn_k(1,ic),npts) ! just for cem_out
 c       enddo
         if (ldim.eq.3) call opcopy(vx,vy,vz,
-     $                           cn_k(1,1),cn_k(1,2),cn_k(1,3))
+     $                           cnNT(1,1),cnNT(1,2),cnNT(1,3))
         if (ldim.eq.2) call opcopy(vx,vy,vz,
-     $                           cn_k(1,1),cn_k(1,2),dummy1)
+     $                           cnNT(1,1),cnNT(1,2),dummy1)
 
 c       call userchk
        if(nio.eq.0) write(6,*)'before errchk'
        call errchk(vx(1,1,1,1),vy(1,1,1,1)) ! in user file
        if(nio.eq.0) write(6,*)'after  errchk'
 c       call cem_out
-       if(nio.eq.0) write(6,*)'before outpost'
+       if(nio.eq.0) write(6,*)'before outpost' ! fixme, output in Nek5000
 c       call outpost(vx,vy,vz,pr,t,'   ')
        if(nio.eq.0) write(6,*)'after  outpost'
 
 c       call errorchk(cn_k(1,1),cn_k(1,2))
 
-      enddo
-      
-c     call cem_end !FIXME
+      enddo ! end of pseudo-time step Loop
+
+c     call cem_end !FIXME end of everything
 
       return
       end
@@ -258,7 +261,7 @@ c     Input    ckn
 c              c0n denote the initial of each Newton iteration 
 c     Input    f
 c     Output   gout
-      subroutine compute_gk(gout,f,ckn,c0n,nion,n)
+      subroutine compute_gkNT(gout,f,ckn,c0n,nion,n)
 c-----------------------------------------------------------------------      
       include 'SIZE'
       include 'TOTAL'
@@ -266,8 +269,8 @@ c-----------------------------------------------------------------------
       integer nion,n,ic
       real gout(lx1*ly1*lz1*lelt,nion)
      $   , ckn (lx1*ly1*lz1*lelt,nion)
-     $   , c0n (lx1*ly1*lz1*lelt,nion)
-     $   , f   (lx1*ly1*lz1*lelt,nion)
+     $   , c0n (lx1*ly1*lz1*lelt,nion) ! saved ckn from last pseudo-time step
+     $   , f   (lx1*ly1*lz1*lelt,nion) ! precomputed by compute_fkNT
 
       do ic = 1,nion
 c        write (6,*) 'ic=',ic
@@ -293,15 +296,15 @@ c     BDF1, it can be changed to BDF2 or so on.
 c  
 c       f(u) = 1/dt ( \tilde{u} - u ),   \tilde{u} = BDF1(u)
 c
-      subroutine compute_f_nt(fout,cin,nion,n)
+      subroutine compute_fkNT(fout,cin,nion,n)
 c-----------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
       include 'NEWTON'
 
-      real fout(lx1*ly1*lz1*lelt,nion) ! f output
+      real fout(lx1*ly1*lz1*lelt,nion) ! f output (of subroutine)
       real cin (lx1*ly1*lz1*lelt,nion) ! c input
-      real cout(lx1*ly1*lz1*lelt,nion) ! c output (sem_bdf)
+      real cout(lx1*ly1*lz1*lelt,nion) ! c output (from sem_bdf)
 
       write (6,*) 'check first'
 
@@ -320,21 +323,21 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
 c     This routine computes Jp where J is the Jacobian matrix and p 
-c     is a vector. Note that we do not construct the Jacobian matrix 
-c     exactly but use the following formula to compute Jp
+c     is any vector. Instead of constructing the Jacobian matrix, we
+c     aproximate Jp by the following formula
 c   
 c        J_k s_k = s_k - (dt /eps) *  ( f(u_k + eps*s_k) - f(u_k) )
 c   
 c     where f(u_k) has been store in each Newton iteration
 c           f(u_k + eps*s_k) has to be computed in each GMRES iteration
-      subroutine jacobimatvec(jacp,p,uc,fi,nion,n,iflag)
+      subroutine JacobiMatVec(jacp,p,uc,fi,nion,n,iflag)
 c-----------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
       include 'NEWTON'
 
       real     jacp(lx1*ly1*lz1*lelt),p(lx1*ly1*lz1*lelt)
-      real     uc (lx1*ly1*lz1*lelt,nion)     ! treat other ions as variable
+      real     uc (lx1*ly1*lz1*lelt,nion)     ! treat other ck as fix point
       real     fi (lx1*ly1*lz1*lelt)          ! f_in
       real     fo (lx1*ly1*lz1*lelt,nion)     ! f_out (multi-ions)
       real     foi(lx1*ly1*lz1*lelt)          ! f_out - f_in (restricted on iflag)
@@ -359,18 +362,21 @@ C     Compute Jp
 
       call add3s2(uep(1,iflag),uc(1,iflag),p,1.0,eps,n) ! uep = u + eps*p
 
-      call compute_f_nt(fo,uep,nion,n)
+      call compute_fkNT(fo,uep,nion,n)
 
       call sub3  (foi,fo(1,iflag),fi,n)
       call cmult (foi,epsinv*dtNT,n) ! foi = (fo-fi)*dt_newton/eps
       call sub3  (jacp,p,foi,n)
       call cmult (jacp,dtntinv,n)      ! Jp = p/dt_newton - (fo-f)/eps
                                      ! case with divided by dt_newton
-c     call copy(jacp,p,n)
+c      call copy(jacp,p,n) ! for testing identity matrix
 
       return
       end
 c-----------------------------------------------------------------------
+C     GMRES that solving Newton iteration. Use JacMacVec as Ax
+C     This solve linear system for single array, but the other arrays
+C     are also invloved as a referenced points
       subroutine drift_hmh_gmres_newton
      $           (phi,res,uc,f,wt,nion,n,tol,iflag)
 c-----------------------------------------------------------------------
@@ -380,7 +386,7 @@ c     GMRES iteration.
       include 'TOTAL'
 c     include 'FDMH1'
 c     include 'GMRES1'
-      include 'NGMRES'
+      include 'NGMRES' ! fixme
       include 'NEWTON'
 
       integer  n,nion,outer,iflag
@@ -466,8 +472,8 @@ c      if (nid.eq.0) write(6,*) 'start: hmh_gmres'
 
 c            if ((nid.eq.0).and.(istep.le.2))
 c                 write (6,*) rnorm,'newton'
-                  write (6,66) iter,tolpsss,rnorm,istepnt
-   66       format(i5,1p2e12.5,i8,' gmres_newton rnorm')
+                  write (6,66) iter,tolpsss,rnorm,istepnt,iternt
+   66       format(i5,1p2e12.5,2i8,' gmres_newton rnorm')
 
             if (rnorm .lt. tolpsss) goto 900 !converged
             if (j.eq.m) goto 1000 !not converged, restart
@@ -504,10 +510,10 @@ c     write(6,*) 'end of solving least squre problem'
 c     call ortho   (res) ! Orthogonalize wrt null space, if present
 
 c     if ((nid.eq.0).and. (mod(istep,iocomm).eq.0) ) then
-      if (nio.eq.0)  write(6,9999) istepnt,iterNT,iter,rnorm,tolpss
+      if (nio.eq.0)  write(6,9999) istepNT,iterNT,iter,rnorm,tolpsss
 c     endif
 
- 9999 format(' ',' ',i9,i6,'  gmres(newton)_iteration#',i6,2(1p1e12.4))
+ 9999 format(' ',' ',i9,i6,'  gmresNT_iteration#',i6,2(1p1e12.4))
 
       return
       end
@@ -528,7 +534,7 @@ c     include 'BCS'
       real dummy1(lx1,ly1,lz1,lelt)
       real dummy2(lx2,ly2,lz2,lelt)
 
-C     Copy into working array of sem_bdf1
+C     Copy into working arrays of sem_bdf1
 
       write (6,*) 'check pre'
 
@@ -538,11 +544,11 @@ C     Copy into working array of sem_bdf1
       if (ldim.eq.2) call opcopy(vx,vy,vz,
      $                           cinput(1,1),cinput(1,2),dummy1)
 
-C     main bdf1 solver
+C     *** main bdf1 solver ***
       call plan5(2)
 
 
-C     Copy out working array of sem_bdf1
+C     Copy out working arrays from sem_bdf1
 
       if (ldim.eq.2)
      $      call opcopy(coutput(1,1),coutput(1,2),dummy1,vx,vy,vz)
