@@ -397,7 +397,7 @@ c        Take direct stiffness avg of mesh
 c
          ifieldo = ifield
          if (ifneknekm) return
-         if (.not.ifneknekm) CALL GENCOOR (XM3,YM3,ZM3)
+         CALL GENCOOR (XM3,YM3,ZM3)
          if (ifheat) then
             ifield = 2
             CALL dssum(xm3,lx3,ly3,lz3)
