@@ -478,6 +478,8 @@ c     the information will go to the boundary points
         enddo
        enddo
 
+      call fix_surface_flux
+
       call nekgsync()
       etime = dnekclock() - etime1
       tsync = etime1 - etime0
@@ -611,3 +613,105 @@ c     the information will go to the boundary points
       return
       end
 C--------------------------------------------------------------------------
+c     EXPERIMENTAL STUFF BEGIN
+c-----------------------------------------------------------------------
+      subroutine surface_flux_area(dq,aq,qx,qy,qz,e,f,w)
+      include 'SIZE'
+      include 'GEOM'
+      include 'INPUT'
+      include 'PARALLEL'
+      include 'TOPOL'
+      parameter (l=lx1*ly1*lz1)
+      real qx(l,1),qy(l,1),qz(l,1),w(lx1,ly1,lz1)
+      integer e,f
+      call           faccl3  (w,qx(1,e),unx(1,1,f,e),f)
+      call           faddcl3 (w,qy(1,e),uny(1,1,f,e),f)
+      if (if3d) call faddcl3 (w,qz(1,e),unz(1,1,f,e),f)
+      call dsset(lx1,ly1,lz1)
+      iface  = eface1(f)
+      js1    = skpdat(1,iface)
+      jf1    = skpdat(2,iface)
+      jskip1 = skpdat(3,iface)
+      js2    = skpdat(4,iface)
+      jf2    = skpdat(5,iface)
+      jskip2 = skpdat(6,iface)
+      dq = 0
+      aq = 0
+      i  = 0
+      do 100 j2=js2,jf2,jskip2
+      do 100 j1=js1,jf1,jskip1
+         i = i+1
+         dq    = dq + area(i,1,f,e)*w(j1,j2,1)
+         aq    = aq + area(i,1,f,e)
+  100 continue
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine fix_surface_flux
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKNEK'
+      integer e,f
+      common /ctmp1/ work(lx1*ly1*lz1*lelt)
+      integer itchk
+      common /idumochk/ itchk
+      integer icalld
+      save    icalld
+      data    icalld /0/
+      if (icalld.eq.0) then
+       itchk = 0
+       do e=1,nelv
+       do f=1,2*ldim
+         if (cbc(f,e,1).eq.'o  '.or.cbc(f,e,1).eq.'O  ') then
+         if (intflag(f,e).eq.0) then
+           itchk = 1
+         endif
+         endif
+       enddo
+       enddo
+       itchk = iglmax(itchk,1)
+       icalld = 1
+      endif
+      if (itchk.eq.1) return
+      dqg=0
+      aqg=0
+      do e=1,nelv
+      do f=1,2*ldim
+         if (cbc(f,e,1).eq.'v  '.or.cbc(f,e,1).eq.'V  ') then
+            call surface_flux_area(dq,aq
+     $          ,valint(1,1,1,1,1)
+     $          ,valint(1,1,1,1,2)
+     $          ,valint(1,1,1,1,3),e,f,work)
+            dqg = dqg+dq
+            aqg = aqg+aq
+         endif
+      enddo
+      enddo
+      dqg=glsum(dqg,1) ! sum over all processors for this session
+      aqg=glsum(aqg,1) ! sum over all processors for this session
+      gamma = 0
+      if (aqg.gt.0) gamma = -dqg/aqg
+      if (nid.eq.0) write(6,104) idsess,gamma
+104     format(i4,1p1e13.4,' fixing flux NekNek bdry')
+      do e=1,nelv
+      do f=1,2*ldim
+        call facind (i0,i1,j0,j1,k0,k1,lx1,ly1,lz1,f)
+        l=0
+        do k=k0,k1
+        do j=j0,j1
+        do i=i0,i1
+           l=l+1
+           ux = valint(i,j,k,e,1) + gamma*unx(l,1,f,e)
+           uy = valint(i,j,k,e,2) + gamma*uny(l,1,f,e)
+           uz = valint(i,j,k,e,3) + gamma*unz(l,1,f,e)
+           valint(i,j,k,e,1) = ux
+           valint(i,j,k,e,2) = uy
+           if (ldim.eq.3) valint(i,j,k,e,3) = uz
+        enddo
+        enddo
+        enddo
+      enddo
+      enddo
+      return
+      end
+c-----------------------------------------------------------------------
