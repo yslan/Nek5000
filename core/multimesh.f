@@ -683,7 +683,7 @@ c-----------------------------------------------------------------------
      $          ,valint(1,1,1,1,2)
      $          ,valint(1,1,1,1,3),e,f,work)
             dqg = dqg+dq
-            aqg = aqg+aq
+            if (intflag(f,e).eq.1) aqg = aqg+aq
          endif
       enddo
       enddo
