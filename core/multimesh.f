@@ -683,7 +683,8 @@ c-----------------------------------------------------------------------
      $          ,valint(1,1,1,1,2)
      $          ,valint(1,1,1,1,3),e,f,work)
             dqg = dqg+dq
-            if (intflag(f,e).eq.1) aqg = aqg+aq
+            aqg = aqg+aq
+c            aqg = aqg+aq
          endif
       enddo
       enddo
@@ -691,8 +692,8 @@ c-----------------------------------------------------------------------
       aqg=glsum(aqg,1) ! sum over all processors for this session
       gamma = 0
       if (aqg.gt.0) gamma = -dqg/aqg
-      if (nid.eq.0) write(6,104) idsess,gamma
-104     format(i4,1p1e13.4,' fixing flux NekNek bdry')
+      if (nid.eq.0) write(6,104) idsess,dqg,aqg,gamma
+104     format(i4,1p3e13.4,' fixing flux NekNek bdry')
       do e=1,nelv
       do f=1,2*ldim
         call facind (i0,i1,j0,j1,k0,k1,lx1,ly1,lz1,f)
