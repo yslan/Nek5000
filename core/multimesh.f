@@ -478,7 +478,7 @@ c     the information will go to the boundary points
         enddo
        enddo
 
-      call fix_surface_flux
+c      call fix_surface_flux
 
       call nekgsync()
       etime = dnekclock() - etime1
@@ -683,8 +683,7 @@ c-----------------------------------------------------------------------
      $          ,valint(1,1,1,1,2)
      $          ,valint(1,1,1,1,3),e,f,work)
             dqg = dqg+dq
-            if (intflag(f,e).eq.1) aqg = aqg+aq
-c            aqg = aqg+aq
+            aqg = aqg+aq
          endif
       enddo
       enddo
@@ -696,7 +695,6 @@ c            aqg = aqg+aq
 104     format(i4,1p3e13.4,' fixing flux NekNek bdry')
       do e=1,nelv
       do f=1,2*ldim
-       if (intflag(f,e).eq.1) then
         call facind (i0,i1,j0,j1,k0,k1,lx1,ly1,lz1,f)
         l=0
         do k=k0,k1
@@ -712,9 +710,87 @@ c            aqg = aqg+aq
         enddo
         enddo
         enddo
-       endif
       enddo
       enddo
+
+      write(6,*) 'Please use fix_surface_flux_bcdirvc'
+      call exitt
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine fix_surface_flux_bcdirvc
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKNEK'
+      integer e,f
+      common /ctmp1/ work(lx1*ly1*lz1*lelt)
+      integer itchk
+      common /idumochk/ itchk
+      integer icalld
+      save    icalld
+      data    icalld /0/
+c     assume that this routine is called at the end of bcdirvc
+c     where all the boundary condition data has been read in for 
+c     velocity.
+
+      if (icalld.eq.0) then
+       itchk = 0
+       do e=1,nelv
+       do f=1,2*ldim
+         if (cbc(f,e,1).eq.'o  '.or.cbc(f,e,1).eq.'O  ') then
+         if (intflag(f,e).eq.0) then
+           itchk = 1
+         endif
+         endif
+       enddo
+       enddo
+       itchk = iglmax(itchk,1)
+       icalld = 1
+      endif
+      if (itchk.eq.1) return
+
+      dqg=0
+      aqg=0
+      do e=1,nelv
+      do f=1,2*ldim
+         if (cbc(f,e,1).eq.'v  '.or.cbc(f,e,1).eq.'V  ') then
+            call surface_flux_area(dq,aq
+     $          ,vx,vy,vz,e,f,work)
+            dqg = dqg+dq
+            if (intflag(f,e).eq.1) aqg = aqg+aq
+         endif
+      enddo
+      enddo
+      dqg=glsum(dqg,1) ! sum over all processors for this session
+      aqg=glsum(aqg,1) ! sum over all processors for this session
+      gamma = 0.
+
+      if (aqg.gt.0) gamma = -dqg/aqg
+      if (nid.eq.0) write(6,104) idsess,istep,dqg,aqg,gamma
+104     format(i4,i10,1p3e13.4,' fixing flux NekNek bdry')
+
+      do e=1,nelv
+      do f=1,2*ldim
+        if (intflag(f,e).eq.1) then
+          call facind (i0,i1,j0,j1,k0,k1,lx1,ly1,lz1,f)
+          l=0
+          do k=k0,k1
+          do j=j0,j1
+          do i=i0,i1
+            l=l+1
+            vx(i,j,k,e) = vx(i,j,k,e) + gamma*unx(l,1,f,e)
+            vy(i,j,k,e) = vy(i,j,k,e) + gamma*uny(l,1,f,e)
+            if (ldim.eq.3) 
+     $      vz(i,j,k,e) = vz(i,j,k,e) + gamma*unz(l,1,f,e)
+          enddo
+          enddo
+          enddo
+        endif
+      enddo
+      enddo
+
+
       return
       end
 c-----------------------------------------------------------------------
