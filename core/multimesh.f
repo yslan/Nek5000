@@ -683,7 +683,7 @@ c-----------------------------------------------------------------------
      $          ,valint(1,1,1,1,2)
      $          ,valint(1,1,1,1,3),e,f,work)
             dqg = dqg+dq
-            aqg = aqg+aq
+            if (intflag(f,e).eq.1) aqg = aqg+aq
 c            aqg = aqg+aq
          endif
       enddo
@@ -696,6 +696,7 @@ c            aqg = aqg+aq
 104     format(i4,1p3e13.4,' fixing flux NekNek bdry')
       do e=1,nelv
       do f=1,2*ldim
+       if (intflag(f,e).eq.1) then
         call facind (i0,i1,j0,j1,k0,k1,lx1,ly1,lz1,f)
         l=0
         do k=k0,k1
@@ -711,6 +712,7 @@ c            aqg = aqg+aq
         enddo
         enddo
         enddo
+       endif
       enddo
       enddo
       return
