@@ -20,7 +20,8 @@ c=======================================================================
 
       iffdm = .false.
       if (ifsplit) iffdm = .true.
-      if (icalld.eq.0.and.iffdm) call set_fdm_prec_h1A
+      iffdm = .false. ! iphone
+ciphone      if (icalld.eq.0.and.iffdm) call set_fdm_prec_h1A
       icalld = icalld+1
 
 #ifdef TIMER
@@ -44,8 +45,8 @@ c     if (name.eq.'TEM1') kfldfdm =  0  ! hardcode for temp only, for mpaul
 c     if (name.eq.'VELX') kfldfdm =  1
 c     if (name.eq.'VELY') kfldfdm =  2
 c     if (name.eq.'VELZ') kfldfdm =  3
-      if (name.eq.'PRES') kfldfdm =  ldim+1
-c     if (.not.iffdm) kfldfdm=-1
+ciphone      if (name.eq.'PRES') kfldfdm =  ldim+1
+      if (.not.iffdm) kfldfdm=-1
 C
       call dssum   (rhs,lx1,ly1,lz1)
       call col2    (rhs,mask,ntot)
@@ -298,6 +299,7 @@ C
               iffast(ie) = .true.
            endif
          ENDIF
+         IFFAST(ie) = .FALSE.
  100  CONTINUE
 c
       IFH2   = .FALSE.
@@ -686,11 +688,11 @@ c     overrule input tolerance
 C
 C     Set up diag preconditioner.
 C
-      if (kfldfdm.lt.0) then
+cophone      if (kfldfdm.lt.0) then
          call setprec(D,h1,h2,imsh,isd)
-      elseif(param(100).ne.2) then
-         call set_fdm_prec_h1b(d,h1,h2,nel)
-      endif
+c      elseif(param(100).ne.2) then
+c         call set_fdm_prec_h1b(d,h1,h2,nel)
+c      endif
 
       call copy (r,f,n)
       call rzero(x,n)
@@ -733,7 +735,8 @@ c           call copy(z,r,n)
                call crs_solve_h1 (w,r)  ! Currently, crs grd only for P
                call add2         (z,w,n)
             else   
-               call fdm_h1(z,r,d,mask,mult,nel,ktype(1,1,kfldfdm),w)
+c               call fdm_h1(z,r,d,mask,mult,nel,ktype(1,1,kfldfdm),w)
+            call col3(z,r,d,n)
                if (name.eq.'PRES') then 
                  call crs_solve_h1 (w,r)  ! Currently, crs grd only for P
                  call add2         (z,w,n)
@@ -1390,7 +1393,7 @@ c
       call copy(aa,a,100)
       call copy(bb,b,100)
 c
-      call dsygv(1,'V','U',n,a,n,b,n,lam,bw,lbw,info)
+cciphone      call dsygv(1,'V','U',n,a,n,b,n,lam,bw,lbw,info)
 c
 c     call outmat2(a,n,n,n,'Aeig')
 c     call outmat2(lam,1,n,n,'Deig')

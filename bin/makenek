@@ -5,11 +5,11 @@ set -a
 #-------------------------------------------------------------------------------
 
 # source path 
-#NEK_SOURCE_ROOT="$HOME/Nek5000" 
+NEK_SOURCE_ROOT="/root/Nek5000" 
 
 # Fortran/C compiler
-#FC="mpif77"
-#CC="mpicc"
+FC="gfortran"
+CC="gcc"
 
 # config options (set to "?" to get a list)
 #PPLIST="" 
@@ -31,7 +31,7 @@ set -a
 #USR="foo.o"
 
 # MPI (default 1) 
-#MPI=0
+MPI=0
 
 # profiling (default 1)
 #PROFILING=0

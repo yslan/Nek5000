@@ -908,6 +908,7 @@ c set some internals
          param(43) = 1.00000  !  p043 0=semg/1=schwarz
          param(44) = 1.00000  !  p044 0=E-based/1=A-based prec.
       endif
+         ifmgrid   = .false.! iphone
 
       if (.not.iftran) then
          if (ifflow.and.ifsplit) then

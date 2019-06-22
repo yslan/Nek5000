@@ -2,6 +2,9 @@ AR = ar
 SDIR = ./
 ARFLAGS = -cr
 
+
+FC=gfortran
+
 .SUFFIXES: .f
 
 SRC = $(wildcard $(SDIR)/*f)

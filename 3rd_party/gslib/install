@@ -23,10 +23,11 @@ if [ ! -f v$VER.tar.gz ]; then
   fi
 fi
 
-rm -rf gslib 2>/dev/null
-mkdir gslib 
-tar -zxvf v$VER.tar.gz -C ./gslib --strip-components=1
+# rm -rf gslib 2>/dev/null
+# mkdir gslib 
+# tar -zxvf v$VER.tar.gz -C ./gslib --strip-components=1
 cd gslib
 set -x
-make -j4 $GSLIB_OPT
+#make -j4 $GSLIB_OPT
+make -j $GSLIB_OPT
 set +x

@@ -66,9 +66,9 @@ function config_nek() {
 
 # set defaults
 : ${NEK_SOURCE_ROOT:="$HOME/Nek5000"}
-: ${FC:="mpif77"}
-: ${CC:="mpicc"}
-: ${MPI:=1}
+: ${FC:="gfortran"}
+: ${CC:="gcc"}
+: ${MPI:=0}
 : ${PROFILING:=1}
 : ${VISIT:=0}
 : ${PPLIST:=""}
