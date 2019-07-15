@@ -2,7 +2,8 @@
 set -e
 
 VER=5.4.0
-CHKSUM=23bb875f50c2b1ea7d9e7885e1956fa02e210824
+#CHKSUM=23bb875f50c2b1ea7d9e7885e1956fa02e210824 # website
+CHKSUM=c7cd4d2092ed257a52a2d00cc53692f9f0d3d5a2 # git
 
 if [ "$1" == "clean" ]; then
   rm -rf SuiteSparse lib include share 2>/dev/null 
@@ -15,8 +16,8 @@ if [ -f ./lib/libumfpack.so.5.7.8 ]; then
 fi
 
 if [ ! -f v$VER.tar.gz ]; then
-# wget --no-check-certificate -O v$VER.tar.gz http://github.com/gslib/gslib/archive/v$VER.tar.gz
-  wget -O v$VER.tar.gz http://faculty.cse.tamu.edu/davis/SuiteSparse/SuiteSparse-$VER.tar.gz
+  wget --no-check-certificate -O v$VER.tar.gz http://github.com/yslan/suitesparse/archive/v$VER.tar.gz
+  #wget -O v$VER.tar.gz http://faculty.cse.tamu.edu/davis/SuiteSparse/SuiteSparse-$VER.tar.gz
   SUM=`openssl dgst -sha1 v$VER.tar.gz | sed 's/^.* //'`
   if [ $SUM != $CHKSUM ] ; then
     echo 'Invalid checksum!'
