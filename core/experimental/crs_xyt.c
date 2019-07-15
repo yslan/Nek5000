@@ -5,14 +5,16 @@
 #include <float.h>
 #include <string.h>
 #include <math.h>
-#include "umfpack.h"
-
 #include "gslib.h"
+//#include "crs_xyt.h" // ToDo: follow crs_hypre.c or crs_xxt.c ?
 
 #define crs_setup PREFIXED_NAME(crs_xyt_setup)
 #define crs_solve PREFIXED_NAME(crs_xyt_solve)
 #define crs_stats PREFIXED_NAME(crs_xyt_stats)
 #define crs_free  PREFIXED_NAME(crs_xyt_free )
+
+#ifdef SUITESPARSE
+#include "umfpack.h"
 
 #define DBG // sparse_lu
 //#define DBG2// xyt but Y=X
@@ -1487,3 +1489,32 @@ void crs_free(struct xxt *data)
   free(data->vl);
   free(data);
 }
+
+#else
+
+struct xxt *crs_setup(  // fatorize A = XXT
+  uint n, const ulong *id,
+  uint nz, const uint *Ai, const uint *Aj, const double *A,
+  uint null_space, const struct comm *comm)
+{
+  fail(1,__FILE__,__LINE__,"recompile with SUITESPARSE support.");
+  exit(EXIT_FAILURE);
+  return NULL;
+}
+
+void crs_solve(double *x, struct xxt *data, double *b)
+{
+  fail(1,__FILE__,__LINE__,"recompile with SUITESPARSE support.");
+  exit(EXIT_FAILURE);
+  while(1);
+}
+
+
+void crs_free(struct xxt *data)
+{
+  fail(1,__FILE__,__LINE__,"recompile with SUITESPARSE support.");
+  exit(EXIT_FAILURE);
+  while(1);
+}
+
+#endif
