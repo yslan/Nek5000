@@ -310,7 +310,7 @@ void myprt_dump_mtx(const struct xxt *data, const struct csr_mat *A, char *str){
 void myprt_dump_mtx2(const struct xxt *data, const uint nx, const uint *Ap, const double *A, char *str){
 
     return;
-    uint nid=data->comm.id;
+    uint nid=data->comm.id, i,j;
     char filename[10], snid[3] ;
     FILE *fp,*ftmp;
     sprintf(snid, "%d", nid);
@@ -326,9 +326,9 @@ void myprt_dump_mtx2(const struct xxt *data, const uint nx, const uint *Ap, cons
 //        printf("%u %u %f\n",i,p,A[p]);
 //      }
 //    }
-  for(int i=0;i<nx;++i) {
+  for(i=0;i<nx;++i) {
     const double *x = A+Ap[i]; uint n=Ap[i+1]-Ap[i];
-    for(int j=0;j<n;++j) printf("%u %u %f\n",j,i,x[j]);
+    for(j=0;j<n;++j) printf("%u %u %f\n",j,i,x[j]);
   }
 
     fflush(fp);fclose(fp);
