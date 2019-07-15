@@ -287,7 +287,7 @@ void sparse_cholesky_free(struct sparse_cholesky *fac)
 
 void myprt_dump_mtx(const struct xxt *data, const struct csr_mat *A, char *str){
     return;
-    uint nid=data->comm.id;
+    uint nid=data->comm.id, i,p;
     char filename[10], snid[3] ;
     FILE *fp,*ftmp;
     sprintf(snid, "%d", nid);
@@ -298,8 +298,8 @@ void myprt_dump_mtx(const struct xxt *data, const struct csr_mat *A, char *str){
     ftmp=stdout; stdout=fp;
 //  uint n, *Arp, *Aj; double *A;
  
-    for (int i=0;i<A->n;++i) {
-      for (int p=A->Arp[i];p<A->Arp[i+1];++p){
+    for (i=0;i<A->n;++i) {
+      for (p=A->Arp[i];p<A->Arp[i+1];++p){
         printf("%u %u %f\n",i,A->Aj[p],A->A[p]);
       }
     }
@@ -433,13 +433,13 @@ void sparse_lu_solve(
   const uint n=A_ll->n, *Arp=A_ll->Arp, *Aj=A_ll->Aj;
   const double *A=A_ll->A;
 
-  int status;
+  int status,i;
   static int iprtcnt=1; //Lan
   double b_tmp[n];
 
   if (A_ll->n==0) return;
   if (iprtcnt==10){myprt_chk_vec(data,b,"tt2_b");}
-  for (int i=0;i<n;++i){b_tmp[i]=b[i];}
+  for (i=0;i<n;++i){b_tmp[i]=b[i];}
 
   // Solve A x = b by umfpack
   // status = umfpack_di_solve (UMFPACK_Aat,(int *)Arp,(int *)Aj,A,x,b,Numeric,Control,Info);
