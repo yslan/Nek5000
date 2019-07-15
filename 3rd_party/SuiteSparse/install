@@ -1,0 +1,40 @@
+#!/bin/bash
+set -e
+
+VER=5.4.0
+CHKSUM=23bb875f50c2b1ea7d9e7885e1956fa02e210824
+
+if [ "$1" == "clean" ]; then
+  rm -rf SuiteSparse lib include share 2>/dev/null 
+  exit 0
+fi
+
+#if [ -f ./lib/libumfpack.a ]; then
+if [ -f ./lib/libumfpack.so.5.7.8 ]; then
+  exit 0
+fi
+
+if [ ! -f v$VER.tar.gz ]; then
+# wget --no-check-certificate -O v$VER.tar.gz http://github.com/gslib/gslib/archive/v$VER.tar.gz
+  wget -O v$VER.tar.gz http://faculty.cse.tamu.edu/davis/SuiteSparse/SuiteSparse-$VER.tar.gz
+  SUM=`openssl dgst -sha1 v$VER.tar.gz | sed 's/^.* //'`
+  if [ $SUM != $CHKSUM ] ; then
+    echo 'Invalid checksum!'
+    rm -rf v$VER.tar.gz
+    exit 1
+  fi
+fi
+
+rm -rf SuiteSparse 2>/dev/null
+mkdir SuiteSparse 
+
+tar -zxvf v$VER.tar.gz -C ./SuiteSparse --strip-components=1
+cd SuiteSparse
+
+set -x
+cd SuiteSparse_config; make -j4 install CC=cc CXX=CXX $SUITESPARSE_OPT; cd ../
+cd AMD; make -j4 install CC=cc CXX=CXX $SUITESPARSE_OPT; cd ../
+cd UMFPACK; make -j4 install CC=cc CXX=CXX UMFPACK_CONFIG=-DNCHOLMOD $SUITESPARSE_OPT BLAS='$(SUITESPARSE_BLAS)'; cd ../
+#cd UMFPACK; make -j4 install UMFPACK_CONFIG=-DNCHOLMOD INSTALL=/home/sean/Nek5000_xyt-dev/3rd_party/SuiteSparse BLAS="-L/home/sean/Nek5000_xyt-dev/3rd_party/blasLapack/ -lblasLapack -lgfortran"; cd ../
+#cp ./UMFPACK/Lib/libumfpack.a ../lib/
+set +x

@@ -43,6 +43,12 @@ function build_3rdparty() {
   fi
   cd $CASEDIR
 
+  if [ $SUITESPARSE -ne 0 ]; then
+     cd $SOURCE_ROOT_SUITESPARSE
+     FFLAGS="-O0 $FF77 $FFLAGS" CFLAGS="-O2 $CFLAGS" ./install 2>&1 | tee -a $CASEDIR/build.log >/dev/null
+  fi
+  cd $CASEDIR
+
   printf "done\n"
   set +o pipefail
 }
@@ -59,6 +65,8 @@ function clean_3rdparty() {
   cd $SOURCE_ROOT_CVODE; ./install clean 2>/dev/null
   cd $CASEDIR
   cd $SOURCE_ROOT_HYPRE; ./install clean 2>/dev/null
+  cd $CASEDIR
+  cd $SOURCE_ROOT_SUITESPARSE; ./install clean 2>/dev/null
   cd $CASEDIR
 }
 
@@ -86,6 +94,7 @@ if [ "$1" == "-h" ] || [ "$1" == "-help" ] || [ "$PPLIST" == "?" ]; then
   echo "  XSMM          use libxsmm for mxm"
   echo "  CVODE         enable CVODE support"
   echo "  HYPRE         enable HYPRE support"
+  echo "  SUITESPARSE   enable SUITESPARSE support (xyt)"
   echo "  VENDOR_BLAS   use VENDOR BLAS/LAPACK"
   echo "  DPROCMAP      use distributed processor mapping"
   echo "  PARRSB        use online RSB partitioner (experimental)"
@@ -118,6 +127,8 @@ SOURCE_ROOT_CVODE="$NEK_SOURCE_ROOT/3rd_party/cvode"
 export SOURCE_ROOT_CVODE
 SOURCE_ROOT_HYPRE="$NEK_SOURCE_ROOT/3rd_party/hypre"
 export SOURCE_ROOT_HYPRE
+SOURCE_ROOT_SUITESPARSE="$NEK_SOURCE_ROOT/3rd_party/SuiteSparse"
+export SOURCE_ROOT_SUITESPARSE
 
 NODEP=1
 if [ "$1" == "-build-dep" ]; then
@@ -296,6 +307,7 @@ PARRSB=0
 PARMETIS=0
 CVODE=0
 HYPRE=0
+SUITESPARSE=0
 MXM_USER="mxm_std.o"
 VENDOR_BLAS=0 
 
@@ -337,6 +349,15 @@ do
      USR_LFLAGS+=" -L$SOURCE_ROOT_HYPRE/lib -lHYPRE"
      HYPRE_INC="$SOURCE_ROOT_HYPRE/include"
    fi
+   if [ "$i" == "SUITESPARSE" ]; then
+     SUITESPARSE=1
+     SUITESPARSE_OPT=" INSTALL=$SOURCE_ROOT_SUITESPARSE"
+     SUITESPARSE_BLAS=" -L$SOURCE_ROOT_BLAS -lblasLapack -lgfortran"
+
+     #USR_LFLAGS+=" -L$SOURCE_ROOT_SUITESPARSE/lib -lumfpack"
+     USR_LFLAGS+=" -L$SOURCE_ROOT_SUITESPARSE/lib -Wl,-rpath=$SOURCE_ROOT_SUITESPARSE/lib -lumfpack" # shared
+     SUITESPARSE_INC="$SOURCE_ROOT_SUITESPARSE/include"
+   fi
    if [ "$i" == "BGQ" ]; then
      MXM_USER+=" mxm_bgq.o" 
    fi
@@ -367,6 +388,8 @@ export MPIO
 export UNDERSCORE
 export GSLIB_OPT
 export PARRSB_OPT
+export SUITESPARSE_OPT
+export SUITESPARSE_BLAS
 
 if [ $ONLYDEP -eq 1 ]; then
   build_3rdparty
@@ -440,6 +463,14 @@ if [ $VISIT -ne 0 ]; then
 
   mv .makefile.tmp .makefile
   echo ""
+fi
+
+if [ $SUITESPARSE -ne 0 ]; then
+  sed -e "s:^SUITESPARSE_IFLAGS[ ]*=.*:SUITESPARSE_IFLAGS\:=-I${SUITESPARSE_INC}:" \
+      -e "s:^USR_LFLAGS[ ]*=.*:USR_LFLAGS=$USR_LFLAGS:" \
+      .makefile > .makefile.tmp
+
+  mv .makefile.tmp .makefile
 fi
 
 if [ $HYPRE -ne 0 ]; then

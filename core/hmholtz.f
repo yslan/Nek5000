@@ -2224,6 +2224,8 @@ c     data    iflag,if_hyb  /.false. , .true. /
             call h1mg_solve(z,r,if_hyb) ! z  = M   w
          else if (param(40).eq.3) then
             call fem_amg_solve(z,r)
+         else if (param(40).eq.4) then
+            call h1mg_solve(z,r,if_hyb) ! z  = M   w
          endif
 
          call sub2(r1,r,n)

@@ -409,6 +409,8 @@ c           if (outer.gt.2) if_hyb = .true.       ! Slow outer convergence
                   call h1mg_solve(z_gmres(1,j),w_gmres,if_hyb) ! z  = M   w
                else if (param(40).eq.3) then
                   call fem_amg_solve(z_gmres(1,j),w_gmres)
+               else if (param(40).eq.4) then
+                  call h1mg_solve(z_gmres(1,j),w_gmres,if_hyb) ! z  = M   w
                endif
             else                                            !  j
                kfldfdm = ldim+1
