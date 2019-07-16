@@ -16,10 +16,11 @@
 #ifdef SUITESPARSE
 #include "umfpack.h"
 
-#define DBG // sparse_lu
-//#define DBG2// xyt but Y=X
-//#define DBG3// xyt
-//#define DBG4// separate of width 2
+#define DBG // sparse_lu, ok
+#define DBG2// XXT but increase size of Y, ok for np=1,2,3,4
+//#define DBG3// sym xyt, np=1,2,4: ok, asym: not yet
+//#define DBG4// xyt, increase size of X
+//#define DBG5// separate of width 2
 
 /*
   portable log base 2
@@ -31,7 +32,6 @@
   BITS(i) = half of BITS(i-1), rounded up
   MASK(i) = bitmask with BITS(i) 1's followed by BITS(i) 0's
 */
-
 static unsigned lg(uint v)
 {
   unsigned r = 0;
@@ -980,14 +980,14 @@ static void apply_S_col(double *vs, struct xxt *data,
              *Asl_j  = data->A_sl.Aj,  *Ass_j  = A_ss->Aj;
   const double *Asl  = data->A_sl.A,   *Ass    = A_ss->A;
   uint i,p,pe;
-#ifdef DBG3
-  for(i=0;i<data->xn;++i) vs[i]=0;
+#ifdef DBG2
+  for(i=0;i<data->sn;++i) vs[i]=0;
 #else
   for(i=0;i<ei;++i) vs[i]=0;
 #endif
   for(p=Ass_rp[ei],pe=Ass_rp[ei+1];p!=pe;++p) {
     uint j=Ass_j[p];
-#ifndef DBG4
+#ifndef DBG3
     if(j>=ei) break;//the fact that Xt is upper triangular, vs is shorter
 #endif
     vs[j]=-Ass[p];
@@ -999,7 +999,7 @@ static void apply_S_col(double *vs, struct xxt *data,
 #else
   sparse_cholesky_solve(vl,&data->fac_A_ll,vl);
 #endif
-#ifdef DBG4
+#ifdef DBG3
   apply_m_Asl(vs,data->sn,data,vl);
 #else
   apply_m_Asl(vs,ei,data,vl);
@@ -1014,25 +1014,30 @@ static void apply_S(double *Svs, uint ns, struct xxt *data,
              *Ass_j  = A_ss->Aj;
   const double *Ass  = A_ss->A;
   uint i, p,pe;
+  printf("applyS-p1\n");
   for(i=0;i<ns;++i) {
     double sum=0;
     for(p=Ass_rp[i],pe=Ass_rp[i+1];p!=pe;++p) {
       uint j=Ass_j[p];
-#ifndef DBG4
+#ifndef DBG3
       if(j>=ns) break;// X is triangluar so vs is shorter 
 #endif
       sum+=Ass[p]*vs[j];
     }
     Svs[i]=sum;
   }
+  printf("applyS-p2\n");
   for(i=0;i<ln;++i) vl[i]=0;
   apply_p_Als(vl,data,vs,ns);
+  printf("applyS-p3\n");
 #ifdef DBG
   sparse_lu_solve(vl,data,vl);
 #else
   sparse_cholesky_solve(vl,&data->fac_A_ll,vl);
 #endif
+  printf("applyS-p4\n");
   apply_m_Asl(Svs,ns,data,vl);
+  printf("applyS-p5\n");
 }
 
 /* vx = X' * vs */
@@ -1071,9 +1076,10 @@ static void apply_X(double *vs, uint ns, const struct xxt *data,
                     const double *vx, uint nx)
 {
   const double *X = data->X; const uint *Xp = data->Xp;
+  uint sn=data->sn;
   uint i,j;
 #ifdef DBG2
-  for(i=0;i<ns;++i) vs[i]=0;
+  for(i=0;i<sn;++i) vs[i]=0;
 #else
   for(i=0;i<ns;++i) vs[i]=0;
 #endif
@@ -1092,7 +1098,11 @@ static void allocate_X(struct xxt *data, sint *perm_x2c)
   data->Xp = tmalloc(uint,xn+1);
   data->Xp[0]=0;
   for(i=0;i<xn;++i) {
+#ifdef DBG4
+    if(perm_x2c[i]!=-1) h=xn;
+#else
     if(perm_x2c[i]!=-1) ++h;
+#endif
     data->Xp[i+1]=data->Xp[i]+h;
   }
   data->X = tmalloc(double,data->Xp[xn]);
@@ -1101,20 +1111,20 @@ static void allocate_X(struct xxt *data, sint *perm_x2c)
 static void allocate_Y(struct xxt *data, sint *perm_x2c)
 {
   uint xn=data->xn;
-#ifdef DBG4
+//#ifdef DBG4
   uint sn=data->sn;
-#endif
+//#endif
   uint i,h=0;
   if(data->null_space && xn) --xn;
   data->Yp = tmalloc(uint,xn+1);
   data->Yp[0]=0;
   for(i=0;i<xn;++i) {
-#ifdef DBG3
-#ifdef DBG4
-    if(perm_x2c[i]!=-1) h=sn;
-#else
-    if(perm_x2c[i]!=-1) h=xn;
-#endif
+#ifdef DBG2
+//#ifdef DBG4
+//    if(perm_x2c[i]!=-1) h=sn;
+//#else
+    if(perm_x2c[i]!=-1) h=sn; // sn < xn
+//#endif
 #else
     if(perm_x2c[i]!=-1) ++h;
 #endif
@@ -1135,10 +1145,12 @@ static void orthogonalize(struct xxt *data, struct csr_mat *A_ss,
 
   printf("\northo: ln=%d sn=%d xn=%d at nid = %d\n",ln,sn,xn,data->comm.id);
 
-  allocate_X(data,perm_x2c); //Upper-tri
+  printf("ortho-allocate \n");
+  allocate_X(data,perm_x2c); //Upper-tri for sym problem
 #ifdef DBG2
   allocate_Y(data,perm_x2c); //full
 #endif
+
   
 
 //#ifdef DBG3
@@ -1153,64 +1165,83 @@ static void orthogonalize(struct xxt *data, struct csr_mat *A_ss,
 
   myprt_dump_QQt(data,perm_x2c,"QQt");
 
+  printf("ortho-for \n");
   for(i=0;i<xn;++i) {                  // xn = #col of X
     uint ns=data->Xp[i+1]-data->Xp[i]; // ns = nnz of current column of X
+#ifdef DBG2
+    uint nsy=data->Yp[i+1]-data->Yp[i];// nsy= nnz of current column of Y
+#endif
     sint ui = perm_x2c[i];             // ui = current idx
     double ytsy, *x, *y;
 
     if(ui == -1) {
-#ifdef DBG3
-      for(j=0;j<i;++j) vx[j]=0;
+#ifdef DBG2
+      for(j=0;j<xn;++j) vx[j]=0;
 #else
       for(j=0;j<i;++j) vx[j]=0;
 #endif
     } else {
       ui-=ln;
+  printf("ortho-S-col \n");
       apply_S_col(vs, data,A_ss, ui, sn, vl); //vs=S(:,ui)  // vs=(1:sn,ui)
+  printf("ortho-Xt or Yt \n");
 #ifdef DBG2
       apply_Yt(vx,i, data, vs); // vx(1:i) = Y^T * vs(1:sn) //
 #else
       apply_Xt(vx,i, data, vs);
 #endif
     }
-#ifdef DBG2
-//    apply_QQt(data,vx,xn,0);
-//    apply_QQt(data,vx,1,xn);
+  printf("ortho-QQt+X \n");
+//#ifdef DBG2
+////    apply_QQt(data,vx,xn,0);
+////    apply_QQt(data,vx,1,xn);
+//    apply_QQt(data,vx,i,xn-i);
+//    apply_X(vs,ns, data, vx,i);
+//#else
     apply_QQt(data,vx,i,xn-i);
     apply_X(vs,ns, data, vx,i);
-#else
-    apply_QQt(data,vx,i,xn-i);
-    apply_X(vs,ns, data, vx,i);
-#endif
+//#endif
     if(ui!=-1) vs[ui]=1; //because Xis normalized
 //    apply_S(Svs,ns, data,A_ss, vs, vl);//ns
 
+  printf("ortho-S \n");
 #ifdef DBG4
-    apply_S(Svs,sn, data,A_ss, vs, vl);//ns
-    ytsy = tensor_dot(Svs,Svs,sn);
+    apply_S(Svs,nsy, data,A_ss, vs, vl);//ns
+    ytsy = tensor_dot(Svs,Svs,nsy);
     ytsy = sum(data,ytsy,sn,xn-sn);
 #else
+#ifdef DBG3 // DBG3
     apply_S(Svs,ns, data,A_ss, vs, vl);//ns
-#ifdef DBG2
-    ytsy = tensor_dot(vs,Svs,ns);
+    ytsy = tensor_dot(vs,Svs,nsy);
     ytsy = sum(data,ytsy,i+1,xn-(i+1));
 #else
+#ifdef DBG2 // DBG2
+    apply_S(Svs,nsy, data,A_ss, vs, vl);//ns
+  printf("ortho-tensor\n");
+    ytsy = tensor_dot(vs,Svs,ns);//PPPPPPPP
+  printf("ortho-sum\n");
+    ytsy = sum(data,ytsy,i+1,xn-(i+1));
+  printf("ortho-sum done\n");
+#else // DBG
+    apply_S(Svs,ns, data,A_ss, vs, vl);//ns
     ytsy = tensor_dot(vs,Svs,ns);
     ytsy = sum(data,ytsy,i+1,xn-(i+1));
+#endif
 #endif
 #endif
 
 //    printf("%d,%d, nid=%d, ytsy=%f\n",i,ui,data->comm.id,ytsy);
 
+  printf("ortho-update X \n");
     if(ytsy<DBL_EPSILON/128) ytsy=0; else ytsy = 1/sqrt(ytsy);
     x=&data->X[data->Xp[i]];
     for(j=0;j<ns;++j) x[j]=ytsy*vs[j];
-#ifdef DBG4
+#ifdef DBG2
+#ifdef DBG3 //DBG3 DBG4
     y=&data->Y[data->Yp[i]];
 //    for(j=0;j<(data->Yp[i+1]-data->Yp[i]);++j) y[j]=ytsy*Svs[j];
     for(j=0;j<(data->Yp[i+1]-data->Yp[i]);++j) y[j]=ytsy*Svs[j];
-#else
-#ifdef DBG2
+#else // DBG2
     y=&data->Y[data->Yp[i]];
     for(j=0;j<(data->Yp[i+1]-data->Yp[i]);++j) y[j]=ytsy*vs[j];
 #endif
@@ -1352,17 +1383,17 @@ struct xxt *crs_setup(  // fatorize A = XXT
   free(A_ll.Arp); free(A_ll.A);
 #endif
 
-#ifdef DBG3
-  data->vl = tmalloc(double,data->ln+data->cn+data->xn-data->sn+2*data->xn);
-#else
+//#ifdef DBG3
+//  data->vl = tmalloc(double,data->ln+data->cn+data->xn-data->sn+2*data->xn);
+//#else
   data->vl = tmalloc(double,data->ln+data->cn+2*data->xn);
-#endif
+//#endif
   data->vc = data->vl+data->ln;
-#ifdef DBG3
-  data->vx = data->vc+data->cn+data->xn-data->sn;
-#else
+//#ifdef DBG3
+//  data->vx = data->vc+data->cn+data->xn-data->sn;
+//#else
   data->vx = data->vc+data->cn;
-#endif
+//#endif
   data->combuf = data->vx+data->xn;
 
 
@@ -1382,11 +1413,11 @@ void crs_solve(double *x, struct xxt *data, const double *b)
   double *vl=data->vl, *vc=data->vc, *vx=data->vx;
   uint i;
 
-#ifdef DBG3
-  for(i=0;i<cn+xn-sn;++i) vc[i]=0;
-#else
+//#ifdef DBG3
+//  for(i=0;i<cn+xn-sn;++i) vc[i]=0;
+//#else
   for(i=0;i<cn;++i) vc[i]=0;
-#endif
+//#endif
   for(i=0;i<un;++i) {
     sint p=data->perm_u2c[i];
     if(p>=0) vc[p]+=b[i];

@@ -330,7 +330,7 @@ c-----------------------------------------------------------------------
       include 'TOTAL'
 
       integer e
-      ifflow=.false.
+c      ifflow=.false.
 
       param(40)=4
       param(40)=4
