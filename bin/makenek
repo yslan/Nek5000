@@ -19,7 +19,7 @@ set -a
 #-------------------------------------------------------------------------------
 
 # optional compiler flags
-#FFLAGS=""
+FFLAGS="-fPIC" #ToDo: remove this after turning shared to static, Lan
 #CFLAGS=""
 
 # optional linking flags
