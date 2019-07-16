@@ -1,0 +1,12 @@
+      common /helm_aniso/ kx,ky,kz, kxd,kyd,kzd 
+      real kx(lx1,ly1,lz1,lelt)
+      real ky(lx1,ly1,lz1,lelt)
+      real kz(lx1,ly1,lz1,lelt)
+      real kxd(lx1,ly1,lz1,lelt)
+      real kyd(lx1,ly1,lz1,lelt)
+      real kzd(lx1,ly1,lz1,lelt)  
+
+      common /jac_conv/ cx,cy,cz
+      real cx(lx1,ly1,lz1,lelt)
+      real cy(lx1,ly1,lz1,lelt)
+      real cz(lx1,ly1,lz1,lelt)

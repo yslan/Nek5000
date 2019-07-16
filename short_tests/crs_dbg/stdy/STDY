@@ -1,0 +1,68 @@
+c=====================================================================
+c   NEWTON Parameters
+c=====================================================================
+      common /ss_flag/
+     $      ifpstime
+     $     ,ifjfnk
+     $     ,ifbdff
+     $     ,ifusrodr
+     $     ,ifprec
+      logical ifpstime,ifjfnk,ifbdff,ifusrodr,ifprec
+
+      common /ss_paramr/
+     $      dtau            ! pseudo-timestep tau
+     $     ,tau_max          ! 
+     $     ,SER_max
+     $     ,SER_min
+     $     ,Jeps
+     $     ,alpha_NT
+      real dtau,tau_max,SER_max,SER_min,Jeps,alpha_NT
+
+      common /ss_parami/
+     $      nfld
+     $     ,nfldc
+     $     ,npvts(toteq)
+     $     ,SER_op           ! pseudo-timestep tau
+     $     ,Jeps_op
+     $     ,dt_op
+     $     ,maxit_ps ! ToDo:  not active
+     $     ,maxit_nt
+     $     ,maxit_g
+      integer SER_op,Jeps_op,dt_op,nfld,nfldc,npvts
+     $     ,  maxit_ps,maxit_nt,maxit_g
+
+      common /ss_tolr/
+     $     tol_ps
+     $   , atol_nt
+     $   , rtol_nt
+     $   , atol_gmres
+     $   , rtol_gmres
+      real tol_ps,atol_nt,rtol_nt,atol_gmres,rtol_gmres
+
+      common /ss_dbgl/
+     $      ifdbg
+     $    , ifdbgPS
+     $    , ifdbgNT
+     $    , ifdbgF
+     $    , ifsspso
+     $    , ifssnto
+     $    , ifntcf
+     $    , ifntcg
+      logical ifdbg,ifdbgPS,ifdbgNT,ifdbgF,ifsspso,ifssnto
+     $      , ifntcf,ifntcg
+
+      common /ss_orderi/
+     $      ss_ord(toteq)
+     $     ,cp_ord(toteq)
+      integer ss_ord,cp_ord
+
+      common /ss_orderr/
+     $      mults(lvt1,toteq)
+      real mults
+
+      common /ss_worki/
+     $      istepPS
+     $     ,istepNT
+      integer istepPS,istepNT
+
+      ! ToDo separate: (param + flags) and (work arrays)

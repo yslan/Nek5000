@@ -1,0 +1,525 @@
+c-----------------------------------------------------------------------
+c-----------------------------------------------------------------------
+      subroutine uservp (ix,iy,iz,eg)
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      integer e,f,eg
+c     e = gllel(eg)
+
+      udiff =0.
+      utrans=0.
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userf  (ix,iy,iz,eg)
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      integer e,f,eg
+c     e = gllel(eg)
+
+
+c     Note: this is an acceleration term, NOT a force!
+c     Thus, ffx will subsequently be multiplied by rho(x,t).
+
+
+      ffx = 0.0
+      ffy = 0.0
+      ffz = 0.0
+
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userq  (ix,iy,iz,eg)
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      integer e,f,eg
+c     e = gllel(eg)
+
+      qvol   = 0.0
+      source = 0.0
+
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userchk
+      implicit none
+      include 'SIZE'
+      include 'DOMAIN'
+      include 'TOTAL'
+
+      common /myhandle/ handle
+      integer handle
+
+      common /scrxxt/ cmlt(lcr,lelt),mask(lcr,lelt)
+      real cmlt, mask
+
+      common /ivrtx/ vertex
+      integer vertex((2**ldim)*lelt)
+      common /ingv/ ngv
+      integer*8 ngv
+
+      integer lt
+      parameter(lt=lx1*ly1*lz1*lelt)
+      real h1(lt), h2(lt), h3(lt)
+      real w1(lt), w2(lt)
+
+      integer lc
+      parameter(lc=2*lelt*lcr*8+1) ! times 2 for sym
+
+      real acrs(lcr*lc)
+      real bcrs(lcr*lc)
+
+      integer lg
+      parameter (lg = lcr*lelg)
+      common /rcrslu/alu
+      common /icrslu/ipiv, ndof
+      real alu(lg*lg)
+      integer ipiv(lg), ndof
+
+
+      real  x(lc)
+      real  r(lc)
+      real  f(lc)
+      real ax(lc)
+      
+      integer ncl,nxc,nyc,nzc
+      integer nel,del
+      integer n1,ncrs
+      integer i
+      logical ifconv
+
+      real relres, rmin,rmax
+      real relresv, rminv,rmaxv
+      real glsc3,glmin,glmax
+      real vlsc3,vlmin,vlmax
+      real vmax,vmin
+
+
+      ifvo = .true.
+      ifpo = .true.
+      ifto = .true.
+
+      nxc = 2
+      nyc = nxc
+      nzc = ldim-1
+      ncl = nxc*nyc*nzc
+      nel = nelt
+      del = min(nel,3)
+
+      ncrs = ncl*nel
+      n1 = lx1*ly1*lz1*nel
+
+      if(nio.eq.0) write(*,*) 'userchk lelv, lelt',lelv,lelt
+      if(nio.eq.0) write(*,*) 'userchk nelv, nelt',nelv,nelt
+      if(nio.eq.0) write(*,*) 'userchk nxc, ncl', nxc, ncl
+
+      vmax = glmax(vx,nx1*ny1*nz1*nelt)
+      vmax = max(vmax,glmax(vy,nx1*ny1*nz1*nelt))
+      vmax = max(vmax,glmax(vz,nx1*ny1*nz1*nelt))
+      vmin = glmin(vx,nx1*ny1*nz1*nelt)
+      vmin = min(vmin,glmin(vy,nx1*ny1*nz1*nelt))
+      vmin = min(vmin,glmin(vz,nx1*ny1*nz1*nelt))
+      if(nio.eq.0) write(*,*) 'userchk vmin/max', vmin,vmax
+
+      call set_convect_new(vxd,vyd,vzd,vx,vy,vz)
+
+      ! Set coarse grid solver
+      ifield = 2
+      ifconv = .false. 
+      ifconv = .true. 
+      call cfill(h1,param(8),n1)
+      call rzero(h2,n1)
+      call rzero(h3,n1)
+      call set_up_adf_crs(acrs,h1,h2,h3,ifconv,w1,w2)
+
+      ! Set LU solver
+c      call crs_lu_fact(h1,h2,h3,ifconv,w1,w2)
+      
+      ! Get mass matrix
+      ifconv = .false.
+      call rone(h1,n1)
+      call get_local_crs_galerkin_t(bcrs,ncl,nxc,h2,h1,h3,ifconv,w1,w2)
+
+      ! Set rhs r = B*f
+      ifield = 2
+      call rone(f,ncrs)
+      call axcrs(r,bcrs,f)
+
+      ! Solve, rhs is un-assambled 
+      call adf_coarse_solve(x,r)
+
+      ! Coarse solver done, next is to verify the solution
+
+
+
+
+
+
+
+      ! Set coarse dssum
+      ifield = 2
+      call setupds(handle,nxc,nyc,nzc,nel,nelgt,vertex,ngv)
+
+
+      call col2(r,mask,ncrs) ! mask
+c      if(nio.eq.0) then
+c         write(*,*) 'RHS (as param(40)=4
+c      param(40)=4
+c      param(40)=4
+c      returned by coarse solver, masked) r = '
+c         call display(ncl,del,r,ncl)
+c      endif
+
+      ! Recompute rhs
+      call axcrs(r,bcrs,f)
+      ! Assemble rhs to verify solution
+      call fgslib_gs_op(handle,r,1,1,0)
+      call col2(r,mask,ncrs) ! mask
+      if(nio.eq.0) then
+         write(*,*) 'RHS (from equation) r = '
+         call display(ncl,del,r,ncl)
+      endif
+
+      if(nio.eq.0) then
+         write(*,*) 'Solution x = '
+         call display(ncl,del,x,ncl)
+      endif
+
+      ! Residual
+      relres = sqrt(glsc3(r,r,cmlt,ncrs))
+      relresv= sqrt(vlsc3(r,r,cmlt,ncrs))
+      ifield = 2
+      call axcrs(ax,acrs,x)
+      call fgslib_gs_op(handle,ax,1,1,0)
+      call sub2(r,ax,ncrs)
+      call col2(r,mask,ncrs) ! mask
+      relres = sqrt(glsc3(r,r,cmlt,ncrs))/relres
+      relresv= sqrt(vlsc3(r,r,cmlt,ncrs))/relresv
+
+      rmin = glmin(r,ncrs)
+      rmax = glmax(r,ncrs)
+      rminv= vlmin(r,ncrs)
+      rmaxv= vlmax(r,ncrs)
+
+      if(nio.eq.0) then
+         write(*,*) 'Residual r = '
+         call display(ncl,del,r,ncl)
+      endif
+
+      if(nio.eq.0) write(*,*) 'relres, rmin, rmax = ',relres,rmin,rmax
+      write(*,*) 'relresv,rminv,rmaxv= ',relresv,rminv,rmaxv,'nid',nid
+
+c     if(nio.eq.0) then
+c        write(*,*) 'ACRS = '
+c        call display(ncl,ncl,acrs,ncl)
+c        write(*,*) 'BCRS = '
+c        call display(ncl,ncl,bcrs,ncl)
+c     endif
+      
+      call exitt0
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine axcrs(ax,a,x)
+      implicit none
+      include 'SIZE'
+      include 'DOMAIN'
+      include 'TOTAL'
+
+      real ax(lcr,*)
+      real  a(lcr,lcr,*)
+      real  x(lcr,*)
+
+      integer nel, ncl
+      integer nxc,nyc,nzc, e
+
+      nxc = 2
+      nyc = nxc
+      nzc = ldim-1
+      ncl = nxc*nyc*nzc
+
+      nel = nelt
+      if(ifield.eq.1) nel = nelv
+      
+      do e=1,nel
+         call mxm(a(1,1,e),ncl,x(1,e),ncl,ax(1,e),1)
+      enddo ! e
+
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userbc (ix,iy,iz,iside,ieg)
+
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      common /ldcpar/ dxmin
+
+      ux=0.0
+      uy=0.0
+      uz=0.0
+
+      eps = 1.e-5
+
+      y0 = 1-dxmin
+      if (y.gt.(y0-eps)) then
+         yy = (y-y0)/(1-y0)
+         ux=yy**ly1
+      endif
+
+      temp=0.0
+
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine useric (ix,iy,iz,ieg)
+
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      if (ifield.eq.1) then
+         vv = 1.0E0
+         r2 = x*x + y*y
+         r1 = sqrt(r2)
+         r3 = r1*r2
+         ux = -vv*y/r2
+         uy =  vv*x/r2
+
+         ux = 0.0E0
+         uy = 0.0E0
+         uz = 0.0E0
+      elseif(ifield.eq.2) then
+         temp = 0.0E0
+      endif
+
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat
+
+      include 'SIZE'
+      include 'TOTAL'
+
+      integer e
+      ifflow=.false.
+
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat2   ! This routine to modify mesh coordinates
+      implicit none
+      include 'SIZE'
+      include 'TOTAL'
+      integer i,ntot,coord
+      real x,y,z, temp
+      real alpha,th,th1,th2
+      real beta,ph,ph1,ph2
+      real circ,rr,rr1,rr2
+      real a,b,f,width,height,xi,xi1,xi2
+      real skw,a00,a10,a01,a11
+      real rt0,rt1,rt2,ta,ta0,ta1,ta2
+      
+      parameter (
+     $ alpha= 4*atan(1.0E0), width =1.0E0, ! Angular and radial width
+     $ beta = 4*atan(1.0E0), height=1.0E0,
+     $ circ = 4*atan(1.0E0),     ! Central circumference
+     $ a=5.0E0, b=4.0E0, ! Central ellipse
+     $ f=sqrt(a*a-b*b),  ! Semi-focal distance
+     $ th1=-0.5E0*alpha, 
+     $ th2= 0.5E0*alpha,
+     $ ph1=-0.5E0*beta, 
+     $ ph2= 0.5E0*beta,
+     $ rr1=circ/alpha-0.5E0*width,
+     $ rr2=circ/alpha+0.5E0*width, 
+     $ xi1=acosh((a-0.5E0*width)/f), 
+     $ xi2=acosh((a+0.5E0*width)/f),
+     $ skw=3.00E0*atan(1.0E0), ! Skewed hex angle
+     $ a00=0.25E0*(1.0E0/tan(0.5E0*skw)-1.0E0),
+     $ a10=0.25E0*(1.0E0/tan(0.5E0*skw)+3.0E0),
+     $ a01=0.25E0*(1.0E0/tan(0.5E0*skw)-1.0E0),
+     $ a11=0.25E0*(1.0E0/tan(0.5E0*skw)-1.0E0),
+     $ rt0=2, rt1=0.4, rt2=1, ! Toroidal radii
+     $ ta0=sqrt(rt0**2-rt2**2), 
+     $ ta1=asinh(ta0/rt2),
+     $ ta2=asinh(ta0/rt1)
+     $ )
+
+!ascii      param(66) = 0
+!ascii      param(67) = 0
+        param(66) = 4.
+        param(67) = 4.
+        ifflow = .false.
+!       ifchar=.true.
+!4 = bin, 0 = ascii
+
+
+      ntot=lx1*ly1*lz1*nelt
+      do i=1,ntot
+c        Assuming canoncial domain
+         x = xm1(i,1,1,1)
+         y = ym1(i,1,1,1)
+         z = zm1(i,1,1,1) 
+         
+         rr = 0.5E0*(rr2-rr1)*x+0.5E0*(rr2+rr1)
+         xi = 0.5E0*(xi2-xi1)*x+0.5E0*(xi2+xi1)
+         ta = 0.5E0*(ta2-ta1)*x+0.5E0*(ta2+ta1)
+         th = 0.5E0*(th2-th1)*y+0.5E0*(th2+th1)
+         ph = 0.5E0*(ph2-ph1)*z+0.5E0*(ph2+ph1)
+
+         coord = 2
+
+         if     (coord.eq.1) then
+c        Cartesian (2,2,2)
+         xm1(i,1,1,1) = 1.0E0*x
+         ym1(i,1,1,1) = 1.0E0*y
+         zm1(i,1,1,1) = 1.0E0*z
+         elseif (coord.eq.2) then
+c        Circular cylindrical (2,2,3)
+         xm1(i,1,1,1) = rr*cos(th)
+         ym1(i,1,1,1) = rr*sin(th)
+         zm1(i,1,1,1) = 0.5E0*height*z
+         elseif (coord.eq.3) then
+c        Spherical (2,2,3)
+         th = th + atan(1.0E0)
+         xm1(i,1,1,1) = rr*cos(ph)*sin(th)
+         ym1(i,1,1,1) = rr*sin(ph)*sin(th)
+         zm1(i,1,1,1) = rr*cos(th)
+         elseif (coord.eq.4) then
+c        Elliptic cylindrical (2,3,3)
+         xm1(i,1,1,1) = f*cosh(xi)*cos(th)
+         ym1(i,1,1,1) = f*sinh(xi)*sin(th)
+         zm1(i,1,1,1) = 0.5E0*height*z
+         elseif (coord.eq.5) then
+c        Skewed hex (Non-separable)
+         xm1(i,1,1,1) = a00 + a10*x + a01*y + a11*x*y
+         ym1(i,1,1,1) = a00 + a10*y + a01*x + a11*x*y
+         zm1(i,1,1,1) = 0.5E0*height*z
+         elseif (coord.eq.6) then
+c        Toroidal (Non-separable)
+         xm1(i,1,1,1) = ta0*cos(ph)*sinh(ta)/(cosh(ta)-cos(th))
+         ym1(i,1,1,1) = ta0*sin(ph)*sinh(ta)/(cosh(ta)-cos(th))
+         zm1(i,1,1,1) = ta0*sin(th)/(cosh(ta)-cos(th))
+         endif
+      enddo
+
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+     
+      subroutine usrdat3
+      include 'SIZE'
+      include 'TOTAL'
+c
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine sns_drive
+
+      include 'SIZE'
+      include 'TOTAL'
+
+      parameter(lt=lx1*ly1*lz1*lelt)
+
+      logical ifeo, ifpsio
+
+      common /snsexact/ uex(lt,ldim), tex(lt,ldimt)
+      common /snsivars/ isns, iter_gmres, itmaxf, itmaxs
+      common /snsio/ ifeo, ifpsio
+      common /snstol/ rtoln, atoln, rtolp, atolp, rtolg, atolg, etolg
+
+      write (6,*) 'inside sns_drive'
+
+      call opzero(vx,vy,vz)
+c     call gfldr('restart0.f00001')
+
+      call sns_init
+
+      itmaxf = 100
+      ifpsio = .true.
+
+      rtolg = 1.e-6
+      atolg = 1.e-8
+
+c     call sns_pseudo
+      call sns_fluid
+
+      call exitt0
+
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine sns_psi_omega ! copy from steady.f
+
+      include 'SIZE'
+      include 'TOTAL'
+
+      parameter (lt=lx1*ly1*lz1*lelt)
+
+      logical iftemp
+
+      real psi(lt), omega(lt,3), rhs(lt)
+      real w1(lt),w2(lt),h1(lt),h2(lt)
+
+      n = lx1*ly1*lz1*nelv
+
+      call comp_vort3(omega,w1,w2,vx,vy,vz)
+      call col3(rhs,bm1,omega,n)
+      call rone(h1,n)
+      call rzero(h2,n)
+      tol = param(22)
+c     call chsign(rhs,n)
+      call hmholtz('psi ',psi,rhs,h1,h2,v1mask,vmult,1,tol,1000,1)
+      call dsavg(psi)
+
+      iftemp = ifxyo
+      ifxyo = .true.
+      call outpost(psi,omega,vz,pr,t,'psi')
+      ifxyo = iftemp
+
+      param(40)=4
+      param(40)=4
+      param(40)=4
+      return
+      end
+cc-----------------------------------------------------------------------

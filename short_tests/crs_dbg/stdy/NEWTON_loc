@@ -1,0 +1,40 @@
+c=====================================================================
+c   NEWTON Parameters
+c=====================================================================
+      common /newton_flag/
+     $      ifparamNT      ! if using parameters from .usr
+      logical ifparamNT
+
+      common /newton_paramr/
+     $     dtNT,           ! pseudo-timestep tau
+     $     tolNT,          ! tolerance for Newton method
+     $     max_dtNT,       ! Max. of dtNT, avoid NaN
+     $     min_ftol,       ! Min. of tol,  avoid NaN
+     $     f_pre,          ! f norm from previous step
+     $     f_now          ! f norm of current step
+      real dtNT
+     $    ,tolNT,max_dtNT,min_ftol
+     $    ,f_pre,f_now
+
+      common /newton_parami/
+     $      maxit           ! iteration for Newton method
+      integer maxit
+
+c=====================================================================
+c   Main Working Variables for NEWTON
+c=====================================================================
+
+      common /newtonv/
+     $     fn  (lx1*ly1*lz1*lelv,toteq),
+     $     gn_n(lx1*ly1*lz1*lelv,toteq), ! g  in pseudo-time loop
+     $     ck_0(lx1*ly1*lz1*lelv,toteq), ! cN in first newton iter
+     $     cn_k(lx1*ly1*lz1*lelv,toteq), ! cN in newton loop
+     $     sn_k(lx1*ly1*lz1*lelv,toteq)  ! working array in newton loop
+      real fn,gn_n,ck_0,cn_k,sn_k
+
+c      common /newtoni/ iterNT
+c      integer iterNT
+
+      common /newton_ui/
+     $      bdf_saved(lx1*ly1*lz1*lelv,toteq,3) ! saving from BDF: 1-userini 2-pre-bdf 3-current-bdf
+      real bdf_saved

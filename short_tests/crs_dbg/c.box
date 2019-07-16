@@ -1,0 +1,16 @@
+base.rea
+2 3       spatial dimension:  < 0 --> ascii output
+2        number of fields
+#========================================================
+#
+#    This is a 3x3 box for the lid-driven cavity
+#
+#========================================================
+#
+Box
+-8 -8 -1  nelx,nely,nelz for Box
+-1. 1. 1.
+-1. 1. 1.
+-1. 1. 1.
+v  ,v  ,W  ,v  ,v  ,v  ,        bc's)
+t  ,t  ,t  ,t  ,t  ,t  ,        bc's)

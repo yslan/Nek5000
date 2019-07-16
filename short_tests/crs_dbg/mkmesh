@@ -1,0 +1,27 @@
+#!/bin/sh
+
+
+#usage ./mkmesh <nelx> <nely> <nelz>
+
+core="/Disk_K/ceed/ceed-steady/Nek5000_v19-rc1/bin/" 
+ccc="c"  # case name (.box .rea .map)
+
+
+# modify box
+sed -i '/nelx,nely,nelz for Box/c\-'$1' -'$2' -'$3'  nelx,nely,nelz for Box' $ccc".box"
+
+
+# genbox
+str=$ccc".box"
+$core"genbox" << DOF
+$str
+DOF
+
+cp box.rea $ccc".rea"
+
+# genmap
+$core"genmap" << DOF
+$ccc
+0.1
+DOF
+

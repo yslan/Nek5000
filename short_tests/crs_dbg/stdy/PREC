@@ -1,0 +1,2 @@
+      integer lk
+      parameter (lk=lx1*ly1*lz1) ! either 1 or lx1*ly1*lz1

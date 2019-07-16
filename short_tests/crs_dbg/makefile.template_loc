@@ -1,0 +1,209 @@
+
+## CORE##########################################################################
+#CORE := ${CORE} \
+#linalg.o  schwarzli.o schwarzv.o tens.o steady.o semcrs.o hmholtz2.o nk.o nk_prec.o\
+#zgetv0.o  znaitr.o  znapps.o  znaup2.o  znaupd.o  zneigh.o  zneupd.o  zngets.o  zsortc.o  zstatn.o\
+#dgetv0.o  dnapps.o  dnaupe.o  dneupd.o  dsapps.o  dsconv.o  dseupd.o  dsortr.o  dstqrb.o\
+#dlaqrb.o  dnaup2.o  dnconv.o  dngets.o  dsaup2.o  dseigt.o  dsgets.o  dstatn.o\
+#dnaitr.o  dnaupd.o  dneigh.o  dsaitr.o  dsaupd.o  dsesrt.o  dsortc.o  dstats.o\
+#dlacon.o  dlaruv.o  dtrsen.o  izmax1.o  zlahqr.o  zlatrs.o  ztrexc.o  ztrsyl.o\
+#dlarnv.o  dtrevc.o  dzsum1.o  zlacon.o  zlarnv.o  ztrevc.o  ztrsen.o\
+#cmout.o  dvout.o   iset.o   secnd2.o  smout.o  svout.o    zmout.o\
+#cvout.o  dmout.o  icnteq.o  ivout.o   zvout.o\
+#zgegv.o   zggbak.o  zgghrd.o  zlacpy.o  zlanhs.o  zlarfg.o  zlascl.o  zrot.o    zungqr.o\
+#zgeqr2.o  zggbal.o  zhgeqz.o  zladiv.o  zlarfb.o  zlarft.o  zlaset.o  ztgevc.o  zunm2r.o\
+#zgeqrf.o  zggev.o   zlacgv.o  zlange.o  zlarf.o   zlartg.o  zlassq.o  zung2r.o  zunmqr.o\
+#dbdsqr.o  dgeqr2.o  dggbal.o  dlabrd.o  dlaisnan.o  dlaqr1.o  dlasq1.o  dlaswp.o  dormbr.o dtrsyl.o\
+#dgebd2.o  dgeqrf.o  dggev.o   dlacpy.o  dlaln2.o    dlaqr2.o  dlasq2.o  dlasy2.o  dormhr.o dgees.o\
+#dgebrd.o  dgesvd.o  dgghrd.o  dladiv.o  dlange.o    dlaqr3.o  dlasq3.o  dorgbr.o  dorml2.o dgebal.o\
+#dgehd2.o  dgetf2.o  dhgeqz.o  dlaexc.o  dlanhs.o    dlaqr4.o  dlasq4.o  dorghr.o  dormlq.o dgebak.o\
+#dgehrd.o  dgetrf.o  dhseqr.o  dlag2.o   dlanv2.o    dlaqr5.o  dlasq5.o  dorgl2.o  dormqr.o dpotrf.o\
+#dgelq2.o  dgetrs.o  disnan.o  dlahqr.o  dlapy3.o    dlarfx.o  dlasq6.o  dorglq.o  dtgevc.o dpotrs.o\
+#dgelqf.o  dggbak.o  dlabad.o  dlahr2.o  dlaqr0.o    dlas2.o   dlasv2.o  dorm2r.o  dtrexc.o dpotf2.o\
+#iladlc.o  iladlr.o  ilazlc.o  ilazlr.o  iparmq.o\
+#blas.o dsygv.o\
+#SS.o
+################################################################################
+################################################################################
+
+# Steady #######################################################################################
+$(OBJDIR)/dsygv.o       :./stdy/lib/blas/dsygv.f;     $(FC) -c $(L0) $(PPS_F) $< -o $@
+$(OBJDIR)/blas.o     :./stdy/lib/blas/blas.f;      $(FC) -c $(L0) $(PPS_F) $< -o $@
+
+$(OBJDIR)/smout.o :./stdy/lib/arpack/util/smout.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/icnteq.o :./stdy/lib/arpack/util/icnteq.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dmout.o :./stdy/lib/arpack/util/dmout.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zvout.o :./stdy/lib/arpack/util/zvout.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ivout.o :./stdy/lib/arpack/util/ivout.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/iset.o :./stdy/lib/arpack/util/iset.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/cmout.o :./stdy/lib/arpack/util/cmout.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/secnd2.o :./stdy/lib/arpack/util/secnd2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dvout.o :./stdy/lib/arpack/util/dvout.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/svout.o :./stdy/lib/arpack/util/svout.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/cvout.o :./stdy/lib/arpack/util/cvout.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zmout.o :./stdy/lib/arpack/util/zmout.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ztrexc.o :./stdy/lib/arpack/lapack/ztrexc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dtrsen.o :./stdy/lib/arpack/lapack/dtrsen.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/izmax1.o :./stdy/lib/arpack/lapack/izmax1.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlahqr.o :./stdy/lib/arpack/lapack/zlahqr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlarnv.o :./stdy/lib/arpack/lapack/dlarnv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dtrevc.o :./stdy/lib/arpack/lapack/dtrevc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlarnv.o :./stdy/lib/arpack/lapack/zlarnv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlacon.o :./stdy/lib/arpack/lapack/zlacon.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dzsum1.o :./stdy/lib/arpack/lapack/dzsum1.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ztrevc.o :./stdy/lib/arpack/lapack/ztrevc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlatrs.o :./stdy/lib/arpack/lapack/zlatrs.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ztrsyl.o :./stdy/lib/arpack/lapack/ztrsyl.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ztrsen.o :./stdy/lib/arpack/lapack/ztrsen.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaruv.o :./stdy/lib/arpack/lapack/dlaruv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlacon.o :./stdy/lib/arpack/lapack/dlacon.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/znapps.o :./stdy/lib/arpack/complex16/znapps.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zsortc.o :./stdy/lib/arpack/complex16/zsortc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/znaupd.o :./stdy/lib/arpack/complex16/znaupd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/znaitr.o :./stdy/lib/arpack/complex16/znaitr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zngets.o :./stdy/lib/arpack/complex16/zngets.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/znaup2.o :./stdy/lib/arpack/complex16/znaup2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zgetv0.o :./stdy/lib/arpack/complex16/zgetv0.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zstatn.o :./stdy/lib/arpack/complex16/zstatn.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zneupd.o :./stdy/lib/arpack/complex16/zneupd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zneigh.o :./stdy/lib/arpack/complex16/zneigh.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dsortc.o :./stdy/lib/arpack/double/dsortc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dnaupe.o :./stdy/lib/arpack/double/dnaupe.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dnaupd.o :./stdy/lib/arpack/double/dnaupd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dstqrb.o :./stdy/lib/arpack/double/dstqrb.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dsapps.o :./stdy/lib/arpack/double/dsapps.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dsconv.o :./stdy/lib/arpack/double/dsconv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaqrb.o :./stdy/lib/arpack/double/dlaqrb.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgetv0.o :./stdy/lib/arpack/double/dgetv0.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dnaitr.o :./stdy/lib/arpack/double/dnaitr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dsortr.o :./stdy/lib/arpack/double/dsortr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dseupd.o :./stdy/lib/arpack/double/dseupd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dsaitr.o :./stdy/lib/arpack/double/dsaitr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dstatn.o :./stdy/lib/arpack/double/dstatn.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dsaup2.o :./stdy/lib/arpack/double/dsaup2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dstats.o :./stdy/lib/arpack/double/dstats.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dneupd.o :./stdy/lib/arpack/double/dneupd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dseigt.o :./stdy/lib/arpack/double/dseigt.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dsaupd.o :./stdy/lib/arpack/double/dsaupd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dnconv.o :./stdy/lib/arpack/double/dnconv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dsgets.o :./stdy/lib/arpack/double/dsgets.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dngets.o :./stdy/lib/arpack/double/dngets.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dnaup2.o :./stdy/lib/arpack/double/dnaup2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dsesrt.o :./stdy/lib/arpack/double/dsesrt.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dnapps.o :./stdy/lib/arpack/double/dnapps.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dneigh.o :./stdy/lib/arpack/double/dneigh.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/iladlr.o :./stdy/lib/lapack/util/iladlr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ilazlc.o :./stdy/lib/lapack/util/ilazlc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ilazlr.o :./stdy/lib/lapack/util/ilazlr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/iparmq.o :./stdy/lib/lapack/util/iparmq.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/iladlc.o :./stdy/lib/lapack/util/iladlc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlassq.o :./stdy/lib/lapack/complex16/zlassq.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlarfb.o :./stdy/lib/lapack/complex16/zlarfb.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zung2r.o :./stdy/lib/lapack/complex16/zung2r.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zggbal.o :./stdy/lib/lapack/complex16/zggbal.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zgegv.o :./stdy/lib/lapack/complex16/zgegv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlaset.o :./stdy/lib/lapack/complex16/zlaset.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ztgevc.o :./stdy/lib/lapack/complex16/ztgevc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlacgv.o :./stdy/lib/lapack/complex16/zlacgv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zhgeqz.o :./stdy/lib/lapack/complex16/zhgeqz.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlanhs.o :./stdy/lib/lapack/complex16/zlanhs.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlascl.o :./stdy/lib/lapack/complex16/zlascl.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zunm2r.o :./stdy/lib/lapack/complex16/zunm2r.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlarfg.o :./stdy/lib/lapack/complex16/zlarfg.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zggev.o :./stdy/lib/lapack/complex16/zggev.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zrot.o :./stdy/lib/lapack/complex16/zrot.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zladiv.o :./stdy/lib/lapack/complex16/zladiv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zgeqrf.o :./stdy/lib/lapack/complex16/zgeqrf.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zgghrd.o :./stdy/lib/lapack/complex16/zgghrd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlange.o :./stdy/lib/lapack/complex16/zlange.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlarf.o :./stdy/lib/lapack/complex16/zlarf.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zunmqr.o :./stdy/lib/lapack/complex16/zunmqr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlacpy.o :./stdy/lib/lapack/complex16/zlacpy.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zggbak.o :./stdy/lib/lapack/complex16/zggbak.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zungqr.o :./stdy/lib/lapack/complex16/zungqr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlartg.o :./stdy/lib/lapack/complex16/zlartg.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zlarft.o :./stdy/lib/lapack/complex16/zlarft.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/zgeqr2.o :./stdy/lib/lapack/complex16/zgeqr2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dggbal.o :./stdy/lib/lapack/double/dggbal.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgetrs.o :./stdy/lib/lapack/double/dgetrs.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaqr1.o :./stdy/lib/lapack/double/dlaqr1.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaisnan.o :./stdy/lib/lapack/double/dlaisnan.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dggbak.o :./stdy/lib/lapack/double/dggbak.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgebak.o :./stdy/lib/lapack/double/dgebak.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgebal.o :./stdy/lib/lapack/double/dgebal.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dhgeqz.o :./stdy/lib/lapack/double/dhgeqz.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgetrf.o :./stdy/lib/lapack/double/dgetrf.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlasv2.o :./stdy/lib/lapack/double/dlasv2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaqr2.o :./stdy/lib/lapack/double/dlaqr2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgelqf.o :./stdy/lib/lapack/double/dgelqf.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlag2.o :./stdy/lib/lapack/double/dlag2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dhseqr.o :./stdy/lib/lapack/double/dhseqr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgehrd.o :./stdy/lib/lapack/double/dgehrd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgees.o :./stdy/lib/lapack/double/dgees.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlahqr.o :./stdy/lib/lapack/double/dlahqr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaln2.o :./stdy/lib/lapack/double/dlaln2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgelq2.o :./stdy/lib/lapack/double/dgelq2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaexc.o :./stdy/lib/lapack/double/dlaexc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlasy2.o :./stdy/lib/lapack/double/dlasy2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgetf2.o :./stdy/lib/lapack/double/dgetf2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlasq2.o :./stdy/lib/lapack/double/dlasq2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgehd2.o :./stdy/lib/lapack/double/dgehd2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlanv2.o :./stdy/lib/lapack/double/dlanv2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlabad.o :./stdy/lib/lapack/double/dlabad.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgebrd.o :./stdy/lib/lapack/double/dgebrd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlasq3.o :./stdy/lib/lapack/double/dlasq3.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dorgbr.o :./stdy/lib/lapack/double/dorgbr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dormqr.o :./stdy/lib/lapack/double/dormqr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dtgevc.o :./stdy/lib/lapack/double/dtgevc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlanhs.o :./stdy/lib/lapack/double/dlanhs.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgeqr2.o :./stdy/lib/lapack/double/dgeqr2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dormlq.o :./stdy/lib/lapack/double/dormlq.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dladiv.o :./stdy/lib/lapack/double/dladiv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dorghr.o :./stdy/lib/lapack/double/dorghr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlapy3.o :./stdy/lib/lapack/double/dlapy3.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaqr5.o :./stdy/lib/lapack/double/dlaqr5.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dbdsqr.o :./stdy/lib/lapack/double/dbdsqr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlasq1.o :./stdy/lib/lapack/double/dlasq1.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlasq6.o :./stdy/lib/lapack/double/dlasq6.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dorgl2.o :./stdy/lib/lapack/double/dorgl2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgesvd.o :./stdy/lib/lapack/double/dgesvd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlas2.o :./stdy/lib/lapack/double/dlas2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dtrsyl.o :./stdy/lib/lapack/double/dtrsyl.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaswp.o :./stdy/lib/lapack/double/dlaswp.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlasq4.o :./stdy/lib/lapack/double/dlasq4.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaqr4.o :./stdy/lib/lapack/double/dlaqr4.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaqr3.o :./stdy/lib/lapack/double/dlaqr3.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlacpy.o :./stdy/lib/lapack/double/dlacpy.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dorm2r.o :./stdy/lib/lapack/double/dorm2r.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dormhr.o :./stdy/lib/lapack/double/dormhr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlasq5.o :./stdy/lib/lapack/double/dlasq5.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/disnan.o :./stdy/lib/lapack/double/disnan.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgebd2.o :./stdy/lib/lapack/double/dgebd2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dormbr.o :./stdy/lib/lapack/double/dormbr.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlarfx.o :./stdy/lib/lapack/double/dlarfx.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dorglq.o :./stdy/lib/lapack/double/dorglq.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlange.o :./stdy/lib/lapack/double/dlange.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgghrd.o :./stdy/lib/lapack/double/dgghrd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dtrexc.o :./stdy/lib/lapack/double/dtrexc.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dgeqrf.o :./stdy/lib/lapack/double/dgeqrf.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dorml2.o :./stdy/lib/lapack/double/dorml2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlaqr0.o :./stdy/lib/lapack/double/dlaqr0.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dggev.o :./stdy/lib/lapack/double/dggev.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlabrd.o :./stdy/lib/lapack/double/dlabrd.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dlahr2.o :./stdy/lib/lapack/double/dlahr2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dpotrf.o :./stdy/lib/lapack/double/dpotrf.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dpotrs.o :./stdy/lib/lapack/double/dpotrs.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dpotf2.o :./stdy/lib/lapack/double/dpotf2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/tens.o :./stdy/tens.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/linalg.o :./stdy/linalg.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/schwarzli.o :./stdy/schwarzli.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/schwarzv.o :./stdy/schwarzv.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/steady.o :./stdy/steady.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/semcrs.o :./stdy/semcrs.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/hmholtz2.o :./stdy/hmholtz2.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/nk.o :./stdy/nk.f; $(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/nk_prec.o :./stdy/nk_prec.f; $(FC) -c $(FL2) $< -o $@
+
+# Steady, ylan ####################################################################################
+$(OBJDIR)/SS.o :./stdy/SS.f; $(FC) -c $(FL2) $< -o $@
+
