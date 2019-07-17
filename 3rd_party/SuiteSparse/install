@@ -33,7 +33,7 @@ tar -zxvf v$VER.tar.gz -C ./SuiteSparse --strip-components=1
 cd SuiteSparse
 
 set -x
-cd SuiteSparse_config; make -j4 install CC=cc CXX=CXX $SUITESPARSE_OPT; cd ../
+cd SuiteSparse_config; make -j4 install $SUITESPARSE_OPT; cd ../
 cd AMD; make -j4 install $SUITESPARSE_OPT; cd ../
 cd UMFPACK; make -j4 install UMFPACK_CONFIG=-DNCHOLMOD $SUITESPARSE_OPT BLAS='$(SUITESPARSE_BLAS)'; cd ../
 #cd UMFPACK; make -j4 install UMFPACK_CONFIG=-DNCHOLMOD INSTALL=/home/sean/Nek5000_xyt-dev/3rd_party/SuiteSparse BLAS="-L/home/sean/Nek5000_xyt-dev/3rd_party/blasLapack/ -lblasLapack -lgfortran"; cd ../
