@@ -22,6 +22,8 @@ PPLIST="SUITESPARSE"
 # optional compiler flags
 FFLAGS="-fPIC" # ToDo: shared to static, Lan
 #CFLAGS=""
+FFLAGS+=" -Og -g"
+CFLAGS+=" -Og -g"
 
 # optional linking flags
 #USR_LFLAGS+=" -L/usr/lib -lfoo"

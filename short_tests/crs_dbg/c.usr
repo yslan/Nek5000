@@ -10,9 +10,6 @@ c     e = gllel(eg)
 
       udiff =0.
       utrans=0.
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -33,9 +30,6 @@ c     Thus, ffx will subsequently be multiplied by rho(x,t).
       ffy = 0.0
       ffz = 0.0
 
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -50,9 +44,6 @@ c     e = gllel(eg)
       qvol   = 0.0
       source = 0.0
 
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -124,6 +115,8 @@ c-----------------------------------------------------------------------
       ncrs = ncl*nel
       n1 = lx1*ly1*lz1*nel
 
+      write(*,*)'test IO',nid
+
       if(nio.eq.0) write(*,*) 'userchk lelv, lelt',lelv,lelt
       if(nio.eq.0) write(*,*) 'userchk nelv, nelt',nelv,nelt
       if(nio.eq.0) write(*,*) 'userchk nxc, ncl', nxc, ncl
@@ -134,7 +127,18 @@ c-----------------------------------------------------------------------
       vmin = glmin(vx,nx1*ny1*nz1*nelt)
       vmin = min(vmin,glmin(vy,nx1*ny1*nz1*nelt))
       vmin = min(vmin,glmin(vz,nx1*ny1*nz1*nelt))
-      if(nio.eq.0) write(*,*) 'userchk vmin/max', vmin,vmax
+      if(nio.eq.0) write(*,*) 'userchk  vmin/max', vmin,vmax
+      vmax = glmax(vx,nx1*ny1*nz1*nelt)
+      vmin = glmin(vx,nx1*ny1*nz1*nelt)
+      if(nio.eq.0) write(*,*) 'userchk vxmin/max', vmin,vmax
+      vmax = glmax(vy,nx1*ny1*nz1*nelt)
+      vmin = glmin(vy,nx1*ny1*nz1*nelt)
+      if(nio.eq.0) write(*,*) 'userchk vymin/max', vmin,vmax
+      if (ldim.eq.3) then
+        vmax = glmax(vz,nx1*ny1*nz1*nelt)
+        vmin = glmin(vz,nx1*ny1*nz1*nelt)
+        if(nio.eq.0) write(*,*) 'userchk vzmin/max', vmin,vmax
+      endif
 
       call set_convect_new(vxd,vyd,vzd,vx,vy,vz)
 
@@ -232,9 +236,6 @@ c        call display(ncl,ncl,bcrs,ncl)
 c     endif
       
       call exitt0
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -263,9 +264,6 @@ c-----------------------------------------------------------------------
          call mxm(a(1,1,e),ncl,x(1,e),ncl,ax(1,e),1)
       enddo ! e
 
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -291,9 +289,6 @@ c-----------------------------------------------------------------------
 
       temp=0.0
 
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -311,16 +306,13 @@ c-----------------------------------------------------------------------
          ux = -vv*y/r2
          uy =  vv*x/r2
 
-         ux = 0.0E0
-         uy = 0.0E0
+         ux = 1.0E0
+         uy = 1.0E0
          uz = 0.0E0
       elseif(ifield.eq.2) then
          temp = 0.0E0
       endif
 
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -332,9 +324,6 @@ c-----------------------------------------------------------------------
       integer e
 c      ifflow=.false.
 
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -434,9 +423,6 @@ c        Toroidal (Non-separable)
          endif
       enddo
 
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -445,9 +431,6 @@ c-----------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
 c
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -483,9 +466,6 @@ c     call sns_pseudo
 
       call exitt0
 
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 c-----------------------------------------------------------------------
@@ -517,9 +497,6 @@ c     call chsign(rhs,n)
       call outpost(psi,omega,vz,pr,t,'psi')
       ifxyo = iftemp
 
-      param(40)=4
-      param(40)=4
-      param(40)=4
       return
       end
 cc-----------------------------------------------------------------------

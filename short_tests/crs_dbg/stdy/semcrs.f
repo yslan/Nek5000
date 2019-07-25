@@ -187,6 +187,7 @@ c     if(nio.eq.0) write(*,*) 'nullspace = ', null_space
 
       nz=ncr*ncr*nel
       isolver = param(40)
+      write(*,*)'p40=',param(40)
 
       call fgslib_crs_setup(xxth(ifield),isolver,nekcomm,mp,ntot,
      $     se_to_gcrs,nz,ia,ja,a, null_space, crs_param)
