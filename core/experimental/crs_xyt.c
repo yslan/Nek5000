@@ -297,9 +297,6 @@ void sparse_cholesky_free(struct sparse_cholesky *fac)
 void myprt_DBG_mtx(const struct xxt *data, const struct csr_mat *A, char *str, uint ns){
     uint nid=data->comm.id, i,p;
     static uint cnt=0;
-//    char str2[15], snid[3];
-//    sprintf(snid, "%d", nid); str2[0]= '\0';
-//    strcat(str2,str);strcat(str2,"_c");strcat(str2,snid);
 
     cnt++;
     printf("DBG_c%u %s cnt=%u  SSSSS \n",nid,str,cnt);
@@ -313,9 +310,6 @@ void myprt_DBG_vec(const struct xxt *data, const double *v, char *str, uint ns){
     uint nid=data->comm.id, i,p;
     static uint cnt=0;
     double sum=0;
-//    char str2[15], snid[3];
-//    sprintf(snid, "%d", nid); str2[0]= '\0';
-//    strcat(str2,str);strcat(str2,"_c");strcat(str2,snid);
 
     cnt++;
     printf("DBG_c%u %s cnt=%u  SSSSS \n",nid,str,cnt);
@@ -337,9 +331,7 @@ void myprt_dump_mtx(const struct xxt *data, const struct csr_mat *A, char *str, 
     fp = fopen(filename,"w");
 
     ftmp=stdout; stdout=fp;
-//  uint n, *Arp, *Aj; double *A;
  
-//    for (i=0;i<A->n;++i) {
     for (i=0;i<ns;++i) {
       for (p=A->Arp[i];p<A->Arp[i+1];++p){
         printf("%u %u %f\n",i,A->Aj[p],A->A[p]);
@@ -360,17 +352,11 @@ void myprt_dump_mtx2(const struct xxt *data, const uint nx, const uint *Ap, cons
     fp = fopen(filename,"w");
 
     ftmp=stdout; stdout=fp;
-//  uint n, *Arp, *Aj; double *A;
 
-//    for (int i=0;i<n;++i) {
-//      for (int p=Ap[i];p<Ap[i+1];++p){
-//        printf("%u %u %f\n",i,p,A[p]);
-//      }
-//    }
-  for(i=0;i<nx;++i) {
-    const double *x = A+Ap[i]; uint n=Ap[i+1]-Ap[i];
-    for(j=0;j<n;++j) printf("%u %u %f\n",j,i,x[j]);
-  }
+    for(i=0;i<nx;++i) {
+      const double *x = A+Ap[i]; uint n=Ap[i+1]-Ap[i];
+      for(j=0;j<n;++j) printf("%u %u %f\n",j,i,x[j]);
+    }
 
     fflush(fp);fclose(fp);
     stdout=ftmp;
@@ -599,8 +585,6 @@ static void locate_proc(struct xxt *data)
 {
   const uint id = data->comm.id;
   uint n = data->comm.np, c=1, odd=0, base=0;
-//  n=13; // Lan
-//  id=7; // Lan
   unsigned level=0;
   while(n>1) {
     ++level;
@@ -810,12 +794,11 @@ static sint *discover_sep_ids(struct xxt *data, struct array *dofa, buffer *buf)
   return perm_x2c;
 }
 
-static void apply_QQt(struct xxt *data, double *v, uint n,uint n2, uint tag)
+static void apply_QQt(struct xxt *data, double *v, uint n, uint tag) // use even tag
 {
   const unsigned nl=data->plevels;
   double *p=v, *recv=data->combuf;
   unsigned lvl, nsend=0;
-//  n=n2;
   uint size=n, ss;
   
       printf("QQQ_c%u 1  n=%u nl=%u\n",data->comm.id,n,nl);
@@ -830,22 +813,21 @@ static void apply_QQt(struct xxt *data, double *v, uint n,uint n2, uint tag)
     sint other = data->pother[lvl];
       printf("QQQ_c%u 2  lvl=%u other=%d\n",data->comm.id,lvl,other);
     if(other<0) {
-      printf("QQQ_c%u 3 send size= %u\n",data->comm.id,n2);
-      comm_send(&data->comm,p   ,n2*sizeof(double),-other-1,tag);
+      printf("QQQ_c%u 3 send size= %u\n",data->comm.id,size);
+      comm_send(&data->comm,p   ,size*sizeof(double),-other-1,tag);
       printf("QQQ_c%u 4\n",data->comm.id);
     } else {
       uint i;
-      printf("QQQ_c%u 5 recv size= %u\n",data->comm.id,n2);
-      comm_recv(&data->comm,recv,n2*sizeof(double),other   ,tag);
+      printf("QQQ_c%u 5 recv size= %u\n",data->comm.id,size);
+      comm_recv(&data->comm,recv,size*sizeof(double),other   ,tag);
       printf("QQQ_c%u 6\n",data->comm.id);
-      for(i=0;i<n2;++i) p[i]+=recv[i];
+      for(i=0;i<size;++i) p[i]+=recv[i];
     }
 
     ss=data->sep_size[lvl+1];
       printf("QQQ_c%u 7 ss=%u size=%u lvl=%u\n",data->comm.id,ss,size,lvl);
     if(ss>=size || lvl==nl-1) break;
     p+=ss, size-=ss;
-    n2-=ss;
   }
       printf("QQQ_c%u 8\n",data->comm.id);
   /* fan-out */
@@ -854,26 +836,24 @@ static void apply_QQt(struct xxt *data, double *v, uint n,uint n2, uint tag)
     sint other = data->pother[lvl];
       printf("QQQ_c%u 9 ii=%u other=%d\n",data->comm.id,ii,other);
     if(other<0) {
-      printf("QQQ_c%u 10 ii=%u recv size= %u\n",data->comm.id,ii,n2);
-      comm_recv (&data->comm,p,n2*sizeof(double),-other-1,tag);
+      printf("QQQ_c%u 10 ii=%u recv size= %u\n",data->comm.id,ii,size);
+      comm_recv (&data->comm,p,size*sizeof(double),-other-1,tag);
       printf("QQQ_c%u 11 ii=%u\n",data->comm.id,ii);
     } else {
-      printf("QQQ_c%u 12 ii=%u nsend=%u send size= %u\n",data->comm.id,ii,nsend,n2);
+      printf("QQQ_c%u 12 ii=%u nsend=%u send size= %u\n",data->comm.id,ii,nsend,size);
       comm_isend(&data->req[nsend++],&data->comm,
-                             p,n2*sizeof(double),other   ,tag);
+                             p,size*sizeof(double),other   ,tag);
       printf("QQQ_c%u 13 ii=%u nsend=%u\n",data->comm.id,ii,nsend);
     }
       printf("QQQ_c%u 14 ii=%u lvl=%u\n",data->comm.id,ii,lvl);
     if(lvl==0) break;
     ss=data->sep_size[lvl];
     p-=ss, size+=ss, --lvl;
-     n2+=ss;
    ii=ii+1;
   }
       printf("QQQ_c%u 15 nsend=%u\n",data->comm.id,nsend);
   if(nsend) comm_wait(data->req,nsend);
       printf("QQQ_c%u 16 \n",data->comm.id);
-//comm_barrier(&data->comm);
 
   fflush(stdout);
   fflush(stdin);
@@ -904,7 +884,7 @@ void myprt_dump_QQt(struct xxt *data, sint *perm_x2c, char *str){
         sint ui = perm_x2c[i];             // ui = current idx
         for(j=0;j<xn;++j) vx[j]=0;
         if (ui != -1){if (nid==p) vx[ui]=1;}
-        apply_QQt(data,vx,i,i,xn-i);
+        apply_QQt(data,vx,i,xn-i);
 
         for (j=0;j<xn;++j) printf("%u %u %u %u %f\n",p,i,nid,j,vx[j]);
       }
@@ -914,7 +894,7 @@ void myprt_dump_QQt(struct xxt *data, sint *perm_x2c, char *str){
     stdout=ftmp;
 }
 
-static double sum(struct xxt *data, double v, uint n, uint tag)
+static double sum(struct xxt *data, double v, uint n, uint tag) // use odd tag
 {
   const unsigned nl=data->plevels;
   double r;
@@ -1042,34 +1022,37 @@ static void discover_dofs(
 }
 
 /* vl   += A_ls * vs */
-/* vl^T += vs^T * A_ls^T */
 static void apply_p_Als(double *vl, struct xxt *data, const double *vs, uint ns)
 {
-#ifdef DBG4
+#ifdef DBG4 //DBG4 DBG5
   const uint *Arp = data->A_ls.Arp,
              *Aj  = data->A_ls.Aj;
   const double *A = data->A_ls.A;
+#else // DBG1 DBG2 DGB3
+  const uint *Arp = data->A_sl.Arp,
+             *Aj  = data->A_sl.Aj;
+  const double *A = data->A_sl.A;
+#endif
   uint i,p,pe;
   printf("dbg_c%u apply_Als-p1\n",data->comm.id);
+
+
 #ifdef DBG5
   for(i=0;i<ns;++i)
     for(p=Arp[i],pe=Arp[i+1];p!=pe;++p)
       vl[Aj[p]]+=A[p]*vs[i];
-#else//dbg4
+#else
+#ifdef DBG4
   for(i=0;i<ns;++i)
     for(p=Arp[i],pe=Arp[i+1];p!=pe;++p)
       vl[i]+=A[p]*vs[Aj[p]];
-#endif
-  printf("dbg_c%u apply_Als-p3\n",data->comm.id);
-#else//DBG1 DBG2 DBG3
-  const uint *Arp = data->A_sl.Arp,
-             *Aj  = data->A_sl.Aj;
-  const double *A = data->A_sl.A;
-  uint i,p,pe;
+#else // DBG1 DBG2 DBG3
   for(i=0;i<ns;++i)
     for(p=Arp[i],pe=Arp[i+1];p!=pe;++p)
       vl[Aj[p]]+=A[p]*vs[i];
-#endif
+#endif //4 \1 2 3
+#endif //5
+  printf("dbg_c%u apply_Als-p3\n",data->comm.id);
 }
 
 /* vs(1:ns) -= A_sl(1:ns,:) * vl */
@@ -1100,35 +1083,37 @@ static void apply_S_col(double *vs, struct xxt *data,
 #endif
 
   uint i,p,pe;
-#ifdef DBG2
+#ifdef DBG2 //DBG3 DBG4 DBG5
   for(i=0;i<data->sn;++i) vs[i]=0;
-#else
+#else //DBG 1
   for(i=0;i<ei;++i) vs[i]=0;
 #endif
 myprt_DBG_vec(data,vs,"Sc vs0",ii);
-  for(p=Ass_rp[ei],pe=Ass_rp[ei+1];p!=pe;++p) { /// ToDo Ass^T ??
+  for(p=Ass_rp[ei],pe=Ass_rp[ei+1];p!=pe;++p) {
     uint j=Ass_j[p];
-#ifndef DBG3
-    if(j>=ei) break;//if Xt (Yt) is lower tri, vs can be shorter ! FIXME
+#ifndef DBG3 // DBG1 DBG2 
+    if(j>=ei) break;//if Xt (Yt) is lower tri, vs can be shorter
 #endif
     vs[j]=-Ass[p];
   }
 myprt_DBG_vec(data,vs,"Sc vs1",ii);
+
   for(i=0;i<ln;++i) vl[i]=0;
 #ifdef DBG5
   for(p=Als_rp[ei],pe=Als_rp[ei+1];p!=pe;++p) vl[Als_j[p]]=-Als[p];
 #else
   for(p=Asl_rp[ei],pe=Asl_rp[ei+1];p!=pe;++p) vl[Asl_j[p]]=-Asl[p];
 #endif
-
 myprt_DBG_vec(data,vl,"Sc vl0",ln);
+
 #ifdef DBG
   sparse_lu_solve(vl,data,vl);
 #else
   sparse_cholesky_solve(vl,&data->fac_A_ll,vl);
 #endif
 myprt_DBG_vec(data,vl,"Sc vl1",ln);
-#ifdef DBG3
+
+#ifdef DBG3 //DBG3 DBG4 DBG5
   apply_m_Asl(vs,data->sn,data,vl);
 #else
   apply_m_Asl(vs,ei,data,vl);//FIXME
@@ -1149,44 +1134,38 @@ static void apply_S(double *Svs, uint ns, struct xxt *data,
   printf("dbg_c%u applyS-p1\n",data->comm.id);
 #ifdef DBG5
   for(i=0;i<data->sn;++i)Svs[i]=0;
-//  for(i=0;i<ns;++i)
-//    for(p=Ass_rp[i],pe=Ass_rp[i+1];p!=pe;++p){
-//      uint j=Ass_j[p];
-//      if(j>ns) break;
-//      Svs[i]+=Ass_j[p]*vs[j];
-//  }
 
-  for(i=0;i<ns;++i) //we store Ass^T
+  for(i=0;i<ns;++i) //DBG5 store Ass^T
     for(p=Ass_rp[i],pe=Ass_rp[i+1];p!=pe;++p){
       uint j=Ass_j[p];
-//      if(i>ns) break;
+      printf("ttt_c%u i %u j %u ns %u\n",data->comm.id,i,j,ns);
+//      if(i>ns) break; // i will never > ns
+//      if(j>ns) break; // we need full size of Svs
       Svs[Ass_j[p]]+=Ass[p]*vs[i];
   }
-
 #else
   for(i=0;i<ns;++i) {
     double sum=0;
     for(p=Ass_rp[i],pe=Ass_rp[i+1];p!=pe;++p) {
       uint j=Ass_j[p];
-//#ifndef DBG3
       if(j>=ns) break;// X is triangluar so vs is shorter 
-//#endif
       sum+=Ass[p]*vs[j];
     }
     Svs[i]=sum;
   }
 #endif
-
   printf("dbg_c%u applyS-p2\n",data->comm.id);
+
   for(i=0;i<ln;++i) vl[i]=0;
-#ifdef DBG4
+
 #ifdef DBG5
   apply_p_Als(vl,data,vs,ns);
 #else
+#ifdef DBG4
   apply_p_Als(vl,data,vs,ln);
-#endif
-#else
+#else //DBG3 DBG2 DBG1
   apply_p_Als(vl,data,vs,ns);
+#endif
 #endif
   printf("dbg_c%u applyS-p3\n",data->comm.id);
 
@@ -1196,6 +1175,7 @@ static void apply_S(double *Svs, uint ns, struct xxt *data,
   sparse_cholesky_solve(vl,&data->fac_A_ll,vl);
 #endif
   printf("dbg_c%u applyS-p4\n",data->comm.id);
+
 #ifdef DBG4
   apply_m_Asl(Svs,data->sn,data,vl);
 #else
@@ -1205,10 +1185,10 @@ static void apply_S(double *Svs, uint ns, struct xxt *data,
 }
 
 /* vx = X' * vs */
-/* vx'= vs'* X  */
 static void apply_Xt(double *vx, uint nx, const struct xxt *data,
                      const double *vs)
 {
+  // X_code = Xt_math
   const double *X = data->X; const uint *Xp = data->Xp;
   uint i; for(i=0;i<nx;++i) vx[i]=tensor_dot(vs,X+Xp[i],Xp[i+1]-Xp[i]);
 }
@@ -1216,38 +1196,24 @@ static void apply_Xt(double *vx, uint nx, const struct xxt *data,
 #ifdef DBG2
 static void apply_Yt(double *vx, uint nx, const struct xxt *data,
                      const double *vs)
-{            
-  //nx=#cols
-//#ifdef DBG4
-//  const double *Y = data->Y; const uint *Yp = data->Yp;
-//  uint i,j;
-//  for(i=0;i<nx;++i) vx[i]=0;
-//  for(i=0;i<nx;++i) {
-//    const double v = vs[i];
-//    const double *y = Y+Yp[i]; uint n=Yp[i+1]-Yp[i];
-//    for(j=0;j<n;++j) vx[j]+=y[j]*v;
-//  }
-//#else
+{
+  // Y_code = Yt_math
   const double *Y = data->Y; const uint *Yp = data->Yp;
   uint i; for(i=0;i<nx;++i) vx[i]=tensor_dot(vs,Y+Yp[i],Yp[i+1]-Yp[i]);
-//#endif
 } 
 #endif
     
 
 /* vs = X * vx */
-/* vs^T = vx^T * X^T */
 static void apply_X(double *vs, uint ns, const struct xxt *data,
                     const double *vx, uint nx)
 {
   const double *X = data->X; const uint *Xp = data->Xp;
-  uint sn=data->sn;
   uint i,j;
-#ifdef DBG2
-  for(i=0;i<sn;++i) vs[i]=0;
-#else
+
   for(i=0;i<ns;++i) vs[i]=0;
-#endif
+
+  // X_code = Xt_math
   for(i=0;i<nx;++i) {
     const double v = vx[i];
     const double *x = X+Xp[i]; uint n=Xp[i+1]-Xp[i];
@@ -1264,7 +1230,7 @@ static void allocate_X(struct xxt *data, sint *perm_x2c)
   data->Xp = tmalloc(uint,xn+1);
   data->Xp[0]=0;
   for(i=0;i<xn;++i) {
-#ifdef DBG6
+#ifdef DBG6 // X always upper-tri
     h=sn;
     if(perm_x2c[i]!=-1) h=sn;
 #else
@@ -1274,29 +1240,18 @@ static void allocate_X(struct xxt *data, sint *perm_x2c)
   }
   data->X = tmalloc(double,data->Xp[xn]);
 }
+
 #ifdef DBG2
 static void allocate_Y(struct xxt *data, sint *perm_x2c)
 {
   uint xn=data->xn;
-//#ifdef DBG4
   uint sn=data->sn;
-//#endif
-  uint i,h=0;
+  uint i;
   if(data->null_space && xn) --xn;
   data->Yp = tmalloc(uint,xn+1);
   data->Yp[0]=0;
   for(i=0;i<xn;++i) {
-#ifdef DBG2
-//#ifdef DBG4
-//    if(perm_x2c[i]!=-1) h=sn;
-//#else
-//    h=0;
-    if(perm_x2c[i]!=-1) h=sn; // sn < xn
-//#endif
-#else
-    if(perm_x2c[i]!=-1) ++h;
-#endif
-    data->Yp[i+1]=data->Yp[i]+h;
+    data->Yp[i+1]=data->Yp[i]+sn;
   }
   data->Y = tmalloc(double,data->Yp[xn]);
 }
@@ -1306,7 +1261,7 @@ static void orthogonalize(struct xxt *data, struct csr_mat *A_ss,
                           sint *perm_x2c, buffer *buf)
 {
   uint ln=data->ln, sn=data->sn, xn=data->xn;
-  double *vl, *vs, *vx, *Svs, *Svs2;
+  double *vl, *vs, *vx, *Svs;
   uint i,j;
   // u^1_l + u^1_s = u^1,  u_s
   // ln      sn    = cn ,  xn
@@ -1314,19 +1269,13 @@ static void orthogonalize(struct xxt *data, struct csr_mat *A_ss,
   printf("\northo: ln=%d sn=%d xn=%d at nid = %d\n",ln,sn,xn,data->comm.id);
 
   printf("dbg_c%u ortho-allocate \n",data->comm.id);
-  allocate_X(data,perm_x2c); //Upper-tri for sym problem
+  allocate_X(data,perm_x2c); //Upper-tri if we have right ordering
 #ifdef DBG2
   allocate_Y(data,perm_x2c); //full
 #endif
 
-
-#ifdef DBG3
-  buffer_reserve(buf,(ln+2*sn+xn+sn)*sizeof(double));
-  vl=buf->ptr, vs=vl+ln, Svs=vs+sn, vx=Svs+sn, Svs2=vx+xn;
-#else
   buffer_reserve(buf,(ln+2*sn+xn)*sizeof(double));
   vl=buf->ptr, vs=vl+ln, Svs=vs+sn, vx=Svs+sn;
-#endif
 
   if(data->null_space && xn) --xn;
 
@@ -1344,11 +1293,7 @@ static void orthogonalize(struct xxt *data, struct csr_mat *A_ss,
 
     for(j=0;j<sn;++j) vs[j]=0;
     if(ui == -1) {
-//#ifdef DBG2
-//      for(j=0;j<xn;++j) vx[j]=0;
-//#else
       for(j=0;j<i;++j) vx[j]=0;
-//#endif
     } else {
       ui-=ln;
   printf("dbg_c%u ortho-S-col \n",data->comm.id);
@@ -1365,39 +1310,30 @@ myprt_DBG_vec(data,vs,"vs0",i);// same as xxt
 myprt_DBG_vec(data,vx,"vx0",i);
 
   printf("dbg_c%u ortho-QQt+X \n",data->comm.id);
-//#ifdef DBG2
-////    apply_QQt(data,vx,xn,0);
-////    apply_QQt(data,vx,1,xn);
-//    apply_QQt(data,vx,i,xn-i);
-//    apply_X(vs,ns, data, vx,i);
-//#else
 #ifdef DBG6
       printf("QQQ_c%u before, i %u, xn %u\n",data->comm.id,i,xn);
-//    apply_QQt(data,vx,xn,xn,xn-i);
-    apply_QQt(data,vx,data->xn,data->xn,data->xn-i);
+    apply_QQt(data,vx,data->xn,data->xn-i);
       printf("QQQ_c%u after  %u\n",data->comm.id,i);
 #else
-    apply_QQt(data,vx,i,i,xn-i);
+    apply_QQt(data,vx,i,xn-i);
 #endif
     apply_X(vs,ns, data, vx,i);
 myprt_DBG_vec(data,vs,"vs1",i);
-//#endif
     printf("vs=1 test c%u i=%d ui=%d vs[ui]=%f\n",data->comm.id,i,ui,vs[ui]);
+
     if(ui!=-1) vs[ui]=1; //because Xis normalized
-//    apply_S(Svs,ns, data,A_ss, vs, vl);//ns
 
   printf("dbg_c%u ortho-S \n",data->comm.id);
 #ifdef DBG6
     apply_S(Svs,nsy, data,A_ss, vs, vl);//ns
     ytsy = tensor_dot(Svs,Svs,nsy);
-//    ytsy = sum(data,ytsy,sn,xn-sn);
-//    ytsy = sum(data,ytsy,i+1,xn-(i+1)); // xn-1 will make np4 fail for sym
     ytsy = sum(data,ytsy,data->xn,data->xn-(i+1)); // xn-1 will make np4 fail for sym
 #else
 #ifdef DBG5
+printf("tt2_c%u i %u ui %d ns %u\n",data->comm.id,i,ui,ns);
     apply_S(Svs,ns, data,A_ss, vs, vl);//ns
     ytsy = tensor_dot(Svs,Svs,nsy); 
-//    ytsy = tensor_dot(Svs,vs,ns);//FIXME
+//  ytsy = tensor_dot(Svs,vs,ns);//FIXME, swtich
       printf("SSS_c%u A_before i %u tag %u xn %u sum %f\n",data->comm.id,i,xn-(i+1),xn,ytsy);
     ytsy = sum(data,ytsy,i+1,xn-(i+1));
       printf("SSS_c%u A_after  i %u tag %u xn %u sum %f\n",data->comm.id,i,xn-(i+1),xn,ytsy);
@@ -1406,26 +1342,14 @@ myprt_DBG_vec(data,vs,"vs1",i);
     apply_S(Svs,nsy, data,A_ss, vs, vl);//ns
     ytsy = tensor_dot(Svs,Svs,nsy);
     ytsy = sum(data,ytsy,i+1,xn-(i+1));
-//    ytsy = sum(data,ytsy,xn,xn-(i+1));
 #else
 #ifdef DBG3 // DBG3
     apply_S(Svs,nsy, data,A_ss, vs, vl);//ns
            printf("dbg_c%u ortho-tensor\n",data->comm.id);
     printf("tensor_dot_t%u_c%u test start:\n",i,data->comm.id);
     ytsy = tensor_dot(Svs,Svs,nsy);printf("tensor_dot_t%u_c%u test 1: %5.10f\n",i,data->comm.id,ytsy);
-//    ytsy=0;
-//    for (j=0;j<nsy;++j) ytsy+=Svs[j]*Svs[j];
-//    printf("tensor_dot_c%u test 2: %5.10f\n",data->comm.id,ytsy);
-//    for(j=0;j<sn;++j)Svs2[j]=Svs[j];
-//    ytsy = tensor_dot(Svs,Svs2,nsy);
            printf("dbg_c%u ortho-sum\n",data->comm.id);
-//    ytsy = sum(data,ytsy,0,xn); // no communication
-//    ytsy = sum(data,ytsy,xn,0); //stall
     ytsy = sum(data,ytsy,i+1,xn-(i+1));  //nid=0 not added, default
-//    ytsy = sum(data,ytsy,1,xn-(i+1));  //stall
-//    ytsy = sum(data,ytsy,1,xn-(1));  //s
-//    ytsy = sum(data,ytsy,data->comm.np,xn-(data->comm.np));  //stall
-//    ytsy = sum(data,ytsy,0,xn); // no communication
      
     printf("tensor_dot_t%u_c%u test 3: %5.10f\n",i,data->comm.id,ytsy);
     printf("tensor_dot_t%u_c%u test end:\n",i,data->comm.id);
@@ -1435,7 +1359,7 @@ myprt_DBG_vec(data,vs,"vs1",i);
     apply_S(Svs,nsy, data,A_ss, vs, vl);//ns
            printf("dbg_c%u ortho-tensor\n",data->comm.id);
     printf("tensor_dot_t%u_c%u test start:\n",i,data->comm.id);
-    ytsy = tensor_dot(vs,Svs,ns);//PPPPPPPP
+    ytsy = tensor_dot(vs,Svs,ns);
     printf("tensor_dot_t%u_c%u test 1: %5.10f\n",i,data->comm.id,ytsy);
            printf("dbg_c%u ortho-sum\n",data->comm.id);
     ytsy = sum(data,ytsy,i+1,xn-(i+1));
@@ -1458,13 +1382,13 @@ myprt_DBG_vec(data,vs,"vs1",i);
     if(ytsy<DBL_EPSILON/128) ytsy=0; else ytsy = 1/sqrt(ytsy);
     x=&data->X[data->Xp[i]];
     for(j=0;j<ns;++j) x[j]=ytsy*vs[j];
-#ifdef DBG2
+
 #ifdef DBG3 //DBG3 DBG4 DBG5 DBG6
     y=&data->Y[data->Yp[i]];
-//  for(j=0;j<(data->Yp[i+1]-data->Yp[i]);++j) y[j]=ytsy*Svs[j];
     for(j=0;j<nsy;++j) y[j]=ytsy*Svs[j];
-//  for(j=0;j<nsy;++j) y[j]=ytsy*vs[j];//FIXME
+//  for(j=0;j<nsy;++j) y[j]=ytsy*vs[j];//FIXME switch
 #else // DBG2
+#ifdef DBG2
     y=&data->Y[data->Yp[i]];
     for(j=0;j<(data->Yp[i+1]-data->Yp[i]);++j) y[j]=ytsy*vs[j];
 #endif
@@ -1571,7 +1495,7 @@ static void separate_matrix(
   for(k=0;k<mat_sl.n;++k){ printf("MAT2slc%u %u %u %u %10.8f \n",data->comm.id,k,msl[k].i,msl[k].j,msl[k].v); }
   for(k=0;k<mat_ls.n;++k){ printf("MAT2lsc%u %u %u %u %10.8f \n",data->comm.id,k,mls[k].i,mls[k].j,mls[k].v); }
   for(k=0;k<mat_ss.n;++k){ printf("MAT2ssc%u %u %u %u %10.8f \n",data->comm.id,k,mss[k].i,mss[k].j,mss[k].v); }
-#else
+#else // DBG1 DBG2 BDG3
   for(k=0;k<nz;++k) {
     sint i=perm[Ai[k]], j=perm[Aj[k]];
     if(i<0 || j<0 || A[k]==0) continue;
@@ -1591,10 +1515,11 @@ static void separate_matrix(
   condense_matrix(&mat_ll,ln,out_ll,buf);printf("condense ll %u\n",ln); //Yale to CSR matrix
   condense_matrix(&mat_sl,sn,out_sl,buf);printf("condense sl %u\n",sn);
   condense_matrix(&mat_ss,sn,out_ss,buf);printf("condense ss %u\n",sn);
-#ifdef DBG4
+
 #ifdef DBG5
   condense_matrix(&mat_ls,sn,out_ls,buf);printf("condense ls %u\n",sn);
-#else //dbg4
+#else 
+#ifdef DBG4
   condense_matrix(&mat_ls,ln,out_ls,buf);printf("condense ls %u\n",ln);
 #endif
 #endif
@@ -1647,7 +1572,7 @@ myprt_DBG_vec(data,A,"xyt",0);
    for(i=0;i<data->xn;++i)printf("perm_chk_c%u perm_x2c %u %d\n",data->comm.id,i,perm_x2c[i]);
    for(i=0;i<data->un;++i)printf("perm_chk_c%u perm_u2c %u %d\n",data->comm.id,i,data->perm_u2c[i]);
 
-   // in: A Ai,Aj, out: A_ll_A_sl_A_ss
+   // in: A Ai,Aj, out: A_ll A_sl A_ls A_ss
 #ifdef DBG4
   if(!data->null_space || data->xn!=0) {
     separate_matrix(nz,Ai,Aj,A,data->perm_u2c,
@@ -1676,7 +1601,7 @@ myprt_DBG_vec(data,A,"xyt",0);
 
  myprt_DBG_mtx(data,&A_ll,"All",data->ln); 
  myprt_DBG_mtx(data,&data->A_sl,"Asl",data->sn); 
-// myprt_DBG_mtx(data,&data->A_ls,"Als",data->sn); 
+// myprt_DBG_mtx(data,&data->A_ls,"Als",data->sn); // no comparison between xxt
  myprt_DBG_mtx(data,&A_ss,"Ass",data->sn); 
 
 #ifdef DBG
@@ -1692,19 +1617,10 @@ myprt_DBG_vec(data,A,"xyt",0);
   free(A_ll.Arp); free(A_ll.A);
 #endif
 
-//#ifdef DBG3
-//  data->vl = tmalloc(double,data->ln+data->cn+data->xn-data->sn+2*data->xn);
-//#else
   data->vl = tmalloc(double,data->ln+data->cn+2*data->xn);
-//#endif
   data->vc = data->vl+data->ln;
-//#ifdef DBG3
-//  data->vx = data->vc+data->cn+data->xn-data->sn;
-//#else
   data->vx = data->vc+data->cn;
-//#endif
   data->combuf = data->vx+data->xn;
-
 
   orthogonalize(data,&A_ss,perm_x2c,&buf); // get X, Xp
   free(A_ss.Arp); free(A_ss.A);
@@ -1743,26 +1659,29 @@ myprt_DBG_vec(data,vc+ln,"Sol vc0",sn);
 #endif
 myprt_DBG_vec(data,vx,"Sol vx0",xn);
       printf("QQQ_c%u 2before, xn %u\n",data->comm.id,xn);
-    apply_QQt(data,vx,xn,xn,0);
+    apply_QQt(data,vx,xn,0);
       printf("QQQ_c%u 2after, xn %u\n",data->comm.id,xn);
 myprt_DBG_vec(data,vx,"Sol vx1",xn);
     apply_X(vc+ln,sn, data, vx,xn);
 myprt_DBG_vec(data,vc+ln,"Sol vc1",sn);
     for(i=0;i<ln;++i) vl[i]=0;
-#ifdef DBG4
+
 #ifdef DBG5
     apply_p_Als(vl, data, vc+ln,sn);
 #else
+#ifdef DBG4
     apply_p_Als(vl, data, vc+ln,ln);
-#endif
-#else
+#else // DBG1 DBG2 DBG3
     apply_p_Als(vl, data, vc+ln,sn);
 #endif
+#endif
+
 #ifdef DBG
     sparse_lu_solve(vl,data,vl);
 #else
     sparse_cholesky_solve(vl,&data->fac_A_ll,vl);
 #endif
+
     for(i=0;i<ln;++i) vc[i]-=vl[i];
   } else {
 #ifdef DBG
@@ -1841,7 +1760,10 @@ void crs_free(struct xxt *data)
   free(data);
 }
 
-#else
+
+
+
+#else // if 3rd_library is not compiled
 
 struct xxt *crs_setup(  // fatorize A = XXT
   uint n, const ulong *id,
