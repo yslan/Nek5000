@@ -11,12 +11,12 @@ note: XYT now only support separation width = 1
 Summary:  
 
   | No. | Tests | | Status | 
-  |:---|:---|:---|:---:|
+  |:---|:---|:---|:---|
   | 1   | Nek5000 XXT    | referenced solver | passed by all Nek users |
   | 2   | XXT + lu       | replace cholesky + use Y struc.   | passed by running several Nek examples | 
   | 3   | XXT + lu + Y=X | full sets of XYT struct. is there | passed for np=1,2,3,4 |
-  | 4   | XYT on sym problem (vel = 0)  | np=3 fails |
-  | 5~7 | solve asym problem (vel != 0) | np=3,4 fails |
+  | 4   | XYT on sym problem (vel = 0)  | | np=3 fails |
+  | 5~7 | XYT on asym problem (vel != 0) | | np=3,4 fails |
 
 
 Tests: (run `./test_c.sh`)  
@@ -46,7 +46,7 @@ Tests: (run `./test_c.sh`)
    ```
 
 - 2. XXT + sym  
-  (p40 = 4, crs\_xyt.c, #define DBG, #define DBG2) 
+  (p40 = 4, crs\_xyt.c, `#define DBG DBG2`) 
 
   ```
   np = 1
@@ -70,7 +70,7 @@ Tests: (run `./test_c.sh`)
   ```
 
 - 3. XYT but Y=X + sym  
-  (p40 = 4, crs\_xyt.c, #define DBG DBG2 DBG3 DBG4 DBG5 + two lines swtich)
+  (p40 = 4, crs\_xyt.c, `#define DBG DBG2 DBG3 DBG4 DBG5` + two lines swtich)
 
   ```
   np = 1
@@ -94,7 +94,7 @@ Tests: (run `./test_c.sh`)
   ```
 
 - 4. XYT Y=AX + sym  
-  (p40 = 4, crs\_xyt.c, #define DBG DBG2 DBG3 DBG4 DBG5 + two lines swtich)
+  (p40 = 4, crs\_xyt.c, `#define DBG DBG2 DBG3 DBG4 DBG5`)
 
   ```
   np = 1
@@ -118,7 +118,7 @@ Tests: (run `./test_c.sh`)
   ``` 
 
 - 5. XYT Y=Ax + asym (vx=1, vy=vz=0)
-  (p40 = 4, crs\_xyt.c, #define DBG DBG2 DBG3 DBG4 DBG5 + useric in c,usr)
+  (p40 = 4, crs\_xyt.c, `#define DBG DBG2 DBG3 DBG4 DBG5` + useric in c.usr)
 
   ```
   np = 1
@@ -142,7 +142,7 @@ Tests: (run `./test_c.sh`)
   ```
 
 - 6. XYT Y=Ax + asym (vx=vy=1, vz=0)
-  (p40 = 4, crs\_xyt.c, #define DBG DBG2 DBG3 DBG4 DBG5 + useric in c,usr)
+  (p40 = 4, crs\_xyt.c, `#define DBG DBG2 DBG3 DBG4 DBG5` + useric in c.usr)
 
   ```
   np = 1
@@ -166,7 +166,7 @@ Tests: (run `./test_c.sh`)
   ```
 
 - 7. XYT Y=Ax + asym (vx=vy= non constant, vz=0)
-  (p40 = 4, crs\_xyt.c, #define DBG DBG2 DBG3 DBG4 DBG5 + useric in c,usr)
+  (p40 = 4, crs\_xyt.c, `#define DBG DBG2 DBG3 DBG4 DBG5` + useric in c.usr)
 
   ```
   np = 1
