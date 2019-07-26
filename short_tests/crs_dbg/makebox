@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# usage ./makebox <2d/3d> <nelx> <nely> <nelz>
+if [ $# -ne 4 ]; then
+  echo "need 4 argument:"
+  echo ' if3d: ./makebox 3d <nelx> <nely> <nelz>'
+  echo ' if2d: ./makebox 2d <nelx> <nely> 1'
+  exit
+fi
+
+####################################################################
+# Path to folder containing ./genmap and ./genbox
+core="../../bin/"
+####################################################################
+
+case="c"
+rgx="nelx,nely,nelz for Box"
+
+
+f1=$core"genmap"
+f2=$core"genbox"
+if [ ! -f "$f1" ]; then
+  echo "genmap doesn't exist under core, please check the path:"
+  echo "core= "$core
+  exit
+fi
+if [ ! -f "$f2" ]; then
+  echo "genbox doesn't exist under core, please check the path:"
+  echo "core= "$core
+  exit
+fi
+
+
+
+# modify box
+
+str="3d"
+if [ "$1" == "$str" ]; then 
+  echo "3d"
+  cp 3d.box $case.box
+else
+  echo "2d"
+  cp 2d.box $case.box
+fi
+#sed -i "1s/.*/"$case".rea/" $case.box
+sed -i "/nelx,nely,nelz for Box/c\-"$2" -"$3" -"$4"   nelx,nely,nelz for Box" $case".box"
+
+# genbox
+str=$case'.box'
+$core'genbox' << DOF
+$str
+DOF
+
+mv box.rea $case'.rea'
+
+# genmap
+$core'genmap' << DOF
+$case
+0.1
+DOF
