@@ -1,5 +1,6 @@
-#include "gslib.h"
+#include <math.h>
 
+#include "gslib.h"
 #if defined(PARRSB)
 #include "parRSB.h"
 #endif
@@ -7,6 +8,79 @@
 #define MAXNV 8 /* maximum number of vertices per element */
 typedef struct {long long vtx[MAXNV]; long long eid; int proc;} edata;
 
+#define HEADER_LEN 132
+
+#define writeMapFile FORTRAN_UNPREFIXED(writemapfile,WRITEMAPFILE)
+int writeMapFile(int nelt,int nv,int *pmap,int *vtx,char *fileName,
+		       MPI_Comm comm){
+  int rank,size;
+  MPI_Comm_rank(comm,&rank);
+  MPI_Comm_size(comm,&size);
+
+#if !defined(NOMPIIO)
+  char *version="#v001";
+  int nelgt=nelt;
+  MPI_Allreduce(&nelt,&nelgt,1,MPI_INT,MPI_SUM,comm);
+  const int npts=nelgt*nv;
+  const int depth=(int)log2(1.0*nelgt);
+  const int d2=(int)(pow(2,depth)+0.5);
+  int nactive=nelgt,nrnk=nelgt,noutflow=0;
+
+  char header[HEADER_LEN];
+  header[HEADER_LEN]='\0';
+  sprintf(header,"%5s%12d%12d%12d%12d%12d%12d%12d",version,
+		  nelgt,nactive,depth,d2,npts,nrnk,noutflow);
+  memset(header+strlen(header),' ',HEADER_LEN-strlen(header));
+  header[HEADER_LEN]='\0';
+
+  MPI_Info infoIn;
+  MPI_Info_create(&infoIn);
+  MPI_Info_set(infoIn,"access_style","write_once,random");
+
+  int errs=0;
+  MPI_File file;
+  int err=MPI_File_open(comm,fileName,
+		MPI_MODE_WRONLY|MPI_MODE_CREATE,
+		infoIn,&file);
+  if(err){
+    errs++;
+    MPI_Abort(comm,911);
+  }
+
+  int writeSize=0;
+  if(rank==0)
+    writeSize=HEADER_LEN*sizeof(char)+sizeof(float);
+  writeSize+=(nv+1)*nelt*sizeof(int);
+
+  char *buf=(char*)malloc(writeSize),*buf0=buf;
+
+  float test=6.54321;
+  if(rank==0){
+    memcpy(buf0,header,HEADER_LEN*sizeof(char)),buf0+=HEADER_LEN;
+    memcpy(buf0,&test,sizeof(float)),buf0+=sizeof(float);
+  }
+
+  int i;
+  for(i=0;i<nelt;i++){
+    memcpy(buf0,&pmap[i],sizeof(int)),buf0+=sizeof(int);
+    memcpy(buf0,&vtx[i*nv],sizeof(int)*nv),buf0+=nv*sizeof(int);
+  }
+
+  MPI_Status status;
+  err=MPI_File_write_ordered(file,buf,writeSize,MPI_BYTE,&status);
+  if(err) errs++;
+
+  err=MPI_File_close(&file);
+  if(err) errs++;
+
+  MPI_Barrier(comm);
+  free(buf);
+
+  return errs;
+#else
+  if(rank==0) printf("MPI-IO is disabled. Enable MPI-IO to dump .ma2 file.\n");
+#endif
+}
 
 #ifdef PARMETIS
 
@@ -155,23 +229,65 @@ err:
 }
 #endif
 
-#define fpartMesh FORTRAN_UNPREFIXED(fpartmesh,FPARTMESH)
-void fpartMesh(long long *el, long long *vl, const int *lelt, int *nell, 
-               const int *nve, int *fcomm, int *rtval) 
+#define dumpMapFile FORTRAN_UNPREFIXED(dumpmapfile,DUMPMAPFILE)
+void dumpMapFile(int *nell,int *nve,int *part,long long *el,long long *vl,
+  int *fcomm,int *retval)
 {
   struct comm comm;
-  struct crystal cr;
+  *retval=1;
+#if defined(MPI)
+  comm_ext cext = MPI_Comm_f2c(*fcomm);
+#else
+  comm_ext cext = 0;
+#endif
+  comm_init(&comm, cext);
+
+  int e, n; 
   struct array eList;
   edata *data;
 
-  int nel, nv;
-  int e, n; 
-  int count, ierr, ibuf;
-  int *part;
-  int opt[3];
+  int nel=*nell;
+  int nv=*nve;
 
-  nel  = *nell;
-  nv   = *nve;
+  array_init(edata, &eList, nel), eList.n = nel;
+  for(data = eList.ptr, e = 0; e < nel; ++e) {
+    data[e].proc = part[e];
+    data[e].eid  = el[e];
+    for(n = 0; n < nv; ++n) {
+      data[e].vtx[n] = vl[e*nv + n];
+    }
+  }
+
+  buffer buf; buffer_init(&buf,1024);
+  sarray_sort(edata,eList.ptr,(unsigned int)nel,eid,1,&buf);
+
+  int *eli=(int*) malloc(nel*sizeof(int));
+  int *vli=(int*) malloc(nv*nel*sizeof(int));
+  for(data=eList.ptr, e=0; e<nel; ++e) {
+    eli[e]=data[e].proc;
+    for(n=0; n<nv; ++n) {
+      vli[e*nv+n] = data[e].vtx[n];
+    }
+  }
+
+  writeMapFile(nel,nv,eli,vli,"foo.ma2",comm.c);
+
+  array_free(&eList);
+
+  free(eli);
+  free(vli);
+  *retval=0;
+}
+
+#define transferElements FORTRAN_UNPREFIXED(transferelements,TRANSFERELEMENTS)
+void transferElements(int *nell,int *nve,int *part,long long *el,long long *vl,int *lelt,
+  int *fcomm,int *retval)
+{
+  *retval=1;
+
+  struct comm comm;
+  struct crystal cr;
+  int ibuf;
 
 #if defined(MPI)
   comm_ext cext = MPI_Comm_f2c(*fcomm);
@@ -180,21 +296,14 @@ void fpartMesh(long long *el, long long *vl, const int *lelt, int *nell,
 #endif
   comm_init(&comm, cext);
 
-  part = (int*) malloc(nel * sizeof(int));
+  int e, n; 
+  int count;
 
-  ierr = 1;
-#if defined(PARRSB)
-  opt[0] = 1;
-  opt[1] = 2; /* verbosity */
-  opt[2] = 0;
-  ierr = parRSB_partMesh(part, vl, nel, nv, opt, comm.c);
-#elif defined(PARMETIS)
-  opt[0] = 1;
-  opt[1] = 0; /* verbosity */
-  opt[2] = comm.np;
-  ierr = parMETIS_partMesh(part, vl, nel, nv, opt, comm.c);
-#endif
-  if (ierr != 0) goto err; 
+  struct array eList;
+  edata *data;
+
+  int nel=*nell;
+  int nv=*nve;
 
   /* redistribute data */
   array_init(edata, &eList, nel), eList.n = nel;
@@ -205,7 +314,6 @@ void fpartMesh(long long *el, long long *vl, const int *lelt, int *nell,
       data[e].vtx[n] = vl[e*nv + n];
     }
   }
-  free(part);
 
   crystal_init(&cr, &comm);
   sarray_transfer(edata, &eList, proc, 0, &cr);
@@ -233,6 +341,47 @@ void fpartMesh(long long *el, long long *vl, const int *lelt, int *nell,
   comm_free(&comm);
 
   *nell = nel;
+  *retval=0;
+
+err:
+  fflush(stdout);
+  *retval = 1;
+}
+
+#define fpartMesh FORTRAN_UNPREFIXED(fpartmesh,FPARTMESH)
+void fpartMesh(int *part,long long *el,long long *vl,const int *nell,
+  const int *nve,int *fcomm,int *rtval) 
+{
+  struct comm comm;
+
+  int nel, nv;
+  int ierr;
+  int opt[3];
+
+  nel  = *nell;
+  nv   = *nve;
+
+#if defined(MPI)
+  comm_ext cext = MPI_Comm_f2c(*fcomm);
+#else
+  comm_ext cext = 0;
+#endif
+  comm_init(&comm, cext);
+
+  ierr = 1;
+#if defined(PARRSB)
+  opt[0] = 1;
+  opt[1] = 2; /* verbosity */
+  opt[2] = 0;
+  ierr = parRSB_partMesh(part, vl, nel, nv, opt, comm.c);
+#elif defined(PARMETIS)
+  opt[0] = 1;
+  opt[1] = 0; /* verbosity */
+  opt[2] = comm.np;
+  ierr = parMETIS_partMesh(part, vl, nel, nv, opt, comm.c);
+#endif
+  if (ierr != 0) goto err; 
+
   *rtval = 0;
   return;
 
@@ -345,3 +494,5 @@ void fprintPartStat(long long *vtx, int *nel, int *nv, int *comm)
 
   printPartStat(vtx, *nel, *nv, c);
 }
+
+

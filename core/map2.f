@@ -166,13 +166,12 @@ c-----------------------------------------------------------------------
       integer hrsb
 
       integer*8 eid8(lelt), vtx8(8*lelt)
-      integer iwork(lelt)
-      common /ctmp0/ eid8, vtx8, iwork
+      integer iwork(lelt),part(lelt)
+      common /ctmp0/ eid8, vtx8, iwork, part
 
       integer opt_parrsb(3), opt_parmetis(10)
 
 #if defined(PARRSB) || defined(PARMETIS)
-
       call read_con(wk,size(wk),neli,nvi,nelgti,nelgvi)
       if (nvi .ne. nlv)
      $   call exitti('Number of vertices do not match!$',nv)
@@ -197,22 +196,8 @@ c fluid elements
       neliv = j
 
       nel = neliv
-      call fpartMesh(eid8,vtx8,lelt,nel,nlv,nekcomm,ierr)
+      call fpartMesh(part,eid8,vtx8,nel,nlv,nekcomm,ierr)
       call err_chk(ierr,'partMesh fluid failed!$')
-
-      nelv = nel
-      nelt = nelv
-      ierr = 0 
-      if (nelv .gt. lelv) ierr = 1
-      call err_chk(ierr,'nelv > lelv!$')
- 
-      do i = 1,nelv
-         lglel(i) = eid8(i)
-      enddo
-      call isort(lglel,iwork,nelv)
-      do i = 1,nelv
-         call icopy84(vertex(1,i),vtx8((iwork(i)-1)*nlv+1),nlv)
-      enddo
 
 c solid elements
       if (nelgt.ne.nelgv) then
@@ -221,30 +206,34 @@ c solid elements
          do i = 1,neli
             if (wk(ii+1) .gt. nelgv) then
                j = j + 1
-               eid8(j) = wk(ii+1)
-               call icopy48(vtx8((j-1)*nlv+1),wk(ii+2),nlv)
+               eid8(neliv+j) = wk(ii+1)
+               call icopy48(vtx8((j+neliv-1)*nlv+1),wk(ii+2),nlv)
             endif
             ii = ii + (nlv+1)
          enddo
          nelit = j
 
          nel = nelit
-         call fpartMesh(eid8,vtx8,lelt,nel,nlv,nekcomm,ierr)
+         call fpartMesh(part(neliv+1),eid8(neliv+1),vtx8(nlv*neliv+1),
+     $     nel,nlv,nekcomm,ierr)
          call err_chk(ierr,'partMesh solid failed!$')
 
-         nelt = nelv + nel
-         ierr = 0 
-         if (nelt .gt. lelt) ierr = 1
-         call err_chk(ierr,'nelt > lelt!$')
-    
-         do i = 1,nel
-            lglel(nelv+i) = eid8(i)
-         enddo
-         call isort(lglel(nelv+1),iwork,nel) ! sort locally by global element id
-         do i = 1,nel
-            call icopy84(vertex(1,nelv+i),vtx8((iwork(i)-1)*nlv+1),nlv)
-         enddo
       endif
+
+      nel=neliv+nelit
+c     dump .ma2 file
+      call dumpMapFile(nel,nlv,part,edi8,vtx8,nekcomm,ierr)
+
+c     transfer elements to the destination proc
+      call transferElements(nel,nlv,part,eid8,vtx8,lelt,nekcomm,ierr)
+
+      do i = 1,nel
+         lglel(i) = eid8(i)
+      enddo
+      call isort(lglel,iwork,nel)
+      do i = 1,nel
+         call icopy84(vertex(1,i),vtx8((iwork(i)-1)*nlv+1),nlv)
+      enddo
 
 #ifdef DPROCMAP
       do i = 1,nelt
