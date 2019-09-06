@@ -230,8 +230,8 @@ err:
 #endif
 
 #define dumpMapFile FORTRAN_UNPREFIXED(dumpmapfile,DUMPMAPFILE)
-void dumpMapFile(int *nell,int *nve,int *part,long long *el,long long *vl,
-  int *fcomm,int *retval)
+void dumpMapFile(char *casename,int *nell,int *nve,int *part,long long *el,long long *vl,
+  int *fcomm,int *retval,int nlen)
 {
   struct comm comm;
   *retval=1;
@@ -261,21 +261,34 @@ void dumpMapFile(int *nell,int *nve,int *part,long long *el,long long *vl,
   buffer buf; buffer_init(&buf,1024);
   sarray_sort(edata,eList.ptr,(unsigned int)nel,eid,1,&buf);
 
-  int *eli=(int*) malloc(nel*sizeof(int));
   int *vli=(int*) malloc(nv*nel*sizeof(int));
+  int *parti=(int*) malloc(nel*sizeof(int));
   for(data=eList.ptr, e=0; e<nel; ++e) {
-    eli[e]=data[e].proc;
+    parti[e]=data[e].proc;
     for(n=0; n<nv; ++n) {
       vli[e*nv+n] = data[e].vtx[n];
     }
   }
 
-  writeMapFile(nel,nv,eli,vli,"foo.ma2",comm.c);
+  char *casename_=(char*)calloc(nlen+1,sizeof(char));
+  strncpy(casename_,casename,nlen);
+
+#if 0
+  char *last_slash=strrchr(casename_,'/'); last_slash++;
+  char *mapfile=(char*)calloc(strlen(last_slash)-3+1,sizeof(char));
+  strncpy(mapfile,last_slash,strlen(last_slash)-3);
+  strcpy(mapfile+strlen(last_slash)-3,"ma2");
+  printf("mapfile: %s\n",mapfile);
+  free(casename_);
+  free(mapfile);
+#endif
+  writeMapFile(nel,nv,parti,vli,"foo.ma2",comm.c);
+
+  free(parti);
+  free(vli);
 
   array_free(&eList);
 
-  free(eli);
-  free(vli);
   *retval=0;
 }
 

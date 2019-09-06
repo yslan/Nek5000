@@ -161,7 +161,7 @@ c-----------------------------------------------------------------------
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
 
       logical ifparrsb
-      integer ibuf(2)
+      integer ibuf(2),ierr
 
       integer hrsb
 
@@ -171,6 +171,9 @@ c-----------------------------------------------------------------------
 
       integer opt_parrsb(3), opt_parmetis(10)
 
+      call read_map(vertex,nlv,wk,mdw,ndw,ierr)
+
+      if(ierr.eq.1) then
 #if defined(PARRSB) || defined(PARMETIS)
       call read_con(wk,size(wk),neli,nvi,nelgti,nelgvi)
       if (nvi .ne. nlv)
@@ -220,12 +223,13 @@ c solid elements
 
       endif
 
-      nel=neliv+nelit
+      nelt=neliv+nelit
+
 c     dump .ma2 file
-      call dumpMapFile(nel,nlv,part,edi8,vtx8,nekcomm,ierr)
+      call dumpMapFile(reafle,nelt,nlv,part,eid8,vtx8,nekcomm,ierr)
 
 c     transfer elements to the destination proc
-      call transferElements(nel,nlv,part,eid8,vtx8,lelt,nekcomm,ierr)
+      call transferElements(nelt,nlv,part,eid8,vtx8,lelt,nekcomm,ierr)
 
       do i = 1,nel
          lglel(i) = eid8(i)
@@ -262,16 +266,10 @@ c     transfer elements to the destination proc
 
 
 #else
-
-
-#ifdef DPROCMAP
-      call exitti('DPROCMAP requires PARRSB or PARMETIS!$',0)
-#else
-      call read_map(vertex,nlv,wk,mdw,ndw)
+      call exitti('Rebuild with PARRSB or PARMETIS to use online '
+     $  'partitioner!$',0)
 #endif
-
-
-#endif
+      endif
 
       call icopy48(vtx8,vertex,nelt*nlv)
       call printPartStat(vtx8,nelt,nlv,nekcomm)
@@ -438,11 +436,13 @@ c     (i.e. returns global element number given local index and proc id)
       return
       end
 c-----------------------------------------------------------------------
-      subroutine read_map(vertex,nlv,wk,mdw,ndw)
+      subroutine read_map(vertex,nlv,wk,mdw,ndw,ierr)
 
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
+
+      integer ierr
 
       integer vertex(nlv,1)
       integer wk(mdw,ndw)
@@ -479,7 +479,14 @@ c-----------------------------------------------------------------------
         if(.not.ifmap .and. .not.ifma2) ierr = 1 
       endif
       if(nid.eq.0) write(6,'(A,A)') ' Reading ', mapfle
-      call err_chk(ierr,' Cannot find map file!$')
+      call bcast(ierr,sizeof(ierr))
+
+      if(ierr.eq.1.and.nid.eq.1) then
+        write(6,*) 'Cannot find map file! Trying online partitioner ...'
+        return
+      endif
+      if(ierr.eq.1) return
+
       call bcast(ifma2,lsize)
       ierr = 0
 
