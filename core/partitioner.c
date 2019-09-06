@@ -231,7 +231,7 @@ err:
 
 #define dumpMapFile FORTRAN_UNPREFIXED(dumpmapfile,DUMPMAPFILE)
 void dumpMapFile(char *casename,int *nell,int *nve,int *part,long long *el,long long *vl,
-  int *fcomm,int *retval,int nlen)
+  int *fcomm,int *retval,int *len)
 {
   struct comm comm;
   *retval=1;
@@ -269,20 +269,16 @@ void dumpMapFile(char *casename,int *nell,int *nve,int *part,long long *el,long 
       vli[e*nv+n] = data[e].vtx[n];
     }
   }
+  buffer_free(&buf);
 
-  char *casename_=(char*)calloc(nlen+1,sizeof(char));
-  strncpy(casename_,casename,nlen);
-
-#if 0
-  char *last_slash=strrchr(casename_,'/'); last_slash++;
-  char *mapfile=(char*)calloc(strlen(last_slash)-3+1,sizeof(char));
-  strncpy(mapfile,last_slash,strlen(last_slash)-3);
-  strcpy(mapfile+strlen(last_slash)-3,"ma2");
-  printf("mapfile: %s\n",mapfile);
-  free(casename_);
-  free(mapfile);
-#endif
-  writeMapFile(nel,nv,parti,vli,"foo.ma2",comm.c);
+  char mapfile[BUFSIZ];
+  memcpy(mapfile,casename,sizeof(char)*(*len));
+  mapfile[*len]='\0';
+  char ext[BUFSIZ];
+  sprintf(ext,"_%08d.ma2",comm.np);
+  strcat(mapfile,ext);
+  printf("casename: %s\n",mapfile);
+  writeMapFile(nel,nv,parti,vli,mapfile,comm.c);
 
   free(parti);
   free(vli);

@@ -171,6 +171,10 @@ c-----------------------------------------------------------------------
 
       integer opt_parrsb(3), opt_parmetis(10)
 
+      character*132 mapfle
+      character*1   mapfle1(132)
+      equivalence  (mapfle,mapfle1)
+
       call read_map(vertex,nlv,wk,mdw,ndw,ierr)
 
       if(ierr.eq.1) then
@@ -226,7 +230,11 @@ c solid elements
       nelt=neliv+nelit
 
 c     dump .ma2 file
-      call dumpMapFile(reafle,nelt,nlv,part,eid8,vtx8,nekcomm,ierr)
+      lfname = ltrunc(reafle,132) - 4
+      call blank (mapfle,132)
+      call chcopy(mapfle,reafle,lfname)
+      call dumpMapFile(mapfle1,nelt,nlv,part,eid8,vtx8,nekcomm,ierr,
+     $  lfname)
 
 c     transfer elements to the destination proc
       call transferElements(nelt,nlv,part,eid8,vtx8,lelt,nekcomm,ierr)
@@ -594,7 +602,8 @@ c     NOW: crystal route vertex by processor id
 
       ntuple_sum = iglsum(ntuple,1)
       if (ntuple_sum .ne. nelgt) then
-         if (nid.eq.0) write(6,*) 'Error invalid tuple sum!'
+         if (nid.eq.0) write(6,*) 'Error invalid tuple sum!',
+     $       ntuple_sum,nelgt
          call exitt
       endif 
 
