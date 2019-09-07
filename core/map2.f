@@ -239,11 +239,11 @@ c     dump .ma2 file
 c     transfer elements to the destination proc
       call transferElements(nelt,nlv,part,eid8,vtx8,lelt,nekcomm,ierr)
 
-      do i = 1,nel
+      do i = 1,nelt
          lglel(i) = eid8(i)
       enddo
-      call isort(lglel,iwork,nel)
-      do i = 1,nel
+      call isort(lglel,iwork,nelt)
+      do i = 1,nelt
          call icopy84(vertex(1,i),vtx8((iwork(i)-1)*nlv+1),nlv)
       enddo
 

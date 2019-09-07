@@ -283,6 +283,7 @@ void dumpMapFile(char *casename,int *len,int *nell,int *nve,int *part,
   free(vli);
 
   array_free(&eList);
+  comm_free(&comm);
 
   *retval=0;
 }
@@ -389,6 +390,7 @@ void fpartMesh(int *part,long long *el,long long *vl,const int *nell,
 #endif
   if (ierr != 0) goto err;
 
+  comm_free(&comm);
   *rtval = 0;
   return;
 
