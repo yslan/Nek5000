@@ -289,8 +289,8 @@ void dumpMapFile(char *casename,int *len,int *nell,int *nve,int *part,
 }
 
 #define transferElements FORTRAN_UNPREFIXED(transferelements,TRANSFERELEMENTS)
-void transferElements(int *nell,int *nve,int *part,long long *el,long long *vl,int *lelt,
-  int *fcomm,int *retval)
+void transferElements(int *nell,int *nve,int *part,long long *el,long long *vl,
+  int *lelt,int *fcomm,int *retval)
 {
   *retval=1;
 
