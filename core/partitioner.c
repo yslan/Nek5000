@@ -230,8 +230,8 @@ err:
 #endif
 
 #define dumpMapFile FORTRAN_UNPREFIXED(dumpmapfile,DUMPMAPFILE)
-void dumpMapFile(char *casename,int *nell,int *nve,int *part,long long *el,long long *vl,
-  int *fcomm,int *retval,int *len)
+void dumpMapFile(char *casename,int *len,int *nell,int *nve,int *part,
+  long long *el,long long *vl,int *fcomm,int *retval)
 {
   struct comm comm;
   *retval=1;
@@ -277,7 +277,6 @@ void dumpMapFile(char *casename,int *nell,int *nve,int *part,long long *el,long 
   char ext[BUFSIZ];
   sprintf(ext,"_%08d.ma2",comm.np);
   strcat(mapfile,ext);
-  printf("casename: %s\n",mapfile);
   writeMapFile(nel,nv,parti,vli,mapfile,comm.c);
 
   free(parti);
@@ -314,7 +313,6 @@ void transferElements(int *nell,int *nve,int *part,long long *el,long long *vl,i
   int nel=*nell;
   int nv=*nve;
 
-  /* redistribute data */
   array_init(edata, &eList, nel), eList.n = nel;
   for(data = eList.ptr, e = 0; e < nel; ++e) {
     data[e].proc = part[e];

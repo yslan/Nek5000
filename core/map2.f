@@ -161,7 +161,7 @@ c-----------------------------------------------------------------------
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
 
       logical ifparrsb
-      integer ibuf(2),ierr
+      integer ibuf(2),ierr,nel
 
       integer hrsb
 
@@ -230,11 +230,11 @@ c solid elements
       nelt=neliv+nelit
 
 c     dump .ma2 file
-      lfname = ltrunc(reafle,132) - 4
+      lfname = ltrunc(reafle,132)-4
       call blank (mapfle,132)
       call chcopy(mapfle,reafle,lfname)
-      call dumpMapFile(mapfle1,nelt,nlv,part,eid8,vtx8,nekcomm,ierr,
-     $  lfname)
+      call dumpMapFile(mapfle1,lfname,nelt,nlv,part,eid8,vtx8,nekcomm,
+     $  ierr)
 
 c     transfer elements to the destination proc
       call transferElements(nelt,nlv,part,eid8,vtx8,lelt,nekcomm,ierr)
