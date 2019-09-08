@@ -161,7 +161,9 @@ c-----------------------------------------------------------------------
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
 
       logical ifparrsb
-      integer ibuf(2),ierr,nel
+      integer ibuf(2)
+
+      integer i,j,ii,ierr,nel,nelit,neliv
 
       integer hrsb
 
@@ -189,6 +191,8 @@ c-----------------------------------------------------------------------
       if (neli .gt. lelt)
      $   call exitti('neli > lelt!$',neli)
 
+      neliv=0
+      nelit=0
 c fluid elements
       j  = 0
       ii = 0
