@@ -52,6 +52,8 @@ C     Read Mesh Info
       ifre2 = .false.
       if (nelgs.lt.0) ifre2 = .true.
 
+      call usrdat0
+
       if (nelgt.gt.350000 .and. .not.ifre2) 
      $   call exitti('Problem size requires .re2!$',1)
 
@@ -101,7 +103,7 @@ C     End of input data, close read file.
       if(nid.eq.0) then
         close(unit=9)
         call echopar
-        write(6,'(A,g13.5,A,/)')  ' done :: read .rea file ',
+        write(6,'(A,g13.5,A,/)')  ' done :: read .rea file, time',
      $                             dnekclock()-etime0,' sec'
       endif
 

@@ -294,6 +294,7 @@ c-----------------------------------------------------------------------
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
+      include 'CTIMER'
 
       integer wk(nwk)
 
@@ -337,6 +338,8 @@ c-----------------------------------------------------------------------
       call bcast(ifco2,lsize)
       ierr = 0
 
+      etime0 = dnekclock_sync()
+
       ! read header
       if (nid.eq.0) then
          if (ifco2) then
@@ -379,8 +382,12 @@ c    1       format(a5,2i12,i2)
          call byte_read_mpi(wk,(nv+1)*nelr,-1,ifh,ierr)
          call byte_close_mpi(ifh,ierr)
          if (ifbswap) call byte_reverse(wk,(nv+1)*nelr,ierr)
+         if (nid.eq.0) write(6,'(A,g13.5,A,/)')
+     $         ' done :: read .co2 file, time',dnekclock()-etime0,' sec'
       else
          call exitti('reader only support co2 for now$',0)
+         if (nid.eq.0) write(6,'(A,g13.5,A,/)')
+     $         ' done :: read .con file, time',dnekclock()-etime0,' sec'
       endif
 
       return
@@ -490,6 +497,7 @@ c-----------------------------------------------------------------------
 
         if(.not.ifmap .and. .not.ifma2) ierr = 1 
       endif
+
       if(nid.eq.0) write(6,'(A,A)') ' Reading ', mapfle
       call bcast(ierr,sizeof(ierr))
 
@@ -501,6 +509,8 @@ c-----------------------------------------------------------------------
 
       call bcast(ifma2,lsize)
       ierr = 0
+
+      etime0 = dnekclock_sync()
 
       if (nid.eq.0) then
          if (ifma2) then         
@@ -577,8 +587,12 @@ c-----------------------------------------------------------------------
 
          if (ifma2) then
             call byte_close(ierr)
+            write(6,'(A,g13.5,A,/)')  ' done :: read .ma2 file, time',
+     $                                  dnekclock()-etime0,' sec'
          else
             close(80)
+            write(6,'(A,g13.5,A,/)')  ' done :: read .map file, time',
+     $                                  dnekclock()-etime0,' sec'
          endif
       elseif (nid.lt.npass) then
          call msgwait(msg_id)
