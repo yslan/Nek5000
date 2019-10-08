@@ -18,6 +18,9 @@ C     !! NOTE: Do not change the content of the array BQ until the current
 
       if (nio.eq.0.and.loglevel.gt.2)
      $   write(6,*) 'makeq', ifield
+     $   ,'advc',ifadvc(ifield),'cv',ifcvfld(ifield)
+     $   ,'ifchar',ifchar,'iftran',iftran,'ifdiff',ifcvfld(ifield)
+     $   ,'nelgv',nelgv,'nelgt',nelgt
 
       if_conv_std = .true.
       if (ifmhd.and.ifaxis) if_conv_std = .false. ! conv. treated in induct.f
@@ -42,6 +45,8 @@ C     !! NOTE: Do not change the content of the array BQ until the current
              endif
          else
              if (.not.ifchar) call convab
+             if (ifchar.AND.(nelgv.ne.nelgt)) ! FIXME Lan
+     $         call convab_tail
          endif
 
       endif
@@ -61,13 +66,15 @@ C     !! NOTE: Do not change the content of the array BQ until the current
 
            if (ifmvbd.and..not.ifchar) call admesht
 
-           call makeabq
+           call makeabq ! ok:nt, Lan
 
            if (ifchar.and.ifadvc(ifield)) then
               call convch
            else
               call makebdq
            endif
+           if (ifchar.AND.(nelgv.ne.nelgt)) ! FIXME Lan
+     $        call makebdq_tail
 
          endif
 

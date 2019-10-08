@@ -410,8 +410,8 @@ c      endif
       if (ifneknekc.and.(nelgv.ne.nelgt)) call exitti(
      $ 'ABORT: nek-nek not supported w/ conj. ht transfer$',1)
 
-      if (ifchar.and.(nelgv.ne.nelgt)) call exitti(
-     $ 'ABORT: IFCHAR curr. not supported w/ conj. ht transfer$',nelgv)
+c      if (ifchar.and.(nelgv.ne.nelgt)) call exitti( // FIXME Lan
+c     $ 'ABORT: IFCHAR curr. not supported w/ conj. ht transfer$',nelgv)
 
       if (ifmhd .and. lbx1.ne.lx1) then
          if(nid.eq.0) write(6,*) 

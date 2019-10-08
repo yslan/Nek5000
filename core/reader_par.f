@@ -1147,8 +1147,8 @@ c
         call exitt
       endif
 
-      if (ifchar.and.(nelgv.ne.nelgt)) call exitti(
-     $ 'ABORT: Characteristics not supported w/ conj. ht transfer$',1)
+c      if (ifchar.and.(nelgv.ne.nelgt)) call exitti( //FIXME Lan
+c     $ 'ABORT: Characteristics not supported w/ conj. ht transfer$',1)
 
       if (param(99).gt.-1 .and. (lxd.lt.lx1 .or. lyd.lt.ly1 .or.
      &   lzd.lt.lz1)) then
