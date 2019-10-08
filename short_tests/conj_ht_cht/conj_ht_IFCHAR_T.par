@@ -1,0 +1,50 @@
+#
+# nek parameter file
+#
+[GENERAL] 
+dt = 1e-01
+variableDT = no
+targetCFL = 4.0
+extrapolation = OIFS
+
+stopAt = endTime
+endTime= 500.0
+writeControl = runTime
+writeInterval = 10
+#numSteps = 500 1000
+#writeInterval = 10 500
+
+polynomialOrder = 7
+minNumProcesses = 2
+loglevel=3
+
+[PROBLEMTYPE]
+equation = incompNS
+variableProperties = yes
+
+[PRESSURE]
+residualTol = 1e-06
+residualProj = no
+preconditioner = SEMG_XXT #semg_amg
+
+
+[VELOCITY]
+residualTol = 1e-08
+density = 1
+viscosity = 0.5
+
+[TEMPERATURE] # temperature with Hmholtz 
+conjugateHeatTransfer = yes 
+rhoCp = 1.0
+conductivity = 0.5
+residualTol = 1e-08
+residualProj = no #yes
+
+#[SCALAR01] # temperature with CVODE
+#conjugateHeatTransfer = yes 
+##solver = cvode
+#absoluteTol = 1e-10
+
+#[CVODE]
+#relativeTol = 1e-06
+#dtmax = 5e-02 
