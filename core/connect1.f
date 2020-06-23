@@ -946,7 +946,7 @@ C
 C
             ieg=lglel(ie)
             WRITE(6,1800) IEG,V1,V2,V3,V4,V5,V6,V7,V8
-            call exitt
+c            call exitt
  1800       FORMAT(/,2X,'WARNINGb: Detected non-right-handed element.',
      $      /,2X,'Number',I8,'  V1-8:',4E12.4
      $      /,2X,'      ',4X,'       ',4E12.4)
@@ -967,7 +967,7 @@ C
 C
       IF (.NOT.IFCSTT) THEN
          IF (NID.EQ.0) WRITE(6,2003) NELGT
-         call exitt
+c         call exitt
       ELSE
          IF (NIO.EQ.0) WRITE(6,2002) NELGT
       ENDIF

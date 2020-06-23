@@ -652,14 +652,14 @@ C
   500 CONTINUE
       kerr = iglsum(kerr,1)
       if (kerr.gt.0) then
-         ifxyo = .true.
-         ifvo  = .false.
-         ifpo  = .false.
-         ifto  = .false.
-         param(66) = 4
-         call outpost(vx,vy,vz,pr,t,'xyz')
+c         ifxyo = .true.
+c         ifvo  = .false.
+c         ifpo  = .false.
+c         ifto  = .false.
+c         param(66) = 4
+c         call outpost(vx,vy,vz,pr,t,'xyz')
          if (nid.eq.0) write(6,*) 'Jac error 1, setting p66=4, ifxyo=t'
-         call exitt
+c         call exitt
       endif
 
       call invers2(jacmi,jacm1,ntot1)
