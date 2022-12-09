@@ -47,6 +47,14 @@ c     Get output type
       read(in,*) itype
       if (itype.ne.0.AND.itype.ne.1) call exitti
      $  ('Error: invalid itype ',itype)
+
+      iversion = 0
+      if (itype.eq.1) then
+        write(6,*) 'Input version number, 0:default, 1:v001 or 2:v002'
+        read(in,*) iversion
+        if (iversion.ne.0.AND.iversion.ne.1.AND.iversion.ne.2) 
+     $    call exitti('Error: invalid itype ',itype)
+      endif
  
 c     Get nlevels
       nlev = 1
@@ -90,7 +98,7 @@ c     Open output file
       endif
 
 c     Write output 
-      call con23(neln,nvtx2d,nvtx3d,itype,ifcht)
+      call con23(neln,nvtx2d,nvtx3d,itype,ifcht,iversion)
       write(6,6) nvtx3d,neln,(fout1(k),k=1,lou+4)
     6 format(i16,' vertices and ',i16,' elements written to ',40a1)
 
@@ -105,7 +113,7 @@ c     Close output files
       stop
       end
 c-----------------------------------------------------------------------
-      subroutine con23(neln,nvtx2d,nvtx3d,itype,ifcht)
+      subroutine con23(neln,nvtx2d,nvtx3d,itype,ifcht,iversion)
 c     input nlev,nel,nvtx2d,itype,icon2d
 c     output neln,nvtx3d
 #     include "SIZE"
@@ -141,14 +149,22 @@ c     Nekton stuff
 
 
       if(itype.eq.1) then    !co2
-        ! write header
-        call blank(hdr,132)
-        if (neln.lt.10000000)  then
+        if (iversion.eq.0) then
+          ! write header
+          call blank(hdr,132)
+          if (neln.lt.10000000)  then
+            write(hdr,1) '#v001',neln,nelnv,8
+          else   
+            write(hdr,2) '#v002',neln,nelnv,8
+          endif   
+
+        elseif (iversion.eq.1) then
           write(hdr,1) '#v001',neln,nelnv,8
-        else   
+        elseif (iversion.eq.2) then
           write(hdr,2) '#v002',neln,nelnv,8
-    2     format(a5,i16,i16,i5) 
-        endif   
+        else
+          call exitti('wrong version number',iversion)
+        endif
 
         write(6,*) 'hdr:', hdr
         call byte_write(hdr,132/4,ierr)
@@ -165,6 +181,7 @@ c     Nekton stuff
       endif
 
     1 format(a5,3i12) ! header
+    2 format(a5,i16,i16,i5) 
 
       return
       end

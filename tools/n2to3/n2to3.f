@@ -51,6 +51,16 @@ c     Get file name
 c     Get file output type
       write(6,*) 'Input 0:ASCII or 1:BINARY'      
       read(in,*) itype
+
+      iversion = 0
+      if (itype.eq.1) then
+         write(6,*) 're2 version, 0: default, 2: v002 or 4: v004'
+         read(in,*) iversion
+         if (iversion.ne.0.AND.iversion.ne.2.AND.iversion.ne.4) then 
+            write(6,*) 'Wrong iversion'
+            call exitt
+         endif
+      endif
  
       nlev = 1
       write(6,*) 
@@ -119,7 +129,7 @@ c     write(6,*) lou,(fout1(k),k=1,lou+4)
 c     write(6,*) lou,(fout21(k),k=1,lou+4)
 c     write(6,*) len,(file1(k),k=1,len+4)
     
-      call rea23(dz,zmin,neln,itype)
+      call rea23(dz,zmin,neln,itype,iversion)
  
       write(6,*)
       write(6,6) neln,(fout1(k),k=1,lou+4)
@@ -140,7 +150,7 @@ c     write(6,*) len,(file1(k),k=1,len+4)
       stop
       end
 c-----------------------------------------------------------------------
-      subroutine rea23(dzi,zmin,neln,itype)
+      subroutine rea23(dzi,zmin,neln,itype,iversion)
 #     include "SIZE"
       real dzi(1)
       character*80 string
@@ -326,13 +336,24 @@ c         if (option.eq.'yes') ifsolid = .true.
 
         call blank(hdr,80)
 
-        if(neln.lt.10000000) then         
-           write(hdr,111) neln,ndim3,nelnv 
-  111      format('#v002',i9,i3,i9,' hdr')
-        else                             
-           write(hdr,112) neln,ndim3,nelnv,nBC
-  112      format('#v004',i16,i3,i16,i4,' hdr')
-        endif    
+        if (iversion.eq.0) then ! default
+          if(neln.lt.10000000) then         
+            write(hdr,111) neln,ndim3,nelnv 
+          else                             
+            write(hdr,112) neln,ndim3,nelnv,nBC
+          endif    
+
+        elseif (iversion.eq.2) then ! overwrite
+          write(hdr,111) neln,ndim3,nelnv 
+        elseif (iversion.eq.4) then
+          write(hdr,112) neln,ndim3,nelnv,nBC
+        else
+          write(6,*) 'Wrong iversion'
+          call exitt
+        endif
+
+  111   format('#v002',i9,i3,i9,' hdr')
+  112   format('#v004',i16,i3,i16,i4,' hdr')
 
         call byte_write(hdr,20,ierr)        ! assumes byte_open() already issued
         call byte_write(test,1,ierr)        ! write the endian discriminator
