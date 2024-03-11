@@ -10,12 +10,13 @@ set -a
 # Fortran/C compiler
 #FC="mpif77"
 #CC="mpicc"
+#CXX="mpic++"
 
 # Linker
 #LD="$FC"
 
 # config options (set to "?" to get a list)
-#PPLIST="PARRSB DPROCMAP HYPRE" 
+#PPLIST="NEKASCENT" 
 
 #-------------------------------------------------------------------------------
 # WHAT FOLLOWS ARE OPTIONAL SETTINGS
@@ -46,6 +47,10 @@ set -a
 #  for VisIt to connect.
 #VISIT_INSTALL="/path/to/visit/current/linux-x86_64/"
 #VISIT_STOP=true
+#
+# Ascent in situ (default 0)
+#NEKASCENT=1
+#ASCENT_DIR=$HOME/ascent/install/ascent-develop
 
 
 ###############################################################################

@@ -1,0 +1,38 @@
+#!/bin/bash
+set -e
+   
+# VER=2.15.1 # TODO
+   
+if [ "$1" == "clean" ]; then
+  rm -rf nekAscent lib include 2>/dev/null
+  exit 0
+fi   
+     
+if [ -f ./lib/libnekAscent.a && -f ./link.txt ]; then
+  exit 0
+fi   
+   
+#if [ ! -f v$VER.tar.gz ]; then
+#  wget --no-check-certificate -O v$VER.tar.gz https://github.com/hypre-space/hypre/archive/v$VER.tar.gz 
+#fi
+  
+rm -rf nekAscent 2>/dev/null
+#mkdir nekAscent
+
+#tar -zxvf v$VER.tar.gz -C ./hypre --strip-components=1
+if [ ! -d "nekAscent" ]; then
+  git clone https://github.com/yslan/nekAscent.git nekAscent
+fi
+
+cd nekAscent
+
+if [ "$1" == "link.txt" ]; then
+  make link.txt $NEKASCENT_OPT
+  exit 0
+fi
+
+set -x
+make lib install $NEKASCENT_OPT DEBUG=1
+set +x
+
+export ASCENT_LNKFLAGS=`cat ${SOURCE_ROOT_NEKASCENT}/link.txt`

@@ -28,6 +28,7 @@ VISIT_LFLAGS=
 HYPRE_IFLAGS=
 GSLIB_IFLAGS=
 PARRSB_IFLAGS=
+NEKASCENT_IFLAGS=
 
 ################################################################################
 

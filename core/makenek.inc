@@ -43,8 +43,21 @@ function build_3rdparty() {
   fi
   cd $CASEDIR
 
+  if [ $NEKASCENT -ne 0 ]; then
+     cd $SOURCE_ROOT_NEKASCENT
+     CFLAGS="-O2 $CFLAGS" ./install 2>&1 | tee -a $CASEDIR/build.log >/dev/null
+  fi
+  cd $CASEDIR
+
   printf "done\n"
   set +o pipefail
+}
+
+function get_nekAscent_link() {
+  cd $SOURCE_ROOT_NEKASCENT
+  ./install "link.txt" 2>&1 | tee -a $CASEDIR/build.log >/dev/null
+  cd $CASEDIR
+  ASCENT_LNKFLAGS=`cat ${SOURCE_ROOT_NEKASCENT}/link.txt`
 }
 
 function clean_3rdparty() {
@@ -59,6 +72,8 @@ function clean_3rdparty() {
   cd $SOURCE_ROOT_CVODE; ./install clean 2>/dev/null
   cd $CASEDIR
   cd $SOURCE_ROOT_HYPRE; ./install clean 2>/dev/null
+  cd $CASEDIR
+  cd $SOURCE_ROOT_NEKASCENT; ./install clean 2>/dev/null
   cd $CASEDIR
 }
 
@@ -89,6 +104,7 @@ if [ "$1" == "-h" ] || [ "$1" == "-help" ] || [ "$PPLIST" == "?" ]; then
   echo "  VENDOR_BLAS   use VENDOR BLAS/LAPACK"
   echo "  DPROCMAP      use distributed processor mapping"
   echo "  PARRSB        use online RSB partitioner"
+  echo "  NEKASCENT     use Ascent insitu visualization"
   return 11
 fi
 
@@ -119,6 +135,8 @@ SOURCE_ROOT_CVODE="$NEK_SOURCE_ROOT/3rd_party/cvode"
 export SOURCE_ROOT_CVODE
 SOURCE_ROOT_HYPRE="$NEK_SOURCE_ROOT/3rd_party/hypre"
 export SOURCE_ROOT_HYPRE
+SOURCE_ROOT_NEKASCENT="$NEK_SOURCE_ROOT/3rd_party/nekAscent"
+export SOURCE_ROOT_NEKASCENT
 
 NODEP=1
 if [ "$1" == "-build-dep" ]; then
@@ -314,6 +332,7 @@ CVODE=0
 HYPRE=0
 MXM_USER="mxm_std.o"
 VENDOR_BLAS=0 
+NEKASCENT=0
 
 for i in $PPLIST
 do
@@ -353,6 +372,14 @@ do
    if [ "$i" == "VENDOR_BLAS" ]; then
      VENDOR_BLAS=1
    fi
+   if [ "$i" == "NEKASCENT" ]; then
+     NEKASCENT=1
+     NEKASCENT_OPT=" DESTDIR=${SOURCE_ROOT_NEKASCENT} UNDERSCORE=$UNDERSCORE MPI=$MPI"
+     NEKASCENT_OPT+=" ASCENT_DIR=${ASCENT_DIR}"
+     NEKASCENT_OPT+=" CXX=${CXX} FC=${FC}"
+     USR_LFLAGS+=" -L${SOURCE_ROOT_NEKASCENT}/lib -lnekAscent"
+     NEKASCENT_INC="${SOURCE_ROOT_NEKASCENT}/include"
+   fi
 done
 
 if [ $VENDOR_BLAS -ne 1 ]; then
@@ -382,6 +409,12 @@ if [ $HYPRE -ne 0 ]; then
     return 11
   fi
 fi
+if [ $NEKASCENT -ne 0 ]; then
+  if ! test -f "${ASCENT_DIR}/share/ascent/ascent_config.mk"; then
+    echo "FATAL ERROR: Cannot find Ascent at ${ASCENT_DIR}!"
+    return 11
+  fi
+fi
 
 export FC
 export FCPP
@@ -394,6 +427,7 @@ export MPIO
 export UNDERSCORE
 export GSLIB_OPT
 export PARRSB_OPT
+export NEKASCENT_OPT
 
 if [ $ONLYDEP -eq 1 ]; then
   build_3rdparty
@@ -493,6 +527,15 @@ if [ $PARRSB -ne 0 ]; then
       -e "s:^USR_LFLAGS[ ]*=.*:USR_LFLAGS=$USR_LFLAGS:" \
       .makefile > .makefile.tmp
 
+  mv .makefile.tmp .makefile
+fi
+
+if [ $NEKASCENT -ne 0 ]; then
+  get_nekAscent_link
+  USR_LFLAGS+=" ${ASCENT_LNKFLAGS} -lstdc++"
+  sed -e "s:^NEKASCENT_IFLAGS[ ]*=.*:NEKASCENT_IFLAGS\:=-I${NEKASCENT_INC}:" \
+      -e "s:^USR_LFLAGS[ ]*=.*:USR_LFLAGS=$USR_LFLAGS:" \
+      .makefile > .makefile.tmp
   mv .makefile.tmp .makefile
 fi
 

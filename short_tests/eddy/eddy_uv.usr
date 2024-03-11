@@ -246,6 +246,35 @@ c
          call copy (pr,pe,n2)
       endif
 
+      call ascent_aux
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine ascent_aux
+      implicit none
+      include 'SIZE'
+      include 'TOTAL'
+
+      integer mid,mp,nekcomm,nekgroup,nekreal
+      common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
+
+      real pm1
+      common /scrcg/ pm1(lx1,ly1,lz1,lelv)
+      integer nfldt
+
+      nfldt = 1+npscal
+      if (istep.eq.0) then
+        call fnekascent_setup(nekcomm,
+     $                        ldim, lx1, ly1, lz1, nelt, lelt, nfldt,
+     $                        xm1, ym1, zm1,
+     $                        vx, vy, vz, pm1, t)
+      endif
+
+      call prepost_map(0)
+      call fnekascent_update(time, istep, 0);
+      call prepost_map(1)  ! maps back axisymm arrays
+
       return
       end
 c-----------------------------------------------------------------------
