@@ -117,6 +117,7 @@ c     output neln,nvtx3d
 
       character*132 hdr
       character*5   version
+      character*3   option
       real*4 test
       data   test  / 6.54321 /
  
@@ -138,10 +139,14 @@ c     Nekton stuff
       ifper = .false.
       if (iper.eq.1) ifper = .true.
       if (ifper.and.nlev.lt.3) then
-         write(6,*) 'NOTE: nlev < 3 not allowed with periodic bcs'
-         write(6,*) 'nlev =',nlev
-         write(6,*) 'ABORT'
-         stop
+         write(6,*) 'WARNING: nlev < 3 not allowed with periodic bcs'
+         write(6,*) 'Do you still want to proceed?: yes or no:'
+         read (5,1) option
+         if (option.ne.'yes') then
+           write(6,*) 'nlev =',nlev
+           write(6,*) 'ABORT'
+           stop
+         endif
       endif
 
 
