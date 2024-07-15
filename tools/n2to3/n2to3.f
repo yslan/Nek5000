@@ -12,7 +12,7 @@ c----------------------------------------------------------------------
       character*1  fout21(80)
       equivalence (fout21,fout2)
 
-      logical ifflow,ifheat
+      logical ifflow,ifheat,strcmp
       common /arraz/ zmin,zmax,dz(nelxym)
 
       common /arral/ ifcirc
@@ -47,6 +47,11 @@ c     Get file name
       call blank(fout,80)
       read(in,80) fout
       lou = ltrunc(fout,80)
+
+      if (strcmp(file,fout)) then
+         write(6,*) 'Abort: filenames cannot be the same'
+         stop
+      endif
 
 c     Get file output type
       write(6,*) 'Input 0:ASCII or 1:BINARY'      
@@ -2151,6 +2156,40 @@ c
 
    80 format(a80)
    81 format(80a1)
+
+      return
+      end
+c-----------------------------------------------------------------------
+      logical function strcmp(str1in,str2in)
+
+      character*80 str1in
+      character*80 str1
+      character*1  vec1(80)
+      equivalence (vec1,str1)
+
+      character*80 str2in
+      character*80 str2
+      character*1  vec2(80)
+      equivalence (vec2,str2)
+
+      strcmp = .true.
+
+      call chcopy(str1,str1in,80)
+      call chcopy(str2,str2in,80)
+
+      n1 = ltrunc(str1,80)
+      n2 = ltrunc(str2,80)
+      if (n1.ne.n2) then
+         strcmp = .false.
+         return
+      endif
+
+      do i=1,n1
+         if (vec1(i).ne.vec2(i)) then
+            strcmp = .false.
+            return
+         endif
+      enddo
 
       return
       end

@@ -38,7 +38,7 @@ c     an ascii rea file for just the parameters
 
       real*8 rbc,rcurve
       character*3 cbc(6,nelm)
-      logical ifbswap,if_byte_swap_test,ifexist
+      logical ifbswap,if_byte_swap_test,ifexist,strcmp
       
 c     for workstation:
       in = 5
@@ -55,6 +55,11 @@ c     Get file name
       call blank(fout,80)
       read(in,80) fout
       lou = ltrunc(fout,80)
+
+      if (strcmp(fin,fout)) then
+         write(6,*) 'Abort: filenames cannot be the same'
+         stop
+      endif
 
       fbin = fin
       call chcopy(fin1(len+1),'.rea',4)

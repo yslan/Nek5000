@@ -25,7 +25,7 @@ c     an ascii rea file for just the parameters
       character*3 cbc(6,lelt)
       integer e,f
       character*1 ccurve(4)
-      logical ifflow,ifheat
+      logical ifflow,ifheat,strcmp
 
       character*80 hdr
       real*4 test
@@ -46,6 +46,11 @@ c     an ascii rea file for just the parameters
       read(5,80) fout
       fbout = fout
       lou = ltrunc(fout,80)
+
+      if (strcmp(file,fout)) then
+         write(6,*) 'Abort: filenames cannot be the same'
+         stop
+      endif
 
       write(6,*)
       write(6,'(A)') 'Start converting ...'
@@ -227,3 +232,4 @@ c-----------------------------------------------------------------------
  
       return
       end
+c-----------------------------------------------------------------------
