@@ -174,6 +174,7 @@ C
       do i=1,lhref
         hrefcuts(i) = 0 ! h-refinement schedule
       enddo
+      ifhmg = .false.
 
       ifflow    = .false.
       ifheat    = .false.  
@@ -494,18 +495,27 @@ c set parameters
          call capit(c_out,132)
          if (index(c_out,'SEMG_XXT') .eq. 1) then
             param(40) = 0
-        else if (index(c_out,'SEMG_AMG_HYPRE') .eq. 1) then
+         else if (index(c_out,'SEMG_AMG_HYPRE') .eq. 1) then
             param(40) = 2
          else if (index(c_out,'SEMG_AMG') .eq. 1) then
             param(40) = 1
          else if (index(c_out,'FEM_AMG_HYPRE') .eq. 1) then
             param(40) = 3
+         else if (index(c_out,'SEMG_HMG_XXT') .eq. 1) then
+            param(40) = 0
+            ifhmg = .true.
+         else if (index(c_out,'SEMG_HMG_AMG_HYPRE') .eq. 1) then
+            param(40) = 2
+            ifhmg = .true.
+         else if (index(c_out,'SEMG_HMG_AMG') .eq. 1) then
+            param(40) = 1
+            ifhmg = .true.
          else
            write(6,*) 'value: ',trim(c_out)
            write(6,*) 'is invalid for pressure:preconditioner!'
            goto 999
          endif
-      endif 
+      endif
 
       call finiparser_getBool(i_out,'general:writeDoublePrecision',ifnd)
       if(ifnd .eq. 1 .and. i_out .eq. 1) param(63) = 1 
@@ -956,16 +966,6 @@ c read h-refinement schedule
           call finiparser_getToken(c_out,i)
           read(c_out,'(i132)') hrefcuts(i)
         enddo
-
-        ncut = 1 ! quick check
-        do i = 1,nhref
-          ncut = ncut * hrefcuts(i)
-        enddo
-        if (ncut.lt.2) then
-          write(6,'(a,i3)')"Invalid h-refine schedule: ncut_total=",ncut
-          nhref = 0
-          call izero(hrefcuts,lhref)
-        endif
       endif
 
 c read BC map for velocity
@@ -1177,6 +1177,7 @@ C
 
       call bcast(nhref,          isize)
       call bcast(hrefcuts, lhref*isize)
+      call bcast(ifhmg,          lsize)
 
       call bcast(timeioe,sizeof(timeioe))
 
@@ -1436,6 +1437,31 @@ c
      &   lzd.lt.lz1)) then
          if(nid.eq.0) write(6,*)
      &   'ABORT: Dealiasing space too small; Check lxd,lyd,lzd in SIZE '
+         call exitt
+      endif
+
+      if (nhref.gt.0) then
+         ncut_tot = 1
+         do i = 1,nhref
+           ncut_tot = ncut_tot * hrefcuts(i)
+         enddo
+         if (ncut_tot.lt.2) then
+           if(nid.eq.0) write(6,'(a,i3)')
+     $     'Invalid h-refine schedule: ncut_total=',ncut_tot
+           nhref = 0
+           call izero(hrefcuts,lhref)
+         endif
+      endif
+
+      if (nhref.eq.0) then
+         if(nid.eq.0) write(6,*)
+     $   'hMG requires h-refine. Fall back to ifhmg=F'
+         ifhmg = .false.
+      endif
+
+      if (ifhmg.AND.nhref.gt.1) then
+         if(nid.eq.0) write(6,*)
+     $   'hMG only supports single refinement for now'
          call exitt
       endif
 

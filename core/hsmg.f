@@ -638,7 +638,7 @@ c----------------------------------------------------------------------
       integer l,i,j,nl
       i = mg_fast_s_index(mg_lmax,mg_fld-1)
       j = mg_fast_d_index(mg_lmax,mg_fld-1)
-      do l=2,mg_lmax
+      do l=1,mg_lmax! FIXME
          mg_fast_s_index(l,mg_fld)=i
          nl = mg_nh(l)+2
          i=i+nl*nl*2*ldim*nelv
@@ -1193,7 +1193,7 @@ c----------------------------------------------------------------------
       integer l,i,nl,nlz
 
       i = mg_schwarz_wt_index(mg_lmax,mg_fld-1)
-      do l=2,mg_lmax-1
+      do l=1,mg_lmax-1 ! FIXME
          mg_schwarz_wt_index(l,mg_fld)=i
          nl = mg_nh(l)
          nlz = mg_nh(l)
@@ -1223,7 +1223,7 @@ c----------------------------------------------------------------------
       integer l,i,nl,nlz
 
       i = mg_schwarz_wt_index(mg_lmax,mg_fld-1)
-      do l=2,mg_lmax
+      do l=1,mg_lmax ! FIXME
 
          mg_schwarz_wt_index(l,mg_fld)=i
          nl  = mg_nh(l)
@@ -1857,7 +1857,6 @@ c-----------------------------------------------------------------------
 
 c     Assumes that preprocessing has been completed via h1mg_setup()
 
-
       include 'SIZE'
       include 'HSMG'       ! Same array space as HSMG
       include 'GEOM'
@@ -1872,12 +1871,17 @@ c     Assumes that preprocessing has been completed via h1mg_setup()
       common /scrvh/ h1    (lx1,ly1,lz1,lelv),
      $               h2    (lx1,ly1,lz1,lelv)
       parameter (lt=lx1*ly1*lz1*lelt)
+      real e,w,r
       common /scrmg/ e(2*lt),w(lt),r(lt)
       integer p_msk,p_b
       logical if_hybrid
 
 c     if_hybrid = .true.    ! Control this from gmres, according
 c     if_hybrid = .false.   ! to convergence efficiency
+
+      integer idbg ! FIXME dbg
+      data idbg/0/
+      save idbg
 
       nel   = nelfld(ifield)
 
@@ -1889,6 +1893,8 @@ c     if_hybrid = .false.   ! to convergence efficiency
       l     = mg_h1_lmax
       n     = mg_h1_n(l,mg_fld)
       is    = 1                                       ! solve index
+         if (nio.eq.0.AND.idbg.eq.0)
+     $      write(*,*)'mg-dbg lv',l,'pos',is,0,'n',n
 
       call h1mg_schwarz(z,rhs,sigma,l)                ! z := sigma W M       rhs
                                                       !               Schwarz
@@ -1899,6 +1905,8 @@ c     if_hybrid = .false.   ! to convergence efficiency
       do l = mg_h1_lmax-1,2,-1                        ! DOWNWARD Leg of V-cycle
          is = is + n
          n  = mg_h1_n(l,mg_fld)
+         if (nio.eq.0.AND.idbg.eq.0)
+     $      write(*,*)'mg-dbg lv',l,'pos',is,0,'n',n
                                                       !          T
          call h1mg_rstr(r,l,.true.)                   ! r   :=  J r
                                                       !  l         l+1
@@ -1909,25 +1917,114 @@ c     if_hybrid = .false.   ! to convergence efficiency
          if(if_hybrid)call h1mg_axm(r,e(is),op,om,l,w)! r  := r - A e
                                                       !  l           l
       enddo
-      is = is+n
-                                                      !         T
-      call h1mg_rstr(r,1,.false.)                     ! r  :=  J  r
-                                                      !  l         l+1
-      p_msk = p_mg_msk(l,mg_fld)
-      call h1mg_mask(r,mg_imask(p_msk),nel)           !        -1
-      call hsmg_coarse_solve ( e(is) , r )            ! e  := A   r
-      call h1mg_mask(e(is),mg_imask(p_msk),nel)       !  1     1   1
 
-c     nx = mg_nh(1)
-c     call outnxfld (e(is),nx,nelv,'ecrsb4',is)
-c     call h1mg_mask(e(is),mg_imask(p_msk),nel)       !  1     1   1
-c     call outnxfld (e(is),nx,nelv,'ecrsaf',is)
-c     call exitt
+      ! 0 = orig, 1 = no crs, 2 = no crs + smth
+      ! 3 = smth + hmg interp
+      ! 4 = smth + hmg interp + hmg crs
+      idev_hmg = 4
+      if (.not.ifhmg) idev_hmg = 0 ! FIXME
+      if (idev_hmg.eq.0) then                         ! FIXME original
+         l = 1
+         is = is+n ! is at l=1
+                                                      !         T
+         call h1mg_rstr(r,1,.false.)                  ! r  :=  J  r
+                                                      !  l         l+1
+         p_msk = p_mg_msk(l,mg_fld)
+         call h1mg_mask(r,mg_imask(p_msk),nel)        !        -1
+         call hsmg_coarse_solve ( e(is) , r )         ! e  := A   r
+         call h1mg_mask(e(is),mg_imask(p_msk),nel)    !  1     1   1
+
+c        nx = mg_nh(1)
+c        call outnxfld (e(is),nx,nelv,'ecrsb4',is)
+c        call h1mg_mask(e(is),mg_imask(p_msk),nel)
+c        call outnxfld (e(is),nx,nelv,'ecrsaf',is)
+c        call exitt
+
+      elseif (idev_hmg.eq.1) then                     ! FIXME No crs
+         l = 1
+         is = is+n ! is at l=1
+         ncrs = mg_h1_n(l,mg_fld)
+         call rzero(e(is),ncrs)
+
+      elseif (idev_hmg.eq.2) then                     ! FIXME No crs, but smooth at N=1
+         l = 1
+         is = is+n ! is at l=1
+         call h1mg_rstr(r,l,.true.)
+         call h1mg_schwarz(e(is),r,sigma,l)
+
+      elseif (idev_hmg.eq.3) then                     ! FIXME No crs, smth, hmg interp
+         l = 1
+         is = is+n ! is at l=1
+         nbak = n
+         n = mg_h1_n(l,mg_fld)
+
+         call h1mg_rstr(r,l,.true.)
+         call h1mg_schwarz(e(is),r,sigma,l)
+         call copy(r,e(is),n)
+
+         l = 0 ! to remind that we are in hmg
+         is = is + n
+         call semg_hmg_rstr(r,.true.) ! r = e
+         call copy(e(is),r,n)
+
+         l = 1! back to semg
+         im = is
+         is = is - n
+         call semg_hmg_intp(w,e(im))
+         i1=is-1
+         do i=1,n
+            e(i1+i) = e(i1+i) + w(i)
+         enddo
+         n = nbak
+
+      elseif (idev_hmg.eq.4) then                     ! FIXME No crs, smth, hmg interp + crs
+      if (nio.eq.0.AND.idbg.eq.0) 
+     $         write(*,*)'mg nnn',(mg_h1_n(ii,mg_fld),ii=1,3),n
+
+         l = 1
+         is = is+n ! is at l=1
+         nbak = n  ! back n at l=2
+         n = mg_h1_n(l,mg_fld) ! n at l=1
+
+         if (nio.eq.0.AND.idbg.eq.0)
+     $      write(*,*)'mg-dbg lv',l,'pos',is,0,'n',n
+
+         call h1mg_rstr(r,l,.true.)
+         call h1mg_schwarz(e(is),r,sigma,l)
+         if(if_hybrid)call h1mg_axm(r,e(is),op,om,l,w)
+
+         l = 0 ! to remind that we are in hmg
+         is = is + n ! is at l=0
+
+         if (nio.eq.0.AND.idbg.eq.0)
+     $      write(*,*)'mg-dbg lv',l,'pos',is,0,'n',0
+         call semg_hmg_rstr(r,.false.)
+
+cc         p_msk = p_mg_msk(l,mg_fld)
+cc         call h1mg_mask(r,mg_imask(p_msk),nel)        !        -1
+         call semg_hmg_crs_solve( e(is) , r )
+cc         call h1mg_mask(e(is),mg_imask(p_msk),nel)    !  1     1   1
+
+         l = 1! back to semg
+         im = is     ! im at l=0
+         is = is - n ! is at l=1
+         n = mg_h1_n(l,mg_fld) ! n at l=1
+         if (nio.eq.0.AND.idbg.eq.0)
+     $      write(*,*)'mg-dbg lv',l,'pos',is,im,'n',n
+         call semg_hmg_intp(w,e(im))
+         i1=is-1
+         do i=1,n
+            e(i1+i) = e(i1+i) + w(i)
+         enddo
+         n = nbak    ! n at l=2
+      endif
 
       do l = 2,mg_h1_lmax-1                           ! UNWIND.  No smoothing.
          im = is
          is = is - n
          n  = mg_h1_n(l,mg_fld)
+         if (nio.eq.0.AND.idbg.eq.0)
+     $      write(*,*)'mg-dbg lv',l,'pos',is,im,'n',n
          call hsmg_intp (w,e(im),l-1)                 ! w   :=  J e
          i1=is-1                                      !            l-1
          do i=1,n
@@ -1942,7 +2039,10 @@ c     call exitt
       do i = 1,n                                      !            l-1
          z(i) = z(i) + w(i)                           ! z := z + w
       enddo
+         if (nio.eq.0.AND.idbg.eq.0)
+     $      write(*,*)'mg-dbg lv',l,'pos',1,im,'n',n
 
+      idbg=1
       call dsavg(z) ! Emergency hack --- to ensure continuous z!
 
       return
@@ -2292,6 +2392,9 @@ c     if (np.eq.1)        param(82)=2  ! single proc. too slow
 c     mg_h1_lmax = 4
       if (lx1.eq.4) mg_h1_lmax = 2
 c     if (param(79).ne.0) mg_h1_lmax = param(79)
+      mg_h1_lmin = 2 ! FIXME
+      if (ifhmg) mg_h1_lmin = 1
+
       mg_lmax = mg_h1_lmax
       mglx1    = p82-1 !1
       mg_nx(1) = mglx1

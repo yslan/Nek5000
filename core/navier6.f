@@ -105,7 +105,11 @@ c
             if (param(43).eq.0) call hsmg_setup
          endif
 
-         call set_up_h1_crs
+         if (ifhmg) then
+           call set_up_hmg_crs
+         else
+           call set_up_h1_crs
+         endif
 
       enddo
  

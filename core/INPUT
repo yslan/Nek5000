@@ -142,4 +142,9 @@ c
 c h refinement
 c
       integer nhref, hrefcuts(lhref)
-      common /hrefinei/ nhref, hrefcuts
+      common /inputhrefi/ nhref, hrefcuts
+c
+c hMG
+c
+      logical ifhmg
+      common /inputhrefl/ ifhmg

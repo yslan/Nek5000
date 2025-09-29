@@ -6,9 +6,15 @@ c     Note that lelt and lelg need to be LARGE enough
       include 'SIZE'
       include 'TOTAL'
 
-      parameter(lxyz=lx1*ly1*lz1)
+      parameter (lxyz=lx1*ly1*lz1)
       common /c_is1/ glo_num(lxyz*lelt)
       integer*8 glo_num
+
+      integer icalld
+      save icalld
+      data icalld /0/
+
+      if (icalld.eq.0) call refine_backup
 
       ncut_o = ncut
       nelv_o = nelv
@@ -23,6 +29,8 @@ c
 c     call h_refine_fld(t,nelt_o,ncut_o)
 
 c     call outpost(xm1,ym1,zm1,pr,t,'   ')
+
+      icalld = 1
 
       return
       end
@@ -666,6 +674,68 @@ c-----------------------------------------------------------------------
           endif
         enddo
         nelt0 = nelt0 * nblk
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+c     extra settings for hMG
+c-----------------------------------------------------------------------
+      subroutine refine_backup
+      implicit none
+      include 'SIZE'
+      include 'REFINEMG'
+
+      common /ivrtx/ vertex((2 ** ldim) * lelt)
+      integer*8 vertex
+
+      if (nio.eq.0) write(*,*)'h-refine backup original mesh info ...'
+
+      call i8copy(hmg_vertex_o,vertex,(2**ldim)*nelt) ! FIXME usrsetvert?
+
+      hmg_nelt_o = nelt
+      hmg_nelv_o = nelv
+
+      ! cbc(iface,ie,ifield)
+      ! no cbc, because user change it in usrdat2
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine refine_cbc_r2o(CBCo,nelo,ncut,ifld) ! TODO, test
+      implicit none
+      include 'SIZE'
+      include 'INPUT' ! cbc
+      integer e,el,er,nelo,ncut,kcut,nblk,ifld
+      integer ic,jc,kc
+      character*3 CBCo(6,1)
+
+      nblk = ncut**ldim
+
+      kcut = ncut
+      if (ldim.eq.2) kcut = 1
+
+      do e=1,nelo
+
+         el = 0
+         do kc=1,kcut
+         do jc=1,ncut
+         do ic=1,ncut
+            el = el + 1
+            er = (e-1) * nblk + el
+
+            if (ic.eq.1)         CBCo(4,e) = CBC(4,er,ifld)
+            if (ic.eq.ncut)      CBCo(2,e) = CBC(2,er,ifld)
+            if (jc.eq.1)         CBCo(1,e) = CBC(1,er,ifld)
+            if (jc.eq.ncut)      CBCo(3,e) = CBC(3,er,ifld)
+            if (ldim.eq.3) then
+               if (kc.eq.1)      CBCo(5,e) = CBC(5,er,ifld)
+               if (kc.eq.ncut)   CBCo(6,e) = CBC(6,er,ifld)
+            endif
+         enddo
+         enddo
+         enddo
+
       enddo
 
       return

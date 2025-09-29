@@ -77,10 +77,11 @@ c
 
 c     Specific to h1 multigrid:
 
-      integer mg_h1_lmax
+      integer mg_h1_lmax, mg_h1_lmin
      $      , mg_h1_n  (lmgx,ldimt1)
      $      , p_mg_h1  (lmgx,ldimt1), p_mg_h2(lmgx,ldimt1)
      $      , p_mg_b   (lmgx,ldimt1), p_mg_g (lmgx,ldimt1)
      $      , p_mg_msk (lmgx,ldimt1)
-      common /mgh1i/ mg_h1_lmax, mg_h1_n, p_mg_h1, p_mg_h2, p_mg_b
-     $              , p_mg_g, p_mg_msk
+      common /mgh1i/ mg_h1_lmax, mg_h1_lmin
+     $             , mg_h1_n, p_mg_h1, p_mg_h2, p_mg_b
+     $             , p_mg_g, p_mg_msk
