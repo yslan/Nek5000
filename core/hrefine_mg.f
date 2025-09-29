@@ -17,10 +17,6 @@ c-----------------------------------------------------------------------
       call lim_chk(ncut,lcut,'ncut ','lcut ',' h_ref_mg ')
 
       call hmg_set_interp_mat(ncut,lxc,pc,pt)
-      do ic=1,ncut
-         write(*,*)'hmg setup pc',nid,ic,(pc(ii,ic),ii=1,lxc*lxc)
-         write(*,*)'hmg setup pt',nid,ic,(pt(ii,ic),ii=1,lxc*lxc)
-      enddo
 
       call refine_cbc_r2o(hmg_CBCo,hmg_nelv_o,ncut,ifield)
 
@@ -54,7 +50,6 @@ c-----------------------------------------------------------------------
 
       call lim_chk(nxc,lx1,'nxc  ','lx1  ',' hmg_intp ')
 
-      write(*,*)'hmg_set_interp_mat',ncut,ncut_save
       if (ncut.ne.ncut_save) then
 
         call zwgll(zh,wk,nxc)
@@ -218,11 +213,6 @@ c     Set SEM_to_GLOB
 c
 c      call get_vertex
       call set_vert(se_to_gcrs,ngv,nxc,hmg_nelv_o,hmg_vertex_o,.true.)
-      do ii=1,ncr*hmg_nelv_o
-         write(*,*)'vvv',nid,hmg_vertex_o(ii),se_to_gcrs(ii)
-      enddo
-
-      if(nio.eq.0) write(6,*) 'dbg hmg crs, ngv=',ngv
 
 c     Set mask
       z=0
@@ -257,10 +247,6 @@ c     Set global index of dirichlet nodes to zero; xxt will ignore them
 c     call fgslib_gs_free (hmg_crs_gsh)
       call set_jl_crs_mask(ntot,hmg_crs_mask,se_to_gcrs)
 
-      do ii=1,ntot
-         write(*,*)'vvm',nid,hmg_vertex_o(ii),se_to_gcrs(ii)
-         write(*,*)'mmm',nid,hmg_crs_mask(ii),hmg_crs_cmlt(ii)
-      enddo
       call invcol1(hmg_crs_cmlt,ntot)
 
 c     Setup local SEM-based Neumann operators (for now, just full...)
@@ -285,8 +271,6 @@ c      endif
       elseif (ifield.eq.ifldmhd) then
          if (ifbcor)  null_space=1
       endif
-
-      call dbg_prt_crs_mat(a,ia,ja,se_to_gcrs,ncr,hmg_nelv_o)
 
       nz=ncr*ncr*hmg_nelv_o
       isolver = param(40)
@@ -372,10 +356,6 @@ c-----------------------------------------------------------------------
          enddo
 
          call axhelm (w2,w1,h1,h2,imsh,isd)        ! A^e * bj
-
-         istep = j
-         time = 0.1 * j
-         call outpost(w1,w2,w1,h1,h2,'bbb')
 
          do e = 1,hmg_nelv_o
             ec = 0
@@ -497,6 +477,7 @@ c
 c-----------------------------------------------------------------------
       subroutine semg_hmg_rstr(r,ifdssum)
 c     r = J^T r
+      implicit none
       include 'SIZE'
       include 'REFINEMG'
       real r(1)
@@ -520,6 +501,7 @@ c      if (ifdssum) call fgslib_gs_op(hmg_crs_gsh,r,1,1,0)  !  "+"
 c-----------------------------------------------------------------------
       subroutine semg_hmg_intp(w,e)
 c     w = J e
+      implicit none
       real w(1), e(1)
 
       call hmg_interp_o2r(w,e)
