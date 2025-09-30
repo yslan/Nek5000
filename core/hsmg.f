@@ -1853,6 +1853,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine h1mg_solve(z,rhs,if_hybrid)  !  Solve preconditioner: Mz=rhs
+      implicit none
       real z(1),rhs(1)
 
 c     Assumes that preprocessing has been completed via h1mg_setup()
@@ -1867,6 +1868,10 @@ c     Assumes that preprocessing has been completed via h1mg_setup()
       include 'CTIMER'
       include 'PARALLEL'
       
+      integer lt,n,is,im,l,nel,ii,i,i1,idev_hmg,nbak,ncrs
+      real op,om,sigma
+
+      real h1,h2,h2inv
       common /scrhi/ h2inv (lx1,ly1,lz1,lelv)
       common /scrvh/ h1    (lx1,ly1,lz1,lelv),
      $               h2    (lx1,ly1,lz1,lelv)
@@ -2000,10 +2005,9 @@ c        call exitt
      $      write(*,*)'mg-dbg lv',l,'pos',is,0,'n',0
          call semg_hmg_rstr(r,.false.)
 
-cc         p_msk = p_mg_msk(l,mg_fld)
-cc         call h1mg_mask(r,mg_imask(p_msk),nel)        !        -1
+         call semg_hmg_mask(r)
          call semg_hmg_crs_solve( e(is) , r )
-cc         call h1mg_mask(e(is),mg_imask(p_msk),nel)    !  1     1   1
+         call semg_hmg_mask(e(is))
 
          l = 1! back to semg
          im = is     ! im at l=0

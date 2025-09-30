@@ -14,28 +14,30 @@ c
 c  h-mg
 c
 c-----------------------------------------------------------------------
-      integer lxc,lzc,lxyzc,lcut
+      integer lxc,lzc,lxyzc,lcut,lblk
       parameter(lxc=2,lzc=(lxc-1)*(ldim-2)+1)            ! crs grid size
       parameter(lxyzc=lxc**ldim)
-      parameter(lcut=50)                                 ! max ncut
+      parameter(lcut=22)                                 ! max ncut
+      parameter(lblk=512)                                ! max nblk
 
       integer ncut                                       ! refine into ncut segments
      $      , nblk                                       ! =ncut^d
-      common /hrefinemg_i/ ncut,nblk
+      common /hmg_i/ ncut,nblk
 
-      real pc, pt                                        ! interp mat, and transpose
-      common /hrefinemg_r/ pc(lxc*lxc,lcut),pt(lxc*lxc,lcut)
+      real hmg_pc(lxc*lxc,lcut)                          ! interp matrix
+     $   , hmg_pt(lxc*lxc,lcut)                          ! transpose
+      common /hmg_r/ hmg_pc, hmg_pt
 
-      character*3 hmg_cbco
-      common /hrefinemg_c/ hmg_cbco(6,lelt)
+      character*3 hmg_cbco(6,lelt)                       ! cbc on orig mesh
+      common /hmg_c3/ hmg_cbco
 
-      integer*8 se_to_gcrs(lxyzc*lelt)                   ! glo_num for crs
-      common /hrefinemg_i8/ se_to_gcrs
+      integer*8 hmg_se_to_gcrs(lxyzc*lelt)               ! glo_num for hmg-crs
+      common /hmg_i8/ hmg_se_to_gcrs
 
-      real hmg_crs_cmlt,hmg_crs_mask
-      common /hrefinemg_crs_r/ hmg_crs_cmlt(lxyzc*lelv)
-     $                       , hmg_crs_mask(lxyzc*lelv)
+      real hmg_crs_cmlt(lxyzc*lelv)                      ! 1/multiplicity for hmg-crs
+     $   , hmg_crs_mask(lxyzc*lelv)                      ! mask
+      common /hmg_crs_r/ hmg_crs_cmlt, hmg_crs_mask
 
       integer hmg_crs_gsh                                ! gs handle for crs
-      common /hrefinemg_crs_i/ hmg_crs_gsh
+      common /hmg_crs_i/ hmg_crs_gsh
 c-----------------------------------------------------------------------

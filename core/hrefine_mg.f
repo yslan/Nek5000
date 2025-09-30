@@ -5,24 +5,21 @@ c-----------------------------------------------------------------------
       include 'INPUT'
       include 'TSTEP' ! ifield
       include 'REFINEMG'
-      integer ifld
-      integer ic,ii !dbg
-      if(nio.eq.0) write(6,*) 'hmg dbg',nhref
+
       if (nhref.eq.0) return
       if (nhref.ne.1) call exitti('hmg only support one level$',nhref)
-      if (nio.eq.0) write(*,*)'hmg crs setup'
 
       ncut = hrefcuts(1)
       nblk = ncut**ldim
       call lim_chk(ncut,lcut,'ncut ','lcut ',' h_ref_mg ')
+      if (ncut.le.1) call exitti('hmg invalid ncut$',ncut)
+      if (nio.eq.0) write(*,*)'hmg crs setup',ncut,nblk
 
-      call hmg_set_interp_mat(ncut,lxc,pc,pt)
+      call hmg_set_interp_mat(ncut,lxc,hmg_pc,hmg_pt)
 
       call refine_cbc_r2o(hmg_CBCo,hmg_nelv_o,ncut,ifield)
 
-      ! TODO copy vertex here in case of uservert
-
-      call set_up_hmg_crs_matrix ! TODO, wip
+      call set_up_hmg_crs_matrix
 
       return
       end
@@ -44,7 +41,7 @@ c-----------------------------------------------------------------------
       integer ncut_save
       save ncut_save
       data ncut_save /0/
-        
+
       if (ncut.le.1)
      $  call exitti('invalid ncut in hmg_set_interp_mat$',ncut)
 
@@ -53,7 +50,7 @@ c-----------------------------------------------------------------------
       if (ncut.ne.ncut_save) then
 
         call zwgll(zh,wk,nxc)
-      
+
         dr = 2./ncut
         do k=1,ncut
           r0 = -1. + (k-1)*dr
@@ -63,7 +60,7 @@ c-----------------------------------------------------------------------
           call interp_mat(pc(1,k),z_out,nxc,zh,nxc,wk,wk2)
           call transpose (pt(1,k),nxc,pc(1,k),nxc)
         enddo
-      
+
         ncut_save = ncut
 
       endif
@@ -92,7 +89,7 @@ c     uo -> ur
 
       do e = hmg_nelv_o,1,-1
 
-        el = 0 
+        el = 0
         do kc=1,kcut
         do jc=1,ncut
         do ic=1,ncut
@@ -101,7 +98,7 @@ c     uo -> ur
           er = nblk*(e-1) + el
 
           call tensr3(ur(1,er),lxc,uo(1,e),lxc
-     $               ,pc(1,ic),pt(1,jc),pt(1,kc),wk)
+     $               ,hmg_pc(1,ic),hmg_pt(1,jc),hmg_pt(1,kc),wk)
 
         enddo
         enddo
@@ -143,7 +140,7 @@ c     ur -> uo
           er = nblk*(e-1) + el
 
           call tensr3(u1,lxc,ur(1,er),lxc
-     $               ,pt(1,ic),pc(1,jc),pc(1,kc),wk)
+     $               ,hmg_pt(1,ic),hmg_pc(1,jc),hmg_pc(1,kc),wk)
 
           call add2(uo(1,e),u1,lxyzc)
 
@@ -153,7 +150,7 @@ c     ur -> uo
 
       enddo
 
-      call cmult(uo,1.0/nblk,lxyzc*hmg_nelv_o) ! FIXME
+      call cmult(uo,1.0/nblk,lxyzc*hmg_nelv_o)
 
       return
       end
@@ -173,28 +170,25 @@ c-----------------------------------------------------------------------
       integer null_space
 
       character*3 cb
-      common /hmgscrxxti/ ia(lxyzc*lxyzc*lelv), ja(lxyzc*lxyzc*lelv)
       integer ia,ja
-      real z
-
-      common /vptsol/ a(27*lx1*ly1*lz1*lelv)
+      common /scrhmgxxti/ ia(lxyzc*lxyzc*lelv), ja(lxyzc*lxyzc*lelv)
       real a
+      common /scrhmgxxtr/ a(lxyzc*lxyzc*lelv)
 
       real h1,h2,w1,w2
       common /scrhmghx/ h1(lx1*ly1*lz1*lelv),h2(lx1*ly1*lz1*lelv)
       common /scrhmgxx/ w1(lx1*ly1*lz1*lelv),w2(lx1*ly1*lz1*lelv)
 
+      real z
       integer*8 ngv
       character*132 amgfile_c
       character*1   fname1(132)
       equivalence  (fname1,amgfile_c)
 
-      integer nxc,nzc,ncr,ntot,nz,nfaces,n
+      integer nxc,nzc,ncr,ntot,nz,nfaces,n,na,la
       integer ie,ierr,iface,isolver
       integer lamgn,ltrunc,iglmax,iglmax_ms
       real*8 t0, dnekclock
-
-      integer ii ! FIXME dbg
 
       t0 = dnekclock()
 
@@ -205,25 +199,28 @@ c-----------------------------------------------------------------------
       ncr  = nxc**ldim
       ntot = ncr * hmg_nelv_o
 
+      na = ncr*ncr*hmg_nelv_o
+      la = lxyzc*lxyzc*lelv
+      call lim_chk(na,la,'a    ','27*lt',' hmg_crsm ')
+
       if(nio.eq.0) write(6,*) 'setup hmg coarse grid, nx_crs='
      $                        ,nxc,hmg_nelv_o,ifield
 
 c
 c     Set SEM_to_GLOB
 c
-c      call get_vertex
-      call set_vert(se_to_gcrs,ngv,nxc,hmg_nelv_o,hmg_vertex_o,.true.)
+      call set_vert(hmg_se_to_gcrs,ngv
+     $             ,nxc,hmg_nelv_o,hmg_vertex_o,.true.)
 
 c     Set mask
       z=0
       call rone(hmg_crs_mask,ntot)
       call rone(hmg_crs_cmlt,ntot)
-
       if (ifield.eq.1) then
          do ie=1,hmg_nelv_o
          do iface=1,nfaces
             cb=hmg_cbco(iface,ie)
-            if (cb.eq.'o  '  .or.  cb.eq.'on '  .or. 
+            if (cb.eq.'o  '  .or.  cb.eq.'on '  .or.
      $          cb.eq.'O  '  .or.  cb.eq.'ON '  .or.  cb.eq.'MM '  .or.
      $          cb.eq.'mm '  .or.  cb.eq.'ms '  .or.  cb.eq.'MS ')
      $           call facev(hmg_crs_mask,ie,iface,z,nxc,nxc,nzc) ! 'S* ' & 's* ' ?avo?
@@ -241,11 +238,11 @@ c     Set mask
 
 c     Set global index of dirichlet nodes to zero; xxt will ignore them
 
-      call fgslib_gs_setup(hmg_crs_gsh,se_to_gcrs,ntot,nekcomm,mp)
+      call fgslib_gs_setup(hmg_crs_gsh,hmg_se_to_gcrs,ntot,nekcomm,mp)
       call fgslib_gs_op   (hmg_crs_gsh,hmg_crs_mask,1,2,0)  !  "*"
       call fgslib_gs_op   (hmg_crs_gsh,hmg_crs_cmlt,1,1,0)  !  "+"
 c     call fgslib_gs_free (hmg_crs_gsh)
-      call set_jl_crs_mask(ntot,hmg_crs_mask,se_to_gcrs)
+      call set_jl_crs_mask(ntot,hmg_crs_mask,hmg_se_to_gcrs)
 
       call invcol1(hmg_crs_cmlt,ntot)
 
@@ -282,7 +279,7 @@ c      endif
 
       ierr = 0
       call crs_setup(xxth(ifield),isolver,nekcomm,mp,ntot,
-     $     se_to_gcrs,nz,ia,ja,a, null_space, crs_param, 
+     $     hmg_se_to_gcrs,nz,ia,ja,a, null_space, crs_param,
      $     amgfile_c,ierr)
       ierr = iglmax(ierr,1)
       if (ifneknek) ierr = iglmax_ms(ierr,1)
@@ -303,20 +300,17 @@ c-----------------------------------------------------------------------
       implicit none
       include 'SIZE'
       include 'REFINEMG'
-      include 'TSTEP' ! FIXME dbg
+
       real    a(ncl,ncl,1),h1(1),h2(1)
       real    w1(lx1*ly1*lz1,nelv),w2(lx1*ly1*lz1,nelv)
 
-      integer mxnew,lcrd
-      parameter (mxnew=500)
-      parameter (lcrd=lx1**ldim)
       real b
-      common /ctmp1z2/ b(lcrd,mxnew,8)
+      common /ctmp1z2/ b(lx1*ly1*lz1,lblk,8)
 
       integer e,i,j,ec,er,ic,jc,kc,kcut,isd,imsh,ncl,nxc,nxyz
       real vlsc2
 
-      call lim_chk(nblk,mxnew,'nblk ','mxnew',' hmg_crsl ')
+      call lim_chk(nblk,lblk,'nblk ','lblk ',' hmg_crsl ')
 
       kcut = ncut
       if (ldim.eq.2) kcut = 1
@@ -445,30 +439,20 @@ c-----------------------------------------------------------------------
       include 'PARALLEL' ! xxth
       include 'CTIMER'
       include 'TSTEP' ! ifield
-      include 'REFINEMG' ! FIXME dbg
       real e(1),r(1)
-      integer n
-c        
-      integer idbg,ncrs,ii
-      data idbg /0/
-      save idbg
 
       if (icalld.eq.0) then ! timer info
-         ncrsl=0 
+         ncrsl=0
          tcrsl=0.0
       endif
       icalld = 1
 
-      n = 2**ldim * hmg_nelv_o
-
       if (ifsync) call nekgsync()
-         
+
       ncrsl  = ncrsl  + 1
       etime1=dnekclock()
 
-      call col2(r,hmg_crs_mask,n)
       call crs_solve(xxth(ifield),e,r)
-      call col2(e,hmg_crs_mask,n)
 
       tcrsl=tcrsl+dnekclock()-etime1
 
@@ -481,23 +465,20 @@ c     r = J^T r
       include 'SIZE'
       include 'REFINEMG'
       real r(1)
-      real r1(lxyzc*lelt)
+      real ro(lxyzc*lelt)
       logical ifdssum
       integer n
 
       n = lxyzc * hmg_nelv_o
 
-      call hmg_interp_r2o(r1,r)
-      call copy (r,r1,n)
-c      call col2 (r,hmg_crs_cmlt,n) ! FIXME
+      call hmg_interp_r2o(ro,r)
+      call copy (r,ro,n)
 
-c      if (ifdssum) call fgslib_gs_op(hmg_crs_gsh,r,1,1,0)  !  "+"
-
-      call col2 (r,hmg_crs_cmlt,n) ! FIXME
+      call col2(r,hmg_crs_cmlt,n)
       call fgslib_gs_op(hmg_crs_gsh,r,1,1,0)  !  "+"
 
-      return 
-      end 
+      return
+      end
 c-----------------------------------------------------------------------
       subroutine semg_hmg_intp(w,e)
 c     w = J e
@@ -505,6 +486,19 @@ c     w = J e
       real w(1), e(1)
 
       call hmg_interp_o2r(w,e)
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine semg_hmg_mask(u)
+      implicit none
+      include 'SIZE'
+      include 'REFINEMG'
+      real u(1)
+      integer n
+
+      n = lxyzc * hmg_nelv_o
+      call col2(u,hmg_crs_mask,n)
 
       return
       end

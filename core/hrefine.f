@@ -686,18 +686,15 @@ c-----------------------------------------------------------------------
       include 'SIZE'
       include 'REFINEMG'
 
-      common /ivrtx/ vertex((2 ** ldim) * lelt)
+      common /ivrtx/ vertex((2**ldim)*lelt)
       integer*8 vertex
 
       if (nio.eq.0) write(*,*)'h-refine backup original mesh info ...'
 
-      call i8copy(hmg_vertex_o,vertex,(2**ldim)*nelt) ! FIXME usrsetvert?
+      call i8copy(hmg_vertex_o,vertex,(2**ldim)*nelt)
 
       hmg_nelt_o = nelt
       hmg_nelv_o = nelv
-
-      ! cbc(iface,ie,ifield)
-      ! no cbc, because user change it in usrdat2
 
       return
       end
@@ -737,7 +734,6 @@ c-----------------------------------------------------------------------
          enddo
 
       enddo
-
       return
       end
 c-----------------------------------------------------------------------
