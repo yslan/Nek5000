@@ -699,7 +699,7 @@ c-----------------------------------------------------------------------
       return
       end
 c-----------------------------------------------------------------------
-      subroutine refine_cbc_r2o(CBCo,nelo,ncut,ifld) ! TODO, test
+      subroutine refine_cbc_r2o(CBCo,nelo,ncut,ifld)
       implicit none
       include 'SIZE'
       include 'INPUT' ! cbc

@@ -718,7 +718,7 @@ c----------------------------------------------------------------------
       integer ie,il,nr,ns,nt
       integer lbr,rbr,lbs,rbs,lbt,rbt,two
       real eps,diag
-      
+
       two  = 2
       ierr = 0
       do ie=1,nelv
@@ -1906,7 +1906,6 @@ c     if_hybrid = .false.   ! to convergence efficiency
       call copy(r,rhs,n)                              ! r  := rhs
       if (if_hybrid) call h1mg_axm(r,z,op,om,l,w)     ! r  := rhs - A z
                                                       !  l
-
       do l = mg_h1_lmax-1,2,-1                        ! DOWNWARD Leg of V-cycle
          is = is + n
          n  = mg_h1_n(l,mg_fld)
@@ -1923,11 +1922,13 @@ c     if_hybrid = .false.   ! to convergence efficiency
                                                       !  l           l
       enddo
 
-      ! 0 = orig, 1 = no crs, 2 = no crs + smth
-      ! 3 = smth + hmg interp
-      ! 4 = smth + hmg interp + hmg crs
-      idev_hmg = 4
+      ! 0 = orig, 1 = no crs, 2 = no crs + smth, 3 crs+smth
+      ! 4 = smth + hmg interp
+      ! 5 = smth + hmg interp + hmg crs
+      idev_hmg = 5
       if (.not.ifhmg) idev_hmg = 0 ! FIXME
+      if (nio.eq.0.AND.idbg.eq.0) write(*,*)'hmg-dbg mode',idev_hmg
+
       if (idev_hmg.eq.0) then                         ! FIXME original
          l = 1
          is = is+n ! is at l=1
@@ -1957,7 +1958,33 @@ c        call exitt
          call h1mg_rstr(r,l,.true.)
          call h1mg_schwarz(e(is),r,sigma,l)
 
-      elseif (idev_hmg.eq.3) then                     ! FIXME No crs, smth, hmg interp
+      elseif (idev_hmg.eq.3) then                     ! FIXME crs + smooth at N=1
+         l = 1
+         is = is+n ! is at l=1
+         nbak = n
+         n = mg_h1_n(l,mg_fld)
+
+         call rzero(e(is),n)
+         call h1mg_rstr(r,l,.true.)
+         call h1mg_schwarz(e(is),r,sigma,l)
+c         if(if_hybrid)call h1mg_axm(r,e(is),op,om,l,w)
+         call h1mg_axm(r,e(is),op,om,l,w)
+
+         call hsmg_do_wt(r,mg_rstr_wt(mg_rstr_wt_index(l,mg_fld))
+     $                    ,mg_nh(l),mg_nh(l),mg_nhz(l))
+
+         p_msk = p_mg_msk(l,mg_fld)
+         call h1mg_mask(r,mg_imask(p_msk),nel)        !        -1
+         call hsmg_coarse_solve ( w , r )             ! w  := A   r
+         call h1mg_mask(w ,mg_imask(p_msk),nel)
+
+         i1=is-1
+         do i=1,n
+            e(i1+i) = e(i1+i) + w(i)
+         enddo
+         n = nbak
+
+      elseif (idev_hmg.eq.4) then                     ! FIXME No crs, smth, hmg interp
          l = 1
          is = is+n ! is at l=1
          nbak = n
@@ -1982,8 +2009,8 @@ c        call exitt
          enddo
          n = nbak
 
-      elseif (idev_hmg.eq.4) then                     ! FIXME No crs, smth, hmg interp + crs
-      if (nio.eq.0.AND.idbg.eq.0) 
+      elseif (idev_hmg.eq.5) then                     ! FIXME No crs, smth, hmg interp + crs
+      if (nio.eq.0.AND.idbg.eq.0)
      $         write(*,*)'mg nnn',(mg_h1_n(ii,mg_fld),ii=1,3),n
 
          l = 1

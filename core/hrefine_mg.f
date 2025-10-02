@@ -534,3 +534,63 @@ c-----------------------------------------------------------------------
       return
       end
 c-----------------------------------------------------------------------
+      subroutine test_mask(mask,n,nel,s6)
+      implicit none
+      include 'SIZE'
+      character*6 s6
+      real u(n),mask(1),avg
+      integer n
+      real m1,m2,m3,nn,glmin,glmax,glsum,nel
+
+      call rone(u,n)
+      m1 = glmin(u,n)
+      m2 = glmax(u,n)
+      m3 = glsum(u,n)
+      nn = glsum(1.0*n,1)
+      avg = m3 / nn
+      if (nio.eq.0) write(*,*)'dbg msk1 ',s6,m1,m2,m3,avg,n,nn
+
+c      call col2(u,mask,n)
+      call h1mg_mask(u,mask,nel)
+
+      m1 = glmin(u,n)
+      m2 = glmax(u,n)
+      m3 = glsum(u,n)
+      nn = glsum(1.0*n,1)
+      avg = m3 / nn
+      if (nio.eq.0) write(*,*)'dbg msk2 ',s6,m1,m2,m3,avg,n,nn
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine test_mask2(s6)
+      implicit none
+      include 'SIZE'
+      include 'REFINEMG'
+      character*6 s6
+      real u(lxyzc*lelv),avg
+      integer n
+      real m1,m2,m3,nn,glmin,glmax,glsum,nel
+
+      n = lxyzc * hmg_nelv_o
+      call rone(u,n)
+
+      m1 = glmin(u,n)
+      m2 = glmax(u,n)
+      m3 = glsum(u,n)
+      nn = glsum(1.0*n,1)
+      avg = m3 / nn
+      if (nio.eq.0) write(*,*)'dbg msk1 ',s6,m1,m2,m3,avg,n,nn
+
+      call semg_hmg_mask(u)
+
+      m1 = glmin(u,n)
+      m2 = glmax(u,n)
+      m3 = glsum(u,n)
+      nn = glsum(1.0*n,1)
+      avg = m3 / nn
+      if (nio.eq.0) write(*,*)'dbg msk2 ',s6,m1,m2,m3,avg,n,nn
+
+      return
+      end
+c-----------------------------------------------------------------------
