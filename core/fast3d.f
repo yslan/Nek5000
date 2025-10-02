@@ -1243,6 +1243,8 @@ c
 c
       real w(0:2*n+1)
 c
+      if (n.lt.1) call exitti('semhat requirs polyn. order >=1$',n)
+c
       np = n+1
       nm = n-1
       n2 = n-2
@@ -1253,28 +1255,6 @@ c
          call fd_weights_full(z(i),z,n,1,w)
          do j=0,n
             d(i,j) = w(j+np)                   !  Derivative matrix
-         enddo
-      enddo
-
-      if (n.eq.1) then
-         b(0) = 1.0
-         b(1) = 1.0
-         a(0,0) = 0.5
-         a(0,1) = -0.5
-         a(1,0) = -0.5
-         a(1,1) = 0.5
-         c(0,0) = -0.5
-         c(0,1) = 0.5
-         c(1,0) = -0.5
-         c(1,1) = 0.5
-         return                       !  No interpolation for n=1
-      endif
-
-      do i=0,n
-         call fd_weights_full(z(i),z(1),n2,1,w(1))
-         do j=1,nm
-            jgll(i,j) = w(j   )                  !  Interpolation matrix
-            dgll(i,j) = w(j+nm)                  !  Derivative    matrix
          enddo
       enddo
 c
@@ -1288,13 +1268,23 @@ c
       enddo
       enddo
 c
+      if (n.eq.1) return                       !  No interpolation for n=1
+c
+      do i=0,n
+         call fd_weights_full(z(i),z(1),n2,1,w(1))
+         do j=1,nm
+            jgll(i,j) = w(j   )                !  Interpolation matrix
+            dgll(i,j) = w(j+nm)                !  Derivative    matrix
+         enddo
+      enddo
+c
       call zwgl (zgl,bgl,nm)
 c
       do i=1,n-1
          call fd_weights_full(zgl(i),z,n,1,w)
          do j=0,n
-            jgl(i,j) = w(j   )                  !  Interpolation matrix
-            dgl(i,j) = w(j+np)                  !  Derivative    matrix
+            jgl(i,j) = w(j   )                 !  Interpolation matrix
+            dgl(i,j) = w(j+np)                 !  Derivative    matrix
          enddo
       enddo
 c
