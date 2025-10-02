@@ -1256,7 +1256,19 @@ c
          enddo
       enddo
 
-      if (n.eq.1) return                       !  No interpolation for n=1
+      if (n.eq.1) then
+         b(0) = 1.0
+         b(1) = 1.0
+         a(0,0) = 0.5
+         a(0,1) = -0.5
+         a(1,0) = -0.5
+         a(1,1) = 0.5
+         c(0,0) = -0.5
+         c(0,1) = 0.5
+         c(1,0) = -0.5
+         c(1,1) = 0.5
+         return                       !  No interpolation for n=1
+      endif
 
       do i=0,n
          call fd_weights_full(z(i),z(1),n2,1,w(1))
