@@ -1243,7 +1243,7 @@ c
 c
       real w(0:2*n+1)
 c
-      if (n.lt.1) call exitti('semhat requirs polyn. order >=1$',n)
+      if (n.lt.1) call exitti('semhat requires polyn. order >=1$',n)
 c
       np = n+1
       nm = n-1
