@@ -2119,7 +2119,7 @@ c-----------------------------------------------------------------------
             endif
 
 #ifdef MPI
-            nbatch = (nelrr - 1) / lbrst + 1
+            nbatch = (nelgt - 1) / lbrst + 1
             nbatch = iglmax(nbatch, 1)
 
             do ibatch = 1,nbatch
@@ -2330,7 +2330,7 @@ c-----------------------------------------------------------------------
             endif
 
 #ifdef MPI
-            nbatch = (nelrr - 1) / lbrst + 1
+            nbatch = (nelgt - 1) / lbrst + 1
             nbatch = iglmax(nbatch, 1)
 
             do ibatch = 1,nbatch
@@ -2699,7 +2699,7 @@ c
         disp_unit = 4
         win_size = int(disp_unit,8)*size(wk)
         if (lbrst.lt.nelt) then
-          win_size = int(disp_unit,8) * (7*lx1*ly1*lz1*lbrst)
+          win_size = int(disp_unit,8)*(7*lx1*ly1*lz1*lbrst)*(wdsize/4)
         endif
 
         if (commrs .eq. MPI_COMM_NULL) then
