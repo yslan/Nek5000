@@ -6,64 +6,30 @@ c-----------------------------------------------------------------------
       include 'TSTEP' ! ifield
       include 'REFINEMG'
 
-      if (nhref.eq.0) return
-      if (nhref.ne.1) call exitti('hmg only support one level$',nhref)
+      integer iref
 
-      ncut = hrefcuts(1)
+      common /ivrtx/ vertex ((2**ldim),lelt)
+      integer*8 vertex
+
+      ! collect all h-refine into one crs level
+      ncut = 1
+      do iref=1,nhref
+         ncut = ncut * hrefcuts(1)
+      enddo
+      if (ncut.lt.2) call exitti('hmg require hrefine$',ncut)
+
       nblk = ncut**ldim
       call lim_chk(ncut,lcut,'ncut ','lcut ',' h_ref_mg ')
       if (ncut.le.1) call exitti('hmg invalid ncut$',ncut)
       if (nio.eq.0) write(*,*)'hmg crs setup',ncut,nblk
 
-      call hmg_set_interp_mat(ncut,lxc,hmg_pc,hmg_pt)
+      call hrefine_r2o_nel(hmg_nelv_o,hmg_nelt_o,ncut)
+      call hrefine_r2o_cbc(hmg_CBCo,cbc(1,1,ifield),hmg_nelv_o,ncut)
+      call hrefine_r2o_vertex(hmg_vertex_o,vertex,hmg_nelv_o,ncut)
 
-      call refine_cbc_r2o(hmg_CBCo,hmg_nelv_o,ncut,ifield)
+      call set_interp_mat(lxc,ncut,hmg_pc,hmg_pt,.true.)
 
       call set_up_hmg_crs_matrix
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine hmg_set_interp_mat(ncut,nxc,pc,pt)
-      implicit none
-      include 'SIZE'
-
-      integer nxc,ncut
-      real pc(nxc*nxc,ncut) ! Interpolation matrix
-      real pt(nxc*nxc,ncut)
-
-      integer i,k
-      real zh(nxc), dr, r0
-
-      real z_out, wk, wk2
-      common /qtmp0/ z_out(lx1),wk(lx1*lx1),wk2(lx1*lx1)
-
-      integer ncut_save
-      save ncut_save
-      data ncut_save /0/
-
-      if (ncut.le.1)
-     $  call exitti('invalid ncut in hmg_set_interp_mat$',ncut)
-
-      call lim_chk(nxc,lx1,'nxc  ','lx1  ',' hmg_intp ')
-
-      if (ncut.ne.ncut_save) then
-
-        call zwgll(zh,wk,nxc)
-
-        dr = 2./ncut
-        do k=1,ncut
-          r0 = -1. + (k-1)*dr
-          do i=1,nxc
-            z_out(i) = r0 + dr*(zh(i)+1)/2.
-          enddo
-          call interp_mat(pc(1,k),z_out,nxc,zh,nxc,wk,wk2)
-          call transpose (pt(1,k),nxc,pc(1,k),nxc)
-        enddo
-
-        ncut_save = ncut
-
-      endif
 
       return
       end
@@ -499,97 +465,6 @@ c-----------------------------------------------------------------------
 
       n = lxyzc * hmg_nelv_o
       call col2(u,hmg_crs_mask,n)
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine dbg_prt_crs_mat(a,ia,ja,se_to_gcrs,n,nel)
-      implicit none
-      include 'SIZE'
-      include 'PARALLEL'
-
-      real a(n,n,nel)
-      integer ia(n,n,nel), ja(n,n,nel), ii,jj, i,j,n,e,nel
-      integer*8 se_to_gcrs(1)
-
-      integer er,egr,ego,ie_map_f2c,ie_map_c2f,ncut,nblk
-
-      ncut = 2
-      nblk = ncut**ldim
-
-      do e=1,nel
-         er = ie_map_c2f(e,nblk)
-         egr = lglel(er)
-         ego = ie_map_f2c(egr,nblk)
-      do j=1,n
-      do i=1,n
-         ii = ia(i,j,e) + 1
-         jj = ja(i,j,e) + 1
-         write(*,*)'cm',nid,i,j,e,ego,'|',ii,jj,'|'
-     $            ,se_to_gcrs(ii),se_to_gcrs(jj),a(i,j,e)
-      enddo
-      enddo
-      enddo
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine test_mask(mask,n,nel,s6)
-      implicit none
-      include 'SIZE'
-      character*6 s6
-      real u(n),mask(1),avg
-      integer n
-      real m1,m2,m3,nn,glmin,glmax,glsum,nel
-
-      call rone(u,n)
-      m1 = glmin(u,n)
-      m2 = glmax(u,n)
-      m3 = glsum(u,n)
-      nn = glsum(1.0*n,1)
-      avg = m3 / nn
-      if (nio.eq.0) write(*,*)'dbg msk1 ',s6,m1,m2,m3,avg,n,nn
-
-c      call col2(u,mask,n)
-      call h1mg_mask(u,mask,nel)
-
-      m1 = glmin(u,n)
-      m2 = glmax(u,n)
-      m3 = glsum(u,n)
-      nn = glsum(1.0*n,1)
-      avg = m3 / nn
-      if (nio.eq.0) write(*,*)'dbg msk2 ',s6,m1,m2,m3,avg,n,nn
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine test_mask2(s6)
-      implicit none
-      include 'SIZE'
-      include 'REFINEMG'
-      character*6 s6
-      real u(lxyzc*lelv),avg
-      integer n
-      real m1,m2,m3,nn,glmin,glmax,glsum,nel
-
-      n = lxyzc * hmg_nelv_o
-      call rone(u,n)
-
-      m1 = glmin(u,n)
-      m2 = glmax(u,n)
-      m3 = glsum(u,n)
-      nn = glsum(1.0*n,1)
-      avg = m3 / nn
-      if (nio.eq.0) write(*,*)'dbg msk1 ',s6,m1,m2,m3,avg,n,nn
-
-      call semg_hmg_mask(u)
-
-      m1 = glmin(u,n)
-      m2 = glmax(u,n)
-      m3 = glsum(u,n)
-      nn = glsum(1.0*n,1)
-      avg = m3 / nn
-      if (nio.eq.0) write(*,*)'dbg msk2 ',s6,m1,m2,m3,avg,n,nn
 
       return
       end

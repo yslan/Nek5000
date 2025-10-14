@@ -2739,7 +2739,7 @@ c
       if(nid.eq.nid_r) write(6,*) '      FILE:', fname
 
       if (nhrefrs.gt.0) then
-         call refine_map_elements(hrefcutsrs,nhrefrs)
+         call hrefine_map_elements(hrefcutsrs,nhrefrs)
       endif
 
       offs0   = nelgr ! cast to int*8
@@ -2841,11 +2841,11 @@ c               if(nid.eq.0) write(6,'(A,I2,A)') ' Reading ps',k,' field'
          k = 1
          if (ldimt.gt.1) k = 2
          if (ifmhd.and.ifile.eq.2) then
-            call refine_readfld(xm1,ym1,zm1,bx,by,bz
-     $                         ,pm1,t,t(1,1,1,1,k),hrefcutsrs,nhrefrs)
+            call hrefine_readfld(xm1,ym1,zm1,bx,by,bz
+     $                          ,pm1,t,t(1,1,1,1,k),hrefcutsrs,nhrefrs)
          else
-            call refine_readfld(xm1,ym1,zm1,vx,vy,vz
-     $                         ,pm1,t,t(1,1,1,1,k),hrefcutsrs,nhrefrs)
+            call hrefine_readfld(xm1,ym1,zm1,vx,vy,vz
+     $                          ,pm1,t,t(1,1,1,1,k),hrefcutsrs,nhrefrs)
          endif
       endif
 
