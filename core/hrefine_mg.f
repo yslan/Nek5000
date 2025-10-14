@@ -11,23 +11,20 @@ c-----------------------------------------------------------------------
       common /ivrtx/ vertex ((2**ldim),lelt)
       integer*8 vertex
 
-      ! collect all h-refine into one crs level
-      ncut = 1
-      do iref=1,nhref
-         ncut = ncut * hrefcuts(1)
-      enddo
-      if (ncut.lt.2) call exitti('hmg require hrefine$',ncut)
+      if (nhref.eq.0) return
+      if (nhref.ne.1) call exitti('hmg only support one level$',nhref)
 
+      ncut = hrefcuts(1)
       nblk = ncut**ldim
       call lim_chk(ncut,lcut,'ncut ','lcut ',' h_ref_mg ')
       if (ncut.le.1) call exitti('hmg invalid ncut$',ncut)
       if (nio.eq.0) write(*,*)'hmg crs setup',ncut,nblk
 
-      call hrefine_r2o_nel(hmg_nelv_o,hmg_nelt_o,ncut)
-      call hrefine_r2o_cbc(hmg_CBCo,cbc(1,1,ifield),hmg_nelv_o,ncut)
-      call hrefine_r2o_vertex(hmg_vertex_o,vertex,hmg_nelv_o,ncut)
+      call h_refine_r2o_nel(hmg_nelv_o,hmg_nelt_o,ncut)
+      call h_refine_r2o_cbc(hmg_CBCo,cbc(1,1,ifield),hmg_nelv_o,ncut)
+      call h_refine_r2o_vertex(hmg_vertex_o,vertex,hmg_nelv_o,ncut)
 
-      call set_interp_mat(lxc,ncut,hmg_pc,hmg_pt,.true.)
+      call h_refine_set_interp_mat(lxc,ncut,hmg_pc,hmg_pt,.true.)
 
       call set_up_hmg_crs_matrix
 
