@@ -10,7 +10,6 @@ on:
   push:
     branches:
       - master
-      - ci-llvm
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
