@@ -107,7 +107,7 @@ fi
 
 PPPO=""
 case $FCcomp in
-  *pgf*)       R8="-r8"
+  *pgf*)       FR8="-r8"
                FCPP="-Mpreprocess"
                BIGMEM="-mcmodel=medium"
                ;;
@@ -127,7 +127,7 @@ case $FCcomp in
                FR8="-r8"
                FF77="-Mfixed"
                ;;
-  *gfortran*)  R8="-fdefault-real-8 -fdefault-double-8"
+  *gfortran*)  FR8="-fdefault-real-8 -fdefault-double-8"
                FCPP="-std=legacy -cpp"
                BIGMEM="-mcmodel=medium"
                ;;
@@ -135,11 +135,11 @@ case $FCcomp in
                FR8="-r8"
                FF77="-std=legacy"
                ;;
-  *ifort*)     R8="-r8"
+  *ifort*)     FR8="-r8"
                FCPP="-fpp"
                BIGMEM="-mcmodel=medium -shared-intel"
                ;;
-  *xlf*)       R8="-qrealsize=8"
+  *xlf*)       FR8="-qrealsize=8"
                FCPP="-qsuffix=cpp=f"
                BIGMEM="-q64"
                PPPO="-WF,"
@@ -186,7 +186,7 @@ export CC=`which $CC`
 export NEK_CFLAGS="$CFLAGS"
 export bin_nek_tools
 export US
-export R8
+export FR8
 export FCPP
 export BIGMEM
 export LDFLAGS
@@ -289,7 +289,7 @@ else
         chk_cmake $TOOL
      fi
      if [ "$TOOL" == "exo2nek" ]; then
-        export FFLAGS+=" ${R8}"
+        export FFLAGS+=" ${FR8}"
         chk_web $TOOL
         chk_cmake $TOOL
      fi
@@ -298,26 +298,26 @@ else
         chk_cmake $TOOL
      fi
      if [ "$TOOL" == "gmsh2nek" ]; then
-        export FFLAGS+=" ${R8}"
+        export FFLAGS+=" ${FR8}"
      fi
      if [ "$TOOL" == "n2to3" ]; then
-        export FFLAGS+=" ${R8}"
+        export FFLAGS+=" ${FR8}"
      fi
      if [ "$TOOL" == "genmap" ]; then
-        export FFLAGS+=" ${R8}"
+        export FFLAGS+=" ${FR8}"
      fi
      if [ "$TOOL" == "gencon" ]; then
-        export FFLAGS+=" ${R8}"
+        export FFLAGS+=" ${FR8}"
      fi
      if [ "$TOOL" == "genbox" ]; then
-       export FFLAGS+=" ${R8}"
+       export FFLAGS+=" ${FR8}"
      fi
      if [ "$TOOL" == "prenek" ]; then
         export CFLAGS+=" -Dr8"
         chk_x11 $TOOL
      fi
      if [ "$TOOL" == "n2to3co2" ]; then
-        export FFLAGS+=" ${R8}"
+        export FFLAGS+=" ${FR8}"
      fi
      printf "building $TOOL ... "
 
