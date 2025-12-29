@@ -60,8 +60,8 @@ jobs:
       TEST_CASE: ${{ matrix.test_case }}
       MPI: "${{ matrix.mpi == 'no' && '0' || '1' }}"
       LLVM_VER: "21"
-      CC: "${{ matrix.mpi == 'no' && clang-21 || 'mpicc' }}"
-      FC: "${{ matrix.mpi == 'no' && flang-21 || 'mpif77' }}"
+      CC: "${{ matrix.mpi == 'no' && 'clang-21' || 'mpicc' }}"
+      FC: "${{ matrix.mpi == 'no' && 'flang-21' || 'mpif77' }}"
       MPICH_CC: clang-21
       MPICH_FC: flang-21
 
