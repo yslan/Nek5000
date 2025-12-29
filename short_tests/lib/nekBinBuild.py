@@ -35,9 +35,11 @@ def build_tools(
         if proc.returncode != 0:
             for t in targets:
                 logfile = tools_root / t / "build.log"
-                with open(logfile, "r") as file:
-                    text = file.read()
-                print(text)
+                print(logfile)
+                try:
+                    with open(logfile, "r") as file:
+                        text = file.read()
+                    print(text)
             exit(-1)
         return
 
