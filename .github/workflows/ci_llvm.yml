@@ -61,9 +61,9 @@ jobs:
       MPI: "${{ matrix.mpi == 'no' && '0' || '1' }}"
       FC: "${{ matrix.mpi == 'no' && 'gfortran' || 'mpif77' }}"
       CC: "${{ matrix.mpi == 'no' && 'gcc' || 'mpicc' }}"
-      MPICH_CC:  clang-21
-      MPICH_CXX: clang++-21
-      MPICH_FC:  flang-new-21
+      LLVM_VER: "21"
+      MPICH_CC:  clang-${LLVM_VER}
+      MPICH_FC:  flang-${LLVM_VER}
 
     steps:
       - uses: actions/checkout@v2
@@ -75,14 +75,15 @@ jobs:
           sudo apt-get install -y wget gnupg lsb-release ca-certificates
           wget -q https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 21 all
+          sudo ./llvm.sh "${LLVM_VER}" all
+          sudo apt-get install -y flang-${LLVM_VER}
           sudo apt install -y mpich libmpich-dev python3-pytest
 
           set -x
           # check
-          command -v flang-new-21 || true
-          flang-new-21 --version || true
-          clang-21 --version || true
+          command -v flang-${LLVM_VER} || true
+          flang-${LLVM_VER} --version || true
+          clang-${LLVM_VER} --version || true
 
           # Sanity prints (don’t fail the job if flang isn't used yet)
           "${CC}" --version
