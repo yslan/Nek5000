@@ -4,13 +4,13 @@ on:
   # allows us to run workflows manually
   workflow_dispatch:
 
-  push:
   pull_request:
     branches:
       - master
   push:
     branches:
       - master
+      - ci-llvm
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
