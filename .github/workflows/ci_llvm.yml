@@ -75,8 +75,13 @@ jobs:
           sudo apt-get install -y wget gnupg lsb-release ca-certificates
           wget -q https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 21
+          sudo ./llvm.sh 21 all
           sudo apt install -y mpich libmpich-dev python3-pytest
+
+          # check
+          command -v flang-new-21
+          flang-new-21 --version
+          clang-21 --version
 
           # Sanity prints (don’t fail the job if flang isn't used yet)
           "${CC}" --version
