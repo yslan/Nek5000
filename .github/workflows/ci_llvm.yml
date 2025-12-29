@@ -14,7 +14,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  MPICH_FC: gfortran
+  LLVM_VER: "21"
 
 jobs:
   main:
@@ -59,11 +59,12 @@ jobs:
     env:
       TEST_CASE: ${{ matrix.test_case }}
       MPI: "${{ matrix.mpi == 'no' && '0' || '1' }}"
-      LLVM_VER: "21"
       CC: "${{ matrix.mpi == 'no' && 'clang-21' || 'mpicc' }}"
       FC: "${{ matrix.mpi == 'no' && 'flang-21' || 'mpif77' }}"
       MPICH_CC: clang-21
       MPICH_FC: flang-21
+      OMPI_CC: clang-21
+      OMPI_FC: flang-21
 
     steps:
       - uses: actions/checkout@v2
@@ -77,7 +78,8 @@ jobs:
           chmod +x llvm.sh
           sudo ./llvm.sh "${LLVM_VER}" all
           sudo apt-get install -y flang-${LLVM_VER}
-          sudo apt install -y mpich libmpich-dev python3-pytest
+          #sudo apt install -y mpich libmpich-dev python3-pytest
+          sudo apt-get install -y openmpi-bin libopenmpi-dev python3-pytest
 
           set -x
           # check
