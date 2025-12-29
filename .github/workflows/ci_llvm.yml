@@ -62,8 +62,8 @@ jobs:
       FC: "${{ matrix.mpi == 'no' && 'gfortran' || 'mpif77' }}"
       CC: "${{ matrix.mpi == 'no' && 'gcc' || 'mpicc' }}"
       LLVM_VER: "21"
-      MPICH_CC:  clang-${LLVM_VER}
-      MPICH_FC:  flang-${LLVM_VER}
+      MPICH_CC:  ${{ format('clang-{0}', env.LLVM_VER) }}
+      MPICH_FC:  ${{ format('flang-{0}', env.LLVM_VER) }}
 
     steps:
       - uses: actions/checkout@v2
