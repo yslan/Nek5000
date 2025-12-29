@@ -29,6 +29,18 @@ def build_tools(
         my_env["CC"] = cc
     my_env["bin_nek_tools"] = tools_bin
 
+    if targets[0] == "core":
+        proc = Popen([maketools_in, "core"], env=my_env, cwd=tools_root, stderr=STDOUT)
+        proc.wait()
+        if proc.returncode != 0:
+            for t in targets:
+                logfile = tools_root / t / "build.log"
+                with open(logfile, "r") as file:
+                    text = file.read()
+                print(text)
+            exit(-1)
+        return
+
     if targets[0] == "all":
         targets = [t for t in os.listdir(tools_root) if "maketools" not in t]
         print("Targets:", targets)
