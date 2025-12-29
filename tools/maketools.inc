@@ -97,9 +97,21 @@ case $FCcomp in
                CPPF="-Mpreprocess"
                BIGMEM="-mcmodel=medium"
                ;;
+  *flang*)     FCPP="-Mpreprocess"
+               FR8="-r8"
+               FF77="-Mfixed"
+               ;;
+  *nvfortran*) FCPP="-Mpreprocess"
+               FR8="-r8"
+               FF77="-Mfixed"
+               ;;
   *gfortran*)  R8="-fdefault-real-8 -fdefault-double-8"
                CPPF="-std=legacy -cpp"
                BIGMEM="-mcmodel=medium"
+               ;;
+  *armflang*)  FCPP="-cpp"
+               FR8="-r8"
+               FF77="-std=legacy"
                ;;
   *ifort*)     R8="-r8"
                CPPF="-fpp"
