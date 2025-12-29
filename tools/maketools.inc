@@ -108,17 +108,17 @@ fi
 PPPO=""
 case $FCcomp in
   *pgf*)       R8="-r8"
-               CPPF="-Mpreprocess"
+               FCPP="-Mpreprocess"
                BIGMEM="-mcmodel=medium"
                ;;
   *flang*)
     if is_llvm_flang "$FCcomp"; then
-        CPPF="-cpp"
+        FCPP="-cpp"
         FR8="-fdefault-real-8 -fdefault-double-8"
         FF77="-w -ffixed-form"
     else
         # CLASSIC FLANG (Legacy/PGI-based)
-        CPPF="-Mpreprocess"
+        FCPP="-Mpreprocess"
         FR8="-r8" 
         FF77="-Mfixed"
     fi 
@@ -128,7 +128,7 @@ case $FCcomp in
                FF77="-Mfixed"
                ;;
   *gfortran*)  R8="-fdefault-real-8 -fdefault-double-8"
-               CPPF="-std=legacy -cpp"
+               FCPP="-std=legacy -cpp"
                BIGMEM="-mcmodel=medium"
                ;;
   *armflang*)  FCPP="-cpp"
@@ -136,11 +136,11 @@ case $FCcomp in
                FF77="-std=legacy"
                ;;
   *ifort*)     R8="-r8"
-               CPPF="-fpp"
+               FCPP="-fpp"
                BIGMEM="-mcmodel=medium -shared-intel"
                ;;
   *xlf*)       R8="-qrealsize=8"
-               CPPF="-qsuffix=cpp=f"
+               FCPP="-qsuffix=cpp=f"
                BIGMEM="-q64"
                PPPO="-WF,"
                ;;
@@ -187,7 +187,7 @@ export NEK_CFLAGS="$CFLAGS"
 export bin_nek_tools
 export US
 export R8
-export CPPF
+export FCPP
 export BIGMEM
 export LDFLAGS
 function chk_web() {
@@ -278,7 +278,7 @@ else
      fi
 
      export FFLAGS="${NEK_FFLAGS}"
-     export FFLAGS+=" ${CPPF}"
+     export FFLAGS+=" ${FCPP}"
      export FFLAGS+=" ${BIGMEM}"
      export CFLAGS="${NEK_CFLAGS}"
      export CFLAGS+=" ${US}"
