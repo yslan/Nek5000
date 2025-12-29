@@ -78,10 +78,11 @@ jobs:
           sudo ./llvm.sh 21 all
           sudo apt install -y mpich libmpich-dev python3-pytest
 
+          set -x
           # check
-          command -v flang-new-21
-          flang-new-21 --version
-          clang-21 --version
+          command -v flang-new-21 || true
+          flang-new-21 --version || true
+          clang-21 --version || true
 
           # Sanity prints (don’t fail the job if flang isn't used yet)
           "${CC}" --version
@@ -89,6 +90,7 @@ jobs:
           mpicc -show || true
           mpifort -show || true
           pytest-3 --version
+          set +x
 
       - name: test
         shell: bash
