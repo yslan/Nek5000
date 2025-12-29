@@ -33,6 +33,7 @@ def build_tools(
         proc = Popen([maketools_in, "core"], env=my_env, cwd=tools_root, stderr=STDOUT)
         proc.wait()
         if proc.returncode != 0:
+            targets = [t for t in os.listdir(tools_root) if "maketools" not in t]
             for t in targets:
                 logfile = tools_root / t / "build.log"
                 print(logfile, end="")
