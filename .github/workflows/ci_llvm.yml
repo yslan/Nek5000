@@ -61,6 +61,9 @@ jobs:
       MPI: "${{ matrix.mpi == 'no' && '0' || '1' }}"
       FC: "${{ matrix.mpi == 'no' && 'gfortran' || 'mpif77' }}"
       CC: "${{ matrix.mpi == 'no' && 'gcc' || 'mpicc' }}"
+      MPICH_CC:  clang-21
+      MPICH_CXX: clang++-21
+      MPICH_FC:  flang-new-21
 
     steps:
       - uses: actions/checkout@v2
@@ -73,7 +76,7 @@ jobs:
           wget -q https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 21
-          sudo apt install -y gfortran mpich libmpich-dev python3-pytest
+          sudo apt install -y mpich libmpich-dev python3-pytest
 
           # Sanity prints (don’t fail the job if flang isn't used yet)
           "${CC}" --version
