@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+VER="dev"
+#NEK_DEPS_LOCAL_SRC=1 #dbg
+
 : ${NEK_DEPS_LOCAL_SRC:=0}
 : ${VER:="1.0.9"}
 
@@ -17,7 +20,9 @@ fi
 
 clean() {
   rm -rf "$DIR/build" lib include $STAMP_FILE 2>/dev/null || true
-  [ -L $PREFIX ] && rm -f -- $PREFIX 2>/dev/null || true # soft link only
+  if [[ $NEK_DEPS_LOCAL_SRC -eq 0 ]]; then
+    [ -L $PREFIX ] && rm -f -- $PREFIX 2>/dev/null || true # soft link only
+  fi
   find . -name '*.o' -exec rm {} +
   find . -name '*.a' -exec rm {} +
 }
@@ -29,7 +34,10 @@ distclean() {
 
 fetch() {
   rm -rf $DIR 2>/dev/null || true
-  wget --no-check-certificate -O v$VER.tar.gz https://github.com/gslib/gslib/archive/v$VER.tar.gz
+  #wget --no-check-certificate -O v$VER.tar.gz https://github.com/gslib/gslib/archive/v$VER.tar.gz
+  git clone https://github.com/yslan/gslib $DIR
+  cd $DIR
+  git checkout bcr
 }
 
 if [ "$1" == "clean" ]; then
@@ -77,6 +85,7 @@ fi
 cd $DIR
 set -x
 make -j4 $GSLIB_OPT
+#make -j4 $GSLIB_OPT tests
 set +x
 
 cd $ROOT
