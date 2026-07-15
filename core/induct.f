@@ -9,6 +9,8 @@ c
 c
 c-----------------------------------------------------------------------
       subroutine induct (igeom)
+      use scrns_mod
+      use scrvh_mod
 c
 c     Solve the convection-diffusion equation for the B-field, with
 c     projection onto a div-free space.
@@ -21,14 +23,26 @@ c
       include 'TSTEP'
       include 'MASS'
 
-      common /scrns/  resv1 (lx1,ly1,lz1,lelv)
-     $ ,              resv2 (lx1,ly1,lz1,lelv)
-     $ ,              resv3 (lx1,ly1,lz1,lelv)
-     $ ,              dv1   (lx1,ly1,lz1,lelv)
-     $ ,              dv2   (lx1,ly1,lz1,lelv)
-     $ ,              dv3   (lx1,ly1,lz1,lelv)
-      common /scrvh/  h1    (lx1,ly1,lz1,lelv)
-     $ ,              h2    (lx1,ly1,lz1,lelv)
+      real, pointer :: resv1(:,:,:,:), resv2(:,:,:,:), resv3(:,:,:,:)
+     $               , dv1(:,:,:,:), dv2(:,:,:,:), dv3(:,:,:,:)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:)
+
+      h1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      h2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      resv1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      resv2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      resv3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      dv1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      dv2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      dv3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
 
       ifield = ifldmhd
 
@@ -137,6 +151,7 @@ c
       end
 c--------------------------------------------------------------------
       subroutine makextb
+      use scrns_mod
 c
 c     Add extrapolation terms to magnetic source terms
 c
@@ -148,9 +163,14 @@ c
       include 'MASS'
       include 'TSTEP'
 C
-      common /scrns/ ta1 (lx1,ly1,lz1,lelv)
-     $ ,             ta2 (lx1,ly1,lz1,lelv)
-     $ ,             ta3 (lx1,ly1,lz1,lelv)
+      real, pointer :: ta1(:,:,:,:), ta2(:,:,:,:), ta3(:,:,:,:)
+c
+      ta1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      ta2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      ta3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
 c
       ntot1 = lx1*ly1*lz1*nelv
 c
@@ -176,6 +196,7 @@ c
       end
 c--------------------------------------------------------------------
       subroutine makebdfb
+      use scrns_mod
 C
 C     Add contributions to magnetic source from lagged BD terms.
 C
@@ -186,13 +207,24 @@ C
       include 'INPUT'
       include 'TSTEP'
 C
-      COMMON /SCRNS/ TA1(LX1,LY1,LZ1,LELV)
-     $ ,             TA2(LX1,LY1,LZ1,LELV)
-     $ ,             TA3(LX1,LY1,LZ1,LELV)
-     $ ,             TB1(LX1,LY1,LZ1,LELV)
-     $ ,             TB2(LX1,LY1,LZ1,LELV)
-     $ ,             TB3(LX1,LY1,LZ1,LELV)
-     $ ,             H2 (LX1,LY1,LZ1,LELV)
+      real, pointer :: TA1(:,:,:,:), TA2(:,:,:,:), TA3(:,:,:,:)
+     $               , TB1(:,:,:,:), TB2(:,:,:,:), TB3(:,:,:,:)
+     $               , H2(:,:,:,:)
+C
+      TA1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      TA2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      TA3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      TB1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      TB2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      TB3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
+      H2 (1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(6*lx1*ly1*lz1*lelv+1 : 7*lx1*ly1*lz1*lelv)
 C
       NTOT1 = lx1*ly1*lz1*NELV
       CONST = 1./DT
@@ -219,8 +251,9 @@ c
       end
 c--------------------------------------------------------------------
       subroutine cresvib(resv1,resv2,resv3,h1,h2)
+      use scruz_mod
 c
-c     Account for inhomogeneous Dirichlet boundary contributions 
+c     Account for inhomogeneous Dirichlet boundary contributions
 c     in rhs of induction eqn.
 c                                               n
 c     Also, subtract off best estimate of grad p
@@ -232,10 +265,14 @@ c
       real           resv3 (lx1,ly1,lz1,1)
       real           h1    (lx1,ly1,lz1,1)
       real           h2    (lx1,ly1,lz1,1)
-      common /scruz/ w1    (lx1,ly1,lz1,lelv)
-     $ ,             w2    (lx1,ly1,lz1,lelv)
-     $ ,             w3    (lx1,ly1,lz1,lelv)
+      real, pointer :: w1(:,:,:,:), w2(:,:,:,:), w3(:,:,:,:)
 c
+      w1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      w2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      w3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
 c
       call bcdirvc (bx,by,bz,b1mask,b2mask,b3mask)
       call extrapp (pm,pmlag)
@@ -249,8 +286,9 @@ c
       end
 c--------------------------------------------------------------------
       subroutine cresvibp(resv1,resv2,resv3,h1,h2)
+      use scruz_mod
 c
-c     Account for inhomogeneous Dirichlet boundary contributions 
+c     Account for inhomogeneous Dirichlet boundary contributions
 c     in rhs of momentum eqn.
 c                                               n
 c     Also, subtract off best estimate of grad p
@@ -262,9 +300,14 @@ c
       real           resv3 (lx1,ly1,lz1,1)
       real           h1    (lx1,ly1,lz1,1)
       real           h2    (lx1,ly1,lz1,1)
-      common /scruz/ w1    (lx1,ly1,lz1,lelv)
-     $ ,             w2    (lx1,ly1,lz1,lelv)
-     $ ,             w3    (lx1,ly1,lz1,lelv)
+      real, pointer :: w1(:,:,:,:), w2(:,:,:,:), w3(:,:,:,:)
+c
+      w1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      w2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      w3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
 c
       call bcdirvc (vx,vy,vz,v1mask,v2mask,v3mask)
       if (ifstrs)  call bcneutr
@@ -279,6 +322,10 @@ c
       end
 c--------------------------------------------------------------------
       subroutine incomprn (ux,uy,uz,up)
+      use scrns_mod
+      use orthov_mod
+      use scrvh_mod
+      use scrhi_mod
 c
 c     Project U onto the closest incompressible field
 c
@@ -301,21 +348,41 @@ c
       include 'TOTAL'
       include 'CTIMER'
 c
-      common /scrns/ w1    (lx1,ly1,lz1,lelv)
-     $ ,             w2    (lx1,ly1,lz1,lelv)
-     $ ,             w3    (lx1,ly1,lz1,lelv)
-     $ ,             dv1   (lx1,ly1,lz1,lelv)
-     $ ,             dv2   (lx1,ly1,lz1,lelv)
-     $ ,             dv3   (lx1,ly1,lz1,lelv)
-     $ ,             dp    (lx2,ly2,lz2,lelv)
-      common /scrvh/ h1    (lx1,ly1,lz1,lelv)
-     $ ,             h2    (lx1,ly1,lz1,lelv)
-      common /scrhi/ h2inv (lx1,ly1,lz1,lelv)
+      real, pointer :: w1(:,:,:,:), w2(:,:,:,:), w3(:,:,:,:)
+     $               , dv1(:,:,:,:), dv2(:,:,:,:), dv3(:,:,:,:)
+     $               , dp(:,:,:,:)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:)
+      real, pointer :: h2inv(:,:,:,:)
 
       parameter(nset = 1 + lbelv/lelv)
-      common /orthov/ pset(lx2*ly2*lz2*lelv*mxprev,nset)
+      real, pointer :: pset(:,:)
       common /orthbi/ nprv(2)
       logical ifprjp
+
+      pset(1:lx2*ly2*lz2*lelv*mxprev,1:nset) =>
+     $   cb_orthov(1 : lx2*ly2*lz2*lelv*mxprev*nset)
+      h2inv(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrhi(1 : lx1*ly1*lz1*lelv)
+      h1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      h2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+
+      w1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      w2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      w3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      dv1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      dv2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      dv3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
+      dp(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrns(6*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv
+     $                                 + lx2*ly2*lz2*lelv)
 
       ifprjp=.false.    ! Project out previous pressure solutions?
       istart=param(95)  
@@ -849,6 +916,8 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine elsasserh(igeom)
+      use scrns_mod
+      use scrvh_mod
 c
 c
 c     Solve MHD in Elsasser variables
@@ -865,14 +934,26 @@ C
       common /scrnt/  besv1 (lbx1,lby1,lbz1,lbelv)
      $ ,              besv2 (lbx1,lby1,lbz1,lbelv)
      $ ,              besv3 (lbx1,lby1,lbz1,lbelv)
-      COMMON /SCRNS/  RESV1 (LX1,LY1,LZ1,LELV)
-     $ ,              RESV2 (LX1,LY1,LZ1,LELV)
-     $ ,              RESV3 (LX1,LY1,LZ1,LELV)
-     $ ,              DV1   (LX1,LY1,LZ1,LELV)
-     $ ,              DV2   (LX1,LY1,LZ1,LELV)
-     $ ,              DV3   (LX1,LY1,LZ1,LELV)
-      COMMON /SCRVH/  H1    (LX1,LY1,LZ1,LELV)
-     $ ,              H2    (LX1,LY1,LZ1,LELV)
+      real, pointer :: RESV1(:,:,:,:), RESV2(:,:,:,:), RESV3(:,:,:,:)
+     $               , DV1(:,:,:,:), DV2(:,:,:,:), DV3(:,:,:,:)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
+c
+      H1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      H2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      RESV1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      RESV2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      RESV3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      DV1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      DV2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      DV3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
 c
       n  = lx1*ly1*lz1*nelv
 c
@@ -1150,6 +1231,7 @@ c      return
 c      end
 c--------------------------------------------------------------------
       subroutine setrhsp(p,h1,h2,h2inv,pset,niprev)
+      use orthox_mod
 C
 C     Project soln onto best fit in the "E" norm.
 C
@@ -1166,9 +1248,12 @@ C
       real pset (lx2*ly2*lz2*lelv,mxprev)
 
       parameter (ltot2=lx2*ly2*lz2*lelv)
-      common /orthox/ pbar(ltot2),pnew(ltot2)
+      real, pointer :: pbar(:), pnew(:)
       common /orthos/ alpha(mxprev),work(mxprev)
       common /orthoi/ nprev,mprev
+
+      pbar(1:ltot2) => cb_orthox(0*ltot2+1 : 1*ltot2)
+      pnew(1:ltot2) => cb_orthox(1*ltot2+1 : 2*ltot2)
 
       nprev = niprev
       if (nprev.eq.0) return
@@ -1220,6 +1305,7 @@ c    ................................................................
       end
 c-----------------------------------------------------------------------
       subroutine gensolnp(p,h1,h2,h2inv,pset,nprev)
+      use orthox_mod
 C
 C     Reconstruct the solution to the original problem by adding back
 C     the previous solutions
@@ -1234,8 +1320,11 @@ C
       real pset (lx2*ly2*lz2*lelv,mxprev)
 
       parameter (ltot2=lx2*ly2*lz2*lelv)
-      common /orthox/ pbar(ltot2),pnew(ltot2)
+      real, pointer :: pbar(:), pnew(:)
       common /orthos/ alpha(mxprev),work(mxprev)
+
+      pbar(1:ltot2) => cb_orthox(0*ltot2+1 : 1*ltot2)
+      pnew(1:ltot2) => cb_orthox(1*ltot2+1 : 2*ltot2)
 
       mprev=param(93)
       mprev=min(mprev,mxprev)
@@ -1265,6 +1354,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine econjp(pset,nprev,h1,h2,h2inv,ierr)
+      use orthox_mod
 
 c     Orthogonalize the soln wrt previous soln's for which we already
 c     know the soln.
@@ -1279,8 +1369,11 @@ c     know the soln.
       real pset (lx2*ly2*lz2*lelv,mxprev)
 
       parameter (ltot2=lx2*ly2*lz2*lelv)
-      common /orthox/ pbar(ltot2),pnew(ltot2)
+      real, pointer :: pbar(:), pnew(:)
       common /orthos/ alpha(mxprev),work(mxprev)
+
+      pbar(1:ltot2) => cb_orthox(0*ltot2+1 : 1*ltot2)
+      pnew(1:ltot2) => cb_orthox(1*ltot2+1 : 2*ltot2)
 
       ierr  = 0
 
@@ -1324,6 +1417,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine advab_elsasser_fast
+      use scrns_mod
 C
 C     Eulerian scheme, add convection term to forcing function
 C     at current time step.
@@ -1336,16 +1430,44 @@ C
       include 'TSTEP'
 c
       parameter (lxy=lx1*ly1*lz1,ltd=lxd*lyd*lzd)
-      common /scrns/ wk(2*ltd)
-     $             , fx(lxy),fy(lxy),fz(lxy)
-     $             , gx(lxy),gy(lxy),gz(lxy)
-     $             , zr(ltd),zs(ltd),zt(ltd)
-     $             , tr(ltd,3),zp(ltd,3),zm(ltd,3)
+      real, pointer :: wk(:)
+     $               , fx(:),fy(:),fz(:)
+     $               , gx(:),gy(:),gz(:)
+     $               , zr(:),zs(:),zt(:)
+     $               , tr(:,:),zp(:,:),zm(:,:)
 
       integer e
       integer icalld
       save    icalld
       data    icalld /0/
+      integer ioff_ae
+
+      ioff_ae = 0
+      wk(1:2*ltd) => cb_scrns(ioff_ae+1 : ioff_ae+2*ltd)
+      ioff_ae = ioff_ae + 2*ltd
+      fx(1:lxy) => cb_scrns(ioff_ae+1 : ioff_ae+lxy)
+      ioff_ae = ioff_ae + lxy
+      fy(1:lxy) => cb_scrns(ioff_ae+1 : ioff_ae+lxy)
+      ioff_ae = ioff_ae + lxy
+      fz(1:lxy) => cb_scrns(ioff_ae+1 : ioff_ae+lxy)
+      ioff_ae = ioff_ae + lxy
+      gx(1:lxy) => cb_scrns(ioff_ae+1 : ioff_ae+lxy)
+      ioff_ae = ioff_ae + lxy
+      gy(1:lxy) => cb_scrns(ioff_ae+1 : ioff_ae+lxy)
+      ioff_ae = ioff_ae + lxy
+      gz(1:lxy) => cb_scrns(ioff_ae+1 : ioff_ae+lxy)
+      ioff_ae = ioff_ae + lxy
+      zr(1:ltd) => cb_scrns(ioff_ae+1 : ioff_ae+ltd)
+      ioff_ae = ioff_ae + ltd
+      zs(1:ltd) => cb_scrns(ioff_ae+1 : ioff_ae+ltd)
+      ioff_ae = ioff_ae + ltd
+      zt(1:ltd) => cb_scrns(ioff_ae+1 : ioff_ae+ltd)
+      ioff_ae = ioff_ae + ltd
+      tr(1:ltd,1:3) => cb_scrns(ioff_ae+1 : ioff_ae+ltd*3)
+      ioff_ae = ioff_ae + ltd*3
+      zp(1:ltd,1:3) => cb_scrns(ioff_ae+1 : ioff_ae+ltd*3)
+      ioff_ae = ioff_ae + ltd*3
+      zm(1:ltd,1:3) => cb_scrns(ioff_ae+1 : ioff_ae+ltd*3)
 
       if (icalld.eq.0) call set_dealias_rx
       icalld = icalld + 1
@@ -1527,6 +1649,7 @@ c           Interpolate z+ and z- into fine mesh, translate to r-s-t coords
       end
 c-----------------------------------------------------------------------
       subroutine cfl_check
+      use scrns_mod
 c
       include 'SIZE'
       include 'INPUT'
@@ -1534,13 +1657,21 @@ c
       include 'MASS'
       include 'TSTEP'
 c
-      common /scrns/ ta1 (lx1,ly1,lz1,lelv)
-     $ ,             ta2 (lx1,ly1,lz1,lelv)
-     $ ,             ta3 (lx1,ly1,lz1,lelv)
-     $ ,             tb1 (lx1,ly1,lz1,lelv)
-     $ ,             tb2 (lx1,ly1,lz1,lelv)
-     $ ,             tb3 (lx1,ly1,lz1,lelv)
+      real, pointer :: ta1(:,:,:,:), ta2(:,:,:,:), ta3(:,:,:,:)
+     $               , tb1(:,:,:,:), tb2(:,:,:,:), tb3(:,:,:,:)
 
+      ta1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      ta2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      ta3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      tb1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      tb2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      tb3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
 
       call opcopy(ta1,ta2,ta3,vx,vy,vz)
       call opcopy(tb1,tb2,tb3,bx,by,bz)

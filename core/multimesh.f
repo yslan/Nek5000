@@ -171,12 +171,13 @@ c     ngeom to ngeom=3-5 for scheme to be stable.
       end
 c---------------------------------------------------------------------
       subroutine chk_outflow ! Assign neighbor velocity to outflow if
-                             ! characteristics are going the wrong way.
-
       include 'SIZE'
       include 'TOTAL'
       include 'NEKUSE'
       include 'NEKNEK'
+
+                             ! characteristics are going the wrong way.
+
       integer e,eg,f
 
       nface = 2*ldim
@@ -415,19 +416,24 @@ c     Make sure rcode_all is fine
       end
 c-----------------------------------------------------------------------
       subroutine neknek_exchange
+      use scrcg_mod
       include 'SIZE'
       include 'TOTAL'
       include 'NEKNEK'
       include 'CTIMER'
 
       parameter (lt=lx1*ly1*lz1*lelt,lxyz=lx1*ly1*lz1)
-      common /scrcg/ pm1(lt),wk1(lxyz),wk2(lxyz)
+      real, pointer :: pm1(:), wk1(:), wk2(:)
 
       real fieldout(nmaxl_nn,nfldmax_nn)
       real field(lx1*ly1*lz1*lelt)
       integer nv,nt,i,j,k,n,ie,ix,iy,iz,idx,ifld
 
-      if (nio.eq.0) write(6,98) 
+      pm1(1:lt)   => cb_scrcg(0*lt+1 : 1*lt)
+      wk1(1:lxyz) => cb_scrcg(1*lt+1 : 1*lt+lxyz)
+      wk2(1:lxyz) => cb_scrcg(1*lt+lxyz+1 : 1*lt+2*lxyz)
+
+      if (nio.eq.0) write(6,98)
      $   ' Multidomain data exchange ... ', nfld_neknek
  98   format(12x,a,i3)
 
@@ -529,19 +535,22 @@ c     the information will go to the boundary points
       end
 C--------------------------------------------------------------------------
       subroutine fix_surface_flux
+      use ctmp1_mod
       include 'SIZE'
       include 'TOTAL'
       include 'NEKNEK'
       integer e,f
-      common /ctmp1/ work(lx1*ly1*lz1*lelt)
+      real, pointer :: work(:)
       integer itchk
       common /idumochk/ itchk
       integer icalld
       save    icalld
       data    icalld /0/
 c     assume that this routine is called at the end of bcdirvc
-c     where all the boundary condition data has been read in for 
+c     where all the boundary condition data has been read in for
 c     velocity.
+      work(1:lx1*ly1*lz1*lelt) => cb_ctmp1(1 : lx1*ly1*lz1*lelt)
+
       if (icalld.eq.0) then
        itchk = 0
        do e=1,nelv
@@ -655,6 +664,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine vol_flow_ms
+      use cvflow_a_mod
 c
 c
 c     Adust flow volume at end of time step to keep flow rate fixed by
@@ -674,11 +684,8 @@ c     flow rate for periodic-in-X (or Z) flow problems.
 c
       parameter (kx1=lx1,ky1=ly1,kz1=lz1,kx2=lx2,ky2=ly2,kz2=lz2)
 c
-      common /cvflow_a/ vxc(kx1,ky1,kz1,lelv)
-     $                , vyc(kx1,ky1,kz1,lelv)
-     $                , vzc(kx1,ky1,kz1,lelv)
-     $                , prc(kx2,ky2,kz2,lelv)
-     $                , vdc(kx1*ky1*kz1*lelv,2)
+      real, pointer :: vxc(:,:,:,:), vyc(:,:,:,:), vzc(:,:,:,:)
+     $               , prc(:,:,:,:), vdc(:,:)
       common /cvflow_r/ flow_rate,base_flow,domain_length,xsec
      $                , scale_vf(3)
       common /cvflow_i/ icvflow,iavflow
@@ -695,6 +702,19 @@ c     Check list:
 
 c     param (55) -- volume flow rate, if nonzero
 c     forcing in X? or in Z?
+
+      vxc(1:kx1,1:ky1,1:kz1,1:lelv) =>
+     $   cb_cvflow_a(0*kx1*ky1*kz1*lelv+1 : 1*kx1*ky1*kz1*lelv)
+      vyc(1:kx1,1:ky1,1:kz1,1:lelv) =>
+     $   cb_cvflow_a(1*kx1*ky1*kz1*lelv+1 : 2*kx1*ky1*kz1*lelv)
+      vzc(1:kx1,1:ky1,1:kz1,1:lelv) =>
+     $   cb_cvflow_a(2*kx1*ky1*kz1*lelv+1 : 3*kx1*ky1*kz1*lelv)
+      prc(1:kx2,1:ky2,1:kz2,1:lelv) =>
+     $   cb_cvflow_a(3*kx1*ky1*kz1*lelv+1
+     $             : 3*kx1*ky1*kz1*lelv+kx2*ky2*kz2*lelv)
+      vdc(1:kx1*ky1*kz1*lelv,1:2) =>
+     $   cb_cvflow_a(3*kx1*ky1*kz1*lelv+kx2*ky2*kz2*lelv+1
+     $             : 5*kx1*ky1*kz1*lelv+kx2*ky2*kz2*lelv)
 
       ntot1 = lx1*ly1*lz1*nelv
       ntot2 = lx2*ly2*lz2*nelv
@@ -836,6 +856,11 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine plan3_vol_ms(vxc,vyc,vzc,prc)
+      use scrns_mod
+      use scrvh_mod
+      use cbplan_vol_ms_mod
+      use cvflow_nn_mod
+      use scrhi_mod
 c
 c     Compute pressure and velocity using fractional step method.
 c     (PLAN3).
@@ -849,36 +874,64 @@ c
      $   , vzc(lx1,ly1,lz1,lelv)
      $   , prc(lx2,ly2,lz2,lelv)
 C
-      COMMON /SCRNS/ rw1   (LX1,LY1,LZ1,LELV)
-     $ ,             rw2   (LX1,LY1,LZ1,LELV)
-     $ ,             rw3   (LX1,LY1,LZ1,LELV)
-     $ ,             dv1   (LX1,LY1,LZ1,LELV)
-     $ ,             dv2   (LX1,LY1,LZ1,LELV)
-     $ ,             dv3   (LX1,LY1,LZ1,LELV)
-     $ ,             RESPR (LX2,LY2,LZ2,LELV)
-      COMMON /SCRVH/ H1    (LX1,LY1,LZ1,LELV)
-     $ ,             H2    (LX1,LY1,LZ1,LELV)
-      COMMON /SCRHI/ H2INV (LX1,LY1,LZ1,LELV)
+      real, pointer :: rw1(:,:,:,:), rw2(:,:,:,:), rw3(:,:,:,:)
+     $               , dv1(:,:,:,:), dv2(:,:,:,:), dv3(:,:,:,:)
+     $               , RESPR(:,:,:,:)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
+      real, pointer :: H2INV(:,:,:,:)
       common /cvflow_i/ icvflow,iavflow
 
-      common /cbplan_vol_ms/  vxcp, dvxc, vycp,
-     $                        dvyc, vzcp, dvzc,
-     $                        resbc 
-      REAL vxcp   (LX1,LY1,LZ1,LELV)
-      REAL dvxc   (LX1,LY1,LZ1,LELV)
-      REAL vycp   (LX1,LY1,LZ1,LELV)
-      REAL dvyc   (LX1,LY1,LZ1,LELV)
-      REAL vzcp   (LX1,LY1,LZ1,LELV)
-      REAL dvzc   (LX1,LY1,LZ1,LELV)
-      real resbc(lx1*ly1*lz1*lelv,ldim+1)
+      real, pointer :: vxcp(:,:,:,:), dvxc(:,:,:,:), vycp(:,:,:,:)
+     $               , dvyc(:,:,:,:), vzcp(:,:,:,:), dvzc(:,:,:,:)
+     $               , resbc(:,:)
 
-      common /cvflow_nn/ vxcbc,vycbc,vzcbc
-      real vxcbc(lx1,ly1,lz1,lelv)
-      real vycbc(lx1,ly1,lz1,lelv)
-      real vzcbc(lx1,ly1,lz1,lelv)
+      real, pointer :: vxcbc(:,:,:,:), vycbc(:,:,:,:), vzcbc(:,:,:,:)
 c
+      H2INV(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrhi(1 : lx1*ly1*lz1*lelv)
+      vxcbc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cvflow_nn(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      vycbc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cvflow_nn(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      vzcbc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cvflow_nn(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      vxcp(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      dvxc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      vycp(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      dvyc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      vzcp(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      dvzc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
+      resbc(1:lx1*ly1*lz1*lelv,1:ldim+1) =>
+     $   cb_cbplan_vol_ms(6*lx1*ly1*lz1*lelv+1
+     $                  : 6*lx1*ly1*lz1*lelv+(ldim+1)*lx1*ly1*lz1*lelv)
+
+      H1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      H2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      rw1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      rw2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      rw3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      dv1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      dv2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      dv3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
+      RESPR(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrns(6*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv
+     $                                 + lx2*ly2*lz2*lelv)
 c
-c     Compute velocity, 1st part 
+c     Compute velocity, 1st part
 c
       n  = lx1*ly1*lz1*nelv
       ntot1  = lx1*ly1*lz1*nelv
@@ -980,6 +1033,11 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine plan4_vol_ms(vxc,vyc,vzc,prc)
+      use scrns_mod
+      use scrvh_mod
+      use scrmg_mod
+      use cbplan_vol_ms_mod
+      use cvflow_nn_mod
 
 c     Compute pressure and velocity using fractional step method.
 c     (Tombo splitting scheme).
@@ -992,41 +1050,82 @@ c     (Tombo splitting scheme).
      $   , vzc(lx1,ly1,lz1,lelv)
      $   , prc(lx2,ly2,lz2,lelv)
 
-      common /scrns/ resv1 (lx1,ly1,lz1,lelv)
-     $ ,             resv2 (lx1,ly1,lz1,lelv)
-     $ ,             resv3 (lx1,ly1,lz1,lelv)
-     $ ,             respr (lx2*ly2*lz2,lelv)
-     $ ,             TA1 (lx1*ly1*lz1*lelv)
-     $ ,             TA2 (lx1*ly1*lz1*lelv)
-     $ ,             TA3 (lx1*ly1*lz1*lelv)
-     $ ,             WA1 (lx1*ly1*lz1*lelv)
-     $ ,             WA2 (lx1*ly1*lz1*lelv)
-     $ ,             WA3 (lx1*ly1*lz1*lelv)
-      common /scrvh/ h1    (lx1,ly1,lz1,lelv)
-     $ ,             h2    (lx1,ly1,lz1,lelv)
-      COMMON /SCRMG/ W1    (LX1*LY1*LZ1,LELV)
-     $ ,             W2    (LX1*LY1*LZ1,LELV)
-     $ ,             W3    (LX1*LY1*LZ1,LELV)
+      real, pointer :: resv1(:,:,:,:), resv2(:,:,:,:), resv3(:,:,:,:)
+     $               , respr(:,:), TA1(:), TA2(:), TA3(:)
+     $               , WA1(:), WA2(:), WA3(:)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:)
+      real, pointer :: W1(:,:), W2(:,:), W3(:,:)
 
       common /cvflow_i/ icvflow,iavflow
 
-      common /cbplan_vol_ms/  vxcp, dvxc, vycp,
-     $                        dvyc, vzcp, dvzc,
-     $                        resbc 
-      REAL vxcp   (LX1,LY1,LZ1,LELV)
-      REAL dvxc   (LX1,LY1,LZ1,LELV)
-      REAL vycp   (LX1,LY1,LZ1,LELV)
-      REAL dvyc   (LX1,LY1,LZ1,LELV)
-      REAL vzcp   (LX1,LY1,LZ1,LELV)
-      REAL dvzc   (LX1,LY1,LZ1,LELV)
-      real resbc(lx1*ly1*lz1*lelv,ldim+1)
+      real, pointer :: vxcp(:,:,:,:), dvxc(:,:,:,:), vycp(:,:,:,:)
+     $               , dvyc(:,:,:,:), vzcp(:,:,:,:), dvzc(:,:,:,:)
+     $               , resbc(:,:)
 
-      common /cvflow_nn/ vxcbc,vycbc,vzcbc
-      real vxcbc(lx1,ly1,lz1,lelv)
-      real vycbc(lx1,ly1,lz1,lelv)
-      real vzcbc(lx1,ly1,lz1,lelv)
+      real, pointer :: vxcbc(:,:,:,:), vycbc(:,:,:,:), vzcbc(:,:,:,:)
 
       CHARACTER CB*3
+
+      vxcbc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cvflow_nn(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      vycbc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cvflow_nn(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      vzcbc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cvflow_nn(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+
+      vxcp(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      dvxc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      vycp(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      dvyc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      vzcp(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      dvzc(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_cbplan_vol_ms(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
+      resbc(1:lx1*ly1*lz1*lelv,1:ldim+1) =>
+     $   cb_cbplan_vol_ms(6*lx1*ly1*lz1*lelv+1
+     $                  : 6*lx1*ly1*lz1*lelv+(ldim+1)*lx1*ly1*lz1*lelv)
+
+      h1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      h2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      W1(1:lx1*ly1*lz1,1:lelv) => cb_scrmg(0*lx1*ly1*lz1*lelv+1
+     $                                    : 1*lx1*ly1*lz1*lelv)
+      W2(1:lx1*ly1*lz1,1:lelv) => cb_scrmg(1*lx1*ly1*lz1*lelv+1
+     $                                    : 2*lx1*ly1*lz1*lelv)
+      W3(1:lx1*ly1*lz1,1:lelv) => cb_scrmg(2*lx1*ly1*lz1*lelv+1
+     $                                    : 3*lx1*ly1*lz1*lelv)
+      resv1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      resv2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      resv3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      respr(1:lx2*ly2*lz2,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv
+     $                                 + lx2*ly2*lz2*lelv)
+      TA1(1:lx1*ly1*lz1*lelv) => cb_scrns(
+     $   3*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv+1 :
+     $   4*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
+      TA2(1:lx1*ly1*lz1*lelv) => cb_scrns(
+     $   4*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv+1 :
+     $   5*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
+      TA3(1:lx1*ly1*lz1*lelv) => cb_scrns(
+     $   5*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv+1 :
+     $   6*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
+      WA1(1:lx1*ly1*lz1*lelv) => cb_scrns(
+     $   6*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv+1 :
+     $   7*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
+      WA2(1:lx1*ly1*lz1*lelv) => cb_scrns(
+     $   7*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv+1 :
+     $   8*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
+      WA3(1:lx1*ly1*lz1*lelv) => cb_scrns(
+     $   8*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv+1 :
+     $   9*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
 
       n = lx1*ly1*lz1*nelv
       NXYZ1  = lx1*ly1*lz1

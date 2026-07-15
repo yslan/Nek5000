@@ -1,5 +1,6 @@
 c-----------------------------------------------------------------------
       subroutine arcsrf(xml,yml,zml,nxl,nyl,nzl,ie,isid)
+      use ctmp1_mod
       include 'SIZE'
       include 'GEOM'
       include 'INPUT'
@@ -8,10 +9,21 @@ c-----------------------------------------------------------------------
 C
 C     ....note..... CTMP1 is used in this format in several subsequent routines
 C
-      COMMON /CTMP1/ H(LX1,3,2),XCRVED(LX1),YCRVED(LY1),ZCRVED(LZ1)
-     $             , ZGML(LX1,3),WORK(3,LX1,LZ1)
+      real, pointer :: H(:,:,:),XCRVED(:),YCRVED(:),ZCRVED(:)
+     $               , ZGML(:,:),WORK(:,:,:)
       DIMENSION XML(NXL,NYL,NZL,1),YML(NXL,NYL,NZL,1),ZML(NXL,NYL,NZL,1)
       LOGICAL IFGLJ
+C
+      H     (1:lx1,1:3,1:2) => cb_ctmp1(0*lx1*3*2+1 : 1*lx1*3*2)
+      XCRVED(1:lx1) => cb_ctmp1(1*lx1*3*2+1 : 1*lx1*3*2+lx1)
+      YCRVED(1:ly1) => cb_ctmp1(1*lx1*3*2+lx1+1 : 1*lx1*3*2+lx1+ly1)
+      ZCRVED(1:lz1) => cb_ctmp1(1*lx1*3*2+lx1+ly1+1
+     $                        : 1*lx1*3*2+lx1+ly1+lz1)
+      ZGML  (1:lx1,1:3) => cb_ctmp1(1*lx1*3*2+lx1+ly1+lz1+1
+     $                            : 1*lx1*3*2+lx1+ly1+lz1+3*lx1)
+      WORK  (1:3,1:lx1,1:lz1) => cb_ctmp1(
+     $   1*lx1*3*2+lx1+ly1+lz1+3*lx1+1
+     $ : 1*lx1*3*2+lx1+ly1+lz1+3*lx1+3*lx1*lz1)
 C
       IFGLJ = .FALSE.
       IF (IFAXIS .AND. IFRZER(IE) .AND. (ISID.EQ.2 .OR. ISID.EQ.4)) 
@@ -101,17 +113,29 @@ C     Points all set, add perturbation to current mesh.
       end
 c-----------------------------------------------------------------------
       subroutine defsrf(xml,yml,zml,nxl,nyl,nzl,ie,iface1,ccv)
+      use ctmp1_mod
       include 'SIZE'
       include 'TOPOL'
       include 'GEOM'
       include 'WZ'
-      COMMON /CTMP1/ H(LX1,3,2),XCRVED(LX1),YCRVED(LY1),ZCRVED(LZ1)
-     $             , ZGML(LX1,3),WORK(3,LX1,LZ1)
+      real, pointer :: H(:,:,:),XCRVED(:),YCRVED(:),ZCRVED(:)
+     $               , ZGML(:,:),WORK(:,:,:)
 C
       DIMENSION XML(NXL,NYL,NZL,1),YML(NXL,NYL,NZL,1),ZML(NXL,NYL,NZL,1)
       DIMENSION X1(3),X2(3),X3(3),DX(3)
       DIMENSION IOPP(3),NXX(3)
       CHARACTER*1 CCV
+C
+      H     (1:lx1,1:3,1:2) => cb_ctmp1(0*lx1*3*2+1 : 1*lx1*3*2)
+      XCRVED(1:lx1) => cb_ctmp1(1*lx1*3*2+1 : 1*lx1*3*2+lx1)
+      YCRVED(1:ly1) => cb_ctmp1(1*lx1*3*2+lx1+1 : 1*lx1*3*2+lx1+ly1)
+      ZCRVED(1:lz1) => cb_ctmp1(1*lx1*3*2+lx1+ly1+1
+     $                        : 1*lx1*3*2+lx1+ly1+lz1)
+      ZGML  (1:lx1,1:3) => cb_ctmp1(1*lx1*3*2+lx1+ly1+lz1+1
+     $                            : 1*lx1*3*2+lx1+ly1+lz1+3*lx1)
+      WORK  (1:3,1:lx1,1:lz1) => cb_ctmp1(
+     $   1*lx1*3*2+lx1+ly1+lz1+3*lx1+1
+     $ : 1*lx1*3*2+lx1+ly1+lz1+3*lx1+3*lx1*lz1)
 C
       CALL DSSET(NXL,NYL,NZL)
       IFACE  = EFACE1(IFACE1)
@@ -556,6 +580,8 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine genxyz (xml,yml,zml,nxl,nyl,nzl)
+      use ctmp1_mod
+      use ctmp0_mod
 C
       include 'SIZE'
       include 'WZ'
@@ -567,13 +593,26 @@ C
       real xml(nxl,nyl,nzl,1),yml(nxl,nyl,nzl,1),zml(nxl,nyl,nzl,1)
 
 C     Note : CTMP1 is used in this format in several subsequent routines
-      common /ctmp1/ h(lx1,3,2),xcrved(lx1),ycrved(ly1),zcrved(lz1)
-     $             , zgml(lx1,3),work(3,lx1,lz1)
+      real, pointer :: h(:,:,:),xcrved(:),ycrved(:),zcrved(:)
+     $               , zgml(:,:),work(:,:,:)
 
       parameter (ldw=2*lx1*ly1*lz1)
-      common /ctmp0/ w(ldw)
+      real, pointer :: w(:)
 
       character*1 ccv
+
+      w(1:ldw) => cb_ctmp0(1 : ldw)
+
+      h     (1:lx1,1:3,1:2) => cb_ctmp1(0*lx1*3*2+1 : 1*lx1*3*2)
+      xcrved(1:lx1) => cb_ctmp1(1*lx1*3*2+1 : 1*lx1*3*2+lx1)
+      ycrved(1:ly1) => cb_ctmp1(1*lx1*3*2+lx1+1 : 1*lx1*3*2+lx1+ly1)
+      zcrved(1:lz1) => cb_ctmp1(1*lx1*3*2+lx1+ly1+1
+     $                        : 1*lx1*3*2+lx1+ly1+lz1)
+      zgml  (1:lx1,1:3) => cb_ctmp1(1*lx1*3*2+lx1+ly1+lz1+1
+     $                            : 1*lx1*3*2+lx1+ly1+lz1+3*lx1)
+      work  (1:3,1:lx1,1:lz1) => cb_ctmp1(
+     $   1*lx1*3*2+lx1+ly1+lz1+3*lx1+1
+     $ : 1*lx1*3*2+lx1+ly1+lz1+3*lx1+3*lx1*lz1)
 
 c     Initialize geometry arrays with bi- triquadratic deformations
       call linquad(xml,yml,zml,nxl,nyl,nzl)
@@ -674,7 +713,9 @@ c-----------------------------------------------------------------------
       return
       end
 c-----------------------------------------------------------------------
-      subroutine sphsrf(xml,yml,zml,ifce,ie,nx,ny,nz,xysrf) 
+      subroutine sphsrf(xml,yml,zml,ifce,ie,nx,ny,nz,xysrf)
+      use ctmp1_mod
+      use ctmp0_mod
 C
 C     5 Aug 1988 19:29:52 
 C
@@ -688,10 +729,10 @@ C
       DIMENSION XML(NX,NY,NZ,1),YML(NX,NY,NZ,1),ZML(NX,NY,NZ,1)
       DIMENSION XYSRF(3,NX,NZ)
 C
-      COMMON /CTMP1/ H(LX1,3,2),XCRVED(LX1),YCRVED(LY1),ZCRVED(LZ1)
-     $             , ZGML(LX1,3),WORK(3,LX1,LZ1)
-      COMMON /CTMP0/ XCV(3,2,2),VN1(3),VN2(3)
-     $              ,X1(3),X2(3),X3(3),DX(3)
+      real, pointer :: H(:,:,:),XCRVED(:),YCRVED(:),ZCRVED(:)
+     $               , ZGML(:,:),WORK(:,:,:)
+      real, pointer :: XCV(:,:,:),VN1(:),VN2(:)
+     $               ,X1(:),X2(:),X3(:),DX(:)
       DIMENSION IOPP(3),NXX(3)
 c
 c
@@ -703,6 +744,23 @@ c
       real    vout(3),vsph(3)
       logical ifconcv
 c
+      H     (1:lx1,1:3,1:2) => cb_ctmp1(0*lx1*3*2+1 : 1*lx1*3*2)
+      XCRVED(1:lx1) => cb_ctmp1(1*lx1*3*2+1 : 1*lx1*3*2+lx1)
+      YCRVED(1:ly1) => cb_ctmp1(1*lx1*3*2+lx1+1 : 1*lx1*3*2+lx1+ly1)
+      ZCRVED(1:lz1) => cb_ctmp1(1*lx1*3*2+lx1+ly1+1
+     $                        : 1*lx1*3*2+lx1+ly1+lz1)
+      ZGML  (1:lx1,1:3) => cb_ctmp1(1*lx1*3*2+lx1+ly1+lz1+1
+     $                            : 1*lx1*3*2+lx1+ly1+lz1+3*lx1)
+      WORK  (1:3,1:lx1,1:lz1) => cb_ctmp1(
+     $   1*lx1*3*2+lx1+ly1+lz1+3*lx1+1
+     $ : 1*lx1*3*2+lx1+ly1+lz1+3*lx1+3*lx1*lz1)
+      XCV(1:3,1:2,1:2) => cb_ctmp0(0*12+1 : 1*12)
+      VN1(1:3) => cb_ctmp0(1*12+1 : 1*12+3)
+      VN2(1:3) => cb_ctmp0(1*12+3+1 : 1*12+6)
+      X1 (1:3) => cb_ctmp0(1*12+6+1 : 1*12+9)
+      X2 (1:3) => cb_ctmp0(1*12+9+1 : 1*12+12)
+      X3 (1:3) => cb_ctmp0(1*12+12+1 : 1*12+15)
+      DX (1:3) => cb_ctmp0(1*12+15+1 : 1*12+18)
 C
 C     Determine geometric parameters
 C
@@ -842,16 +900,28 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine edg3d(xysrf,x1,x2,i1,i2,j1,j2,nx,ny)
+      use ctmp1_mod
 C
 C     Generate XYZ vector along an edge of a surface.
 C
       include 'SIZE'
-      COMMON /CTMP1/ H(LX1,3,2),XCRVED(LX1),YCRVED(LY1),ZCRVED(LZ1)
-     $             , ZGML(LX1,3),WORK(3,LX1,LZ1)
+      real, pointer :: H(:,:,:),XCRVED(:),YCRVED(:),ZCRVED(:)
+     $               , ZGML(:,:),WORK(:,:,:)
 C
       DIMENSION XYSRF(3,NX,NY)
       DIMENSION X1(3),X2(3)
       REAL U1(3),U2(3),VN(3),B(3)
+C
+      H     (1:lx1,1:3,1:2) => cb_ctmp1(0*lx1*3*2+1 : 1*lx1*3*2)
+      XCRVED(1:lx1) => cb_ctmp1(1*lx1*3*2+1 : 1*lx1*3*2+lx1)
+      YCRVED(1:ly1) => cb_ctmp1(1*lx1*3*2+lx1+1 : 1*lx1*3*2+lx1+ly1)
+      ZCRVED(1:lz1) => cb_ctmp1(1*lx1*3*2+lx1+ly1+1
+     $                        : 1*lx1*3*2+lx1+ly1+lz1)
+      ZGML  (1:lx1,1:3) => cb_ctmp1(1*lx1*3*2+lx1+ly1+lz1+1
+     $                            : 1*lx1*3*2+lx1+ly1+lz1+3*lx1)
+      WORK  (1:3,1:lx1,1:lz1) => cb_ctmp1(
+     $   1*lx1*3*2+lx1+ly1+lz1+3*lx1+1
+     $ : 1*lx1*3*2+lx1+ly1+lz1+3*lx1+3*lx1*lz1)
 C
 C     Normalize incoming vectors
 C
@@ -1267,6 +1337,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine xyzlin(xl,yl,zl,nxl,nyl,nzl,e,ifaxl)
+      use ctmp0_mod
 c     Generate bi- or trilinear mesh
 
       include 'SIZE'
@@ -1291,12 +1362,17 @@ c        5+-----+6    t                      5+-----+6    t
       data    indx / 1,2,4,3,5,6,8,7 /
 
       parameter (ldw=4*lx1*ly1*lz1)
-      common /ctmp0/ xcb(2,2,2),ycb(2,2,2),zcb(2,2,2),w(ldw)
+      real, pointer :: xcb(:,:,:),ycb(:,:,:),zcb(:,:,:),w(:)
 
       common /cxyzl/ zgml(lx1,3),jx (lx1*2),jy (lx1*2),jz (lx1*2)
      $                          ,jxt(lx1*2),jyt(lx1*2),jzt(lx1*2)
      $                          ,zlin(2)
       real jx,jy,jz,jxt,jyt,jzt
+
+      xcb(1:2,1:2,1:2) => cb_ctmp0(0*8+1 : 1*8)
+      ycb(1:2,1:2,1:2) => cb_ctmp0(1*8+1 : 2*8)
+      zcb(1:2,1:2,1:2) => cb_ctmp0(2*8+1 : 3*8)
+      w  (1:ldw) => cb_ctmp0(3*8+1 : 3*8+ldw)
 
       call setzgml (zgml,e,nxl,nyl,nzl,ifaxl)
 
@@ -1332,6 +1408,7 @@ c     Map R-S-T space into physical X-Y-Z space.
       end
 c-----------------------------------------------------------------------
       subroutine xyzquad(xl,yl,zl,nxl,nyl,nzl,e)
+      use ctmp0_mod
 c     Generate bi- or trilinear mesh
 
       include 'SIZE'
@@ -1342,7 +1419,7 @@ c     Generate bi- or trilinear mesh
       integer e
 
       parameter (ldw=4*lx1*ly1*lz1)
-      common /ctmp0/ w(ldw,2),zg(3)
+      real, pointer :: w(:,:),zg(:)
 
 c     Note : CTMP1 is used in this format in several subsequent routines
 
@@ -1356,6 +1433,9 @@ c     Note : CTMP1 is used in this format in several subsequent routines
      $                          ,jxt(lx1*3),jyt(lx1*3),jzt(lx1*3)
      $                          ,zquad(3)
       real jx,jy,jz,jxt,jyt,jzt
+
+      w (1:ldw,1:2) => cb_ctmp0(0*2*ldw+1 : 1*2*ldw)
+      zg(1:3)       => cb_ctmp0(1*2*ldw+1 : 1*2*ldw+3)
 
       call xyzlin(xq,yq,zq,3,3,3,e,.false.) ! map bilin to 3x3x3
 

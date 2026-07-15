@@ -79,15 +79,23 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine admeshv
+      use scruz_mod
 C
       include 'SIZE'
       include 'SOLN'
       include 'TSTEP'
 C
-      COMMON /SCRUZ/ FM1(LX1,LY1,LZ1,LELT)
-     $             , FM2(LX1,LY1,LZ1,LELT)
-     $             , FM3(LX1,LY1,LZ1,LELT)
-     $             , PHI(LX1,LY1,LZ1,LELT)
+      real, pointer :: FM1(:,:,:,:), FM2(:,:,:,:), FM3(:,:,:,:)
+     $               , PHI(:,:,:,:)
+C
+      FM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      FM2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      FM3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      PHI(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
 C
       NTOT1=lx1*ly1*lz1*NELV
 C
@@ -108,13 +116,18 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine admesht
+      use scruz_mod
 C
       include 'SIZE'
       include 'SOLN'
       include 'TSTEP'
 C
-      COMMON /SCRUZ/ FMT(LX1,LY1,LZ1,LELT)
-     $             , PHI(LX1,LY1,LZ1,LELT)
+      real, pointer :: FMT(:,:,:,:), PHI(:,:,:,:)
+C
+      FMT(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      PHI(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 C
       IFLD = 0
       NEL  = NELFLD(IFLD)
@@ -129,6 +142,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine divws (fms,sfv,phi,nel,idir)
+      use scrsf_mod
 C
       include 'SIZE'
       include 'GEOM'
@@ -137,13 +151,18 @@ C
       include 'WZ'
       include 'INPUT'
 C
-      COMMON /SCRSF/ PHR(LX1,LY1,LZ1,LELT)
-     $             , PHS(LX1,LY1,LZ1,LELT)
-     $             , PHT(LX1,LY1,LZ1,LELT)
+      real, pointer :: PHR(:,:,:,:), PHS(:,:,:,:), PHT(:,:,:,:)
 
       DIMENSION FMS(LX1,LY1,LZ1,1)
      $        , SFV(LX1,LY1,LZ1,1)
      $        , PHI(LX1,LY1,LZ1,1)
+C
+      PHR(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      PHS(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      PHT(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 C
       NXYZ1 = lx1*ly1*lz1
       NTOT1 = NXYZ1*NEL
@@ -177,6 +196,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine axifms (fms,sfv,phi,nel,idir)
+      use scrsf_mod
 C
       include 'SIZE'
       include 'DXYZ'
@@ -185,15 +205,21 @@ C
       include 'MASS'
       include 'MVGEOM'
       include 'WZ'
-      COMMON /SCRSF/ PHR(LX1,LY1,LZ1,LELT)
-     $             , PHS(LX1,LY1,LZ1,LELT)
-     $             , PHT(LX1,LY1,LZ1,LELT)
+      real, pointer :: PHR(:,:,:,:), PHS(:,:,:,:), PHT(:,:,:,:)
+      real, pointer :: WYS(:)
 C
       DIMENSION FMS(LX1,LY1,LZ1,1)
      $        , PHI(LX1,LY1,LZ1,1)
      $        , SFV(LX1,LY1,LZ1,1)
-     $        , WYS(LX1)
-      EQUIVALENCE (WYS(1),PHT(1,1,1,1))
+C
+      PHR(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      PHS(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      PHT(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      WYS(1:lx1) => cb_scrsf(2*lx1*ly1*lz1*lelt+1
+     $                     : 2*lx1*ly1*lz1*lelt+lx1)
 C
       NXYZ1 = lx1*ly1*lz1
       NTOT1 = NXYZ1*NEL
@@ -247,6 +273,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine mvbdry (nel)
+      use scrch_mod
+      use scrsf_mod
+      use scrmg_mod
+      use scruz_mod
 
 c     Evaluate mesh velocities at all moving boundaries
 
@@ -257,23 +287,41 @@ c     Evaluate mesh velocities at all moving boundaries
       include 'SOLN'
       include 'TSTEP'
 
-      common /scrsf/ wvx(lx1*ly1*lz1,lelt)
-     $             , wvy(lx1*ly1*lz1,lelt)
-     $             , wvz(lx1*ly1*lz1,lelt)
-      common /scrch/ wtx(lx1*ly1*lz1,lelt)
-     $             , wty(lx1*ly1*lz1,lelt)
-      common /scrmg/ wtz(lx1*ly1*lz1,lelt)
-     $             , rnx(lx1*ly1*lz1,lelt)
-     $             , rny(lx1*ly1*lz1,lelt)
-     $             , rnz(lx1*ly1*lz1,lelt)
-      common /scruz/ dsa(lx1*ly1*lz1,lelt)
-     $             , qni(lx1*ly1*lz1,lelt)
-     $             , smt(lx1*ly1*lz1,lelt)
-     $             , ta (lx1*ly1*lz1,lelt)
+      real, pointer :: wvx(:,:), wvy(:,:), wvz(:,:)
+      real, pointer :: wtx(:,:), wty(:,:)
+      real, pointer :: wtz(:,:), rnx(:,:), rny(:,:), rnz(:,:)
+      real, pointer :: dsa(:,:), qni(:,:), smt(:,:), ta(:,:)
 
       logical ifalgn,ifnorx,ifnory,ifnorz,ifdsmv,ifregw
       character cb*3
       integer e,f
+
+      wtx(1:lx1*ly1*lz1,1:lelt) => cb_scrch(0*lx1*ly1*lz1*lelt+1
+     $                                     : 1*lx1*ly1*lz1*lelt)
+      wty(1:lx1*ly1*lz1,1:lelt) => cb_scrch(1*lx1*ly1*lz1*lelt+1
+     $                                     : 2*lx1*ly1*lz1*lelt)
+      wvx(1:lx1*ly1*lz1,1:lelt) => cb_scrsf(0*lx1*ly1*lz1*lelt+1
+     $                                     : 1*lx1*ly1*lz1*lelt)
+      wvy(1:lx1*ly1*lz1,1:lelt) => cb_scrsf(1*lx1*ly1*lz1*lelt+1
+     $                                     : 2*lx1*ly1*lz1*lelt)
+      wvz(1:lx1*ly1*lz1,1:lelt) => cb_scrsf(2*lx1*ly1*lz1*lelt+1
+     $                                     : 3*lx1*ly1*lz1*lelt)
+      wtz(1:lx1*ly1*lz1,1:lelt) => cb_scrmg(0*lx1*ly1*lz1*lelt+1
+     $                                     : 1*lx1*ly1*lz1*lelt)
+      rnx(1:lx1*ly1*lz1,1:lelt) => cb_scrmg(1*lx1*ly1*lz1*lelt+1
+     $                                     : 2*lx1*ly1*lz1*lelt)
+      rny(1:lx1*ly1*lz1,1:lelt) => cb_scrmg(2*lx1*ly1*lz1*lelt+1
+     $                                     : 3*lx1*ly1*lz1*lelt)
+      rnz(1:lx1*ly1*lz1,1:lelt) => cb_scrmg(3*lx1*ly1*lz1*lelt+1
+     $                                     : 4*lx1*ly1*lz1*lelt)
+      dsa(1:lx1*ly1*lz1,1:lelt) => cb_scruz(0*lx1*ly1*lz1*lelt+1
+     $                                     : 1*lx1*ly1*lz1*lelt)
+      qni(1:lx1*ly1*lz1,1:lelt) => cb_scruz(1*lx1*ly1*lz1*lelt+1
+     $                                     : 2*lx1*ly1*lz1*lelt)
+      smt(1:lx1*ly1*lz1,1:lelt) => cb_scruz(2*lx1*ly1*lz1*lelt+1
+     $                                     : 3*lx1*ly1*lz1*lelt)
+      ta (1:lx1*ly1*lz1,1:lelt) => cb_scruz(3*lx1*ly1*lz1*lelt+1
+     $                                     : 4*lx1*ly1*lz1*lelt)
 
       ifield = 0
       nxyz1  = lx1*ly1*lz1
@@ -496,6 +544,7 @@ c     endif
       end
 c-----------------------------------------------------------------------
       subroutine norcmp2(wvx,wvy,wvz,e,f)
+      use scruz_mod
       include 'SIZE'
       include 'GEOM'
       include 'INPUT'
@@ -505,7 +554,14 @@ c-----------------------------------------------------------------------
 
       integer e,f
 
-      common /scruz/ r1(lx1,ly1,lz1),r2(lx1,ly1,lz1),r3(lx1,ly1,lz1)
+      real, pointer :: r1(:,:,:),r2(:,:,:),r3(:,:,:)
+
+      r1(1:lx1,1:ly1,1:lz1) => cb_scruz(0*lx1*ly1*lz1+1
+     $                                 : 1*lx1*ly1*lz1)
+      r2(1:lx1,1:ly1,1:lz1) => cb_scruz(1*lx1*ly1*lz1+1
+     $                                 : 2*lx1*ly1*lz1)
+      r3(1:lx1,1:ly1,1:lz1) => cb_scruz(2*lx1*ly1*lz1+1
+     $                                 : 3*lx1*ly1*lz1)
 
       call facind(i0,i1,j0,j1,k0,k1,lx1,ly1,lz1,f)
 
@@ -531,12 +587,20 @@ c     write(6,*) f,e,wvxm,' w-max'
       end
 c-----------------------------------------------------------------------
       subroutine norcmp (wt1,wt2,wt3,rnx,rny,rnz,ifc)
+      use scruz_mod
 C
       include 'SIZE'
-      COMMON /SCRUZ/ R1(LX1,LY1,LZ1),R2(LX1,LY1,LZ1),R3(LX1,LY1,LZ1)
+      real, pointer :: R1(:,:,:),R2(:,:,:),R3(:,:,:)
 C
       DIMENSION WT1(LX1,LY1,LZ1),WT2(LX1,LY1,LZ1),WT3(LX1,LY1,LZ1)
      $        , RNX(LX1,LY1,LZ1),RNY(LX1,LY1,LZ1),RNZ(LX1,LY1,LZ1)
+C
+      R1(1:lx1,1:ly1,1:lz1) => cb_scruz(0*lx1*ly1*lz1+1
+     $                                 : 1*lx1*ly1*lz1)
+      R2(1:lx1,1:ly1,1:lz1) => cb_scruz(1*lx1*ly1*lz1+1
+     $                                 : 2*lx1*ly1*lz1)
+      R3(1:lx1,1:ly1,1:lz1) => cb_scruz(2*lx1*ly1*lz1+1
+     $                                 : 3*lx1*ly1*lz1)
 C
       NXYZ1 = lx1*ly1*lz1
 C
@@ -569,13 +633,21 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine facemv (wt1,wt2,wt3,rnx,rny,rnz,smt,ifc)
+      use scruz_mod
 C
       include 'SIZE'
-      COMMON /SCRUZ/ R1(LX1,LY1,LZ1),R2(LX1,LY1,LZ1),R3(LX1,LY1,LZ1)
+      real, pointer :: R1(:,:,:),R2(:,:,:),R3(:,:,:)
 C
       DIMENSION WT1(LX1,LY1,LZ1),WT2(LX1,LY1,LZ1),WT3(LX1,LY1,LZ1)
      $        , RNX(LX1,LY1,LZ1),RNY(LX1,LY1,LZ1),RNZ(LX1,LY1,LZ1)
      $        , SMT(LX1,LY1,LZ1)
+C
+      R1(1:lx1,1:ly1,1:lz1) => cb_scruz(0*lx1*ly1*lz1+1
+     $                                 : 1*lx1*ly1*lz1)
+      R2(1:lx1,1:ly1,1:lz1) => cb_scruz(1*lx1*ly1*lz1+1
+     $                                 : 2*lx1*ly1*lz1)
+      R3(1:lx1,1:ly1,1:lz1) => cb_scruz(2*lx1*ly1*lz1+1
+     $                                 : 3*lx1*ly1*lz1)
 C
       NXYZ1 = lx1*ly1*lz1
 C
@@ -608,13 +680,21 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine faczqn (wt1,wt2,wt3,ifc,iel)
+      use scruz_mod
 C
       include 'SIZE'
       include 'GEOM'
       include 'TOPOL'
-      COMMON /SCRUZ/ R1(LX1,LY1,LZ1),R2(LX1,LY1,LZ1),R3(LX1,LY1,LZ1)
+      real, pointer :: R1(:,:,:),R2(:,:,:),R3(:,:,:)
 C
       DIMENSION WT1(LX1,LY1,LZ1),WT2(LX1,LY1,LZ1),WT3(LX1,LY1,LZ1)
+C
+      R1(1:lx1,1:ly1,1:lz1) => cb_scruz(0*lx1*ly1*lz1+1
+     $                                 : 1*lx1*ly1*lz1)
+      R2(1:lx1,1:ly1,1:lz1) => cb_scruz(1*lx1*ly1*lz1+1
+     $                                 : 2*lx1*ly1*lz1)
+      R3(1:lx1,1:ly1,1:lz1) => cb_scruz(2*lx1*ly1*lz1+1
+     $                                 : 3*lx1*ly1*lz1)
 C
       NXYZ1 = lx1*ly1*lz1
       CALL COPY (R1,WT1,NXYZ1)
@@ -665,16 +745,21 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine cqnet (qni,ta,nel)
+      use scrvh_mod
 C
       include 'SIZE'
       include 'INPUT'
       include 'SOLN'
       include 'TSTEP'
-      COMMON /SCRVH/ H1(LX1,LY1,LZ1,LELT)
-     $             , H2(LX1,LY1,LZ1,LELT)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
 C
       DIMENSION QNI(LX1,LY1,LZ1,1)
      $        , TA (LX1,LY1,LZ1,1)
+C
+      H1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      H2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 C
       INTLOC = -1
       IMSHL  =  2
@@ -726,6 +811,9 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine elasolv (nel)
+      use scrns_mod
+      use scrvh_mod
+      use scruz_mod
 C
 C     Elastostatic solver for mesh deformation
 C
@@ -736,17 +824,31 @@ C
       include 'SOLN'
       include 'TSTEP'
 C
-      COMMON /SCRNS/ DW1  (LX1,LY1,LZ1,LELT)
-     $             , DW2  (LX1,LY1,LZ1,LELT)
-     $             , DW3  (LX1,LY1,LZ1,LELT)
-     $             , AW1  (LX1,LY1,LZ1,LELT)
-     $             , AW2  (LX1,LY1,LZ1,LELT)
-     $             , AW3  (LX1,LY1,LZ1,LELT)
-      COMMON /SCRVH/ H1   (LX1,LY1,LZ1,LELT)
-     $             , H2   (LX1,LY1,LZ1,LELT)
-      common /scruz/ prt  (lx1,ly1,lz1,lelt)
+      real, pointer :: DW1(:,:,:,:), DW2(:,:,:,:), DW3(:,:,:,:)
+     $               , AW1(:,:,:,:), AW2(:,:,:,:), AW3(:,:,:,:)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
+      real, pointer :: prt(:,:,:,:)
       COMMON /FASTMD/ IFDFRM(LELT), IFFAST(LELT), IFH2, IFSOLV
       LOGICAL IFDFRM, IFFAST, IFH2, IFSOLV
+
+      H1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      H2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      prt(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(1 : lx1*ly1*lz1*lelt)
+      DW1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      DW2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      DW3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      AW1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
+      AW2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelt+1 : 5*lx1*ly1*lz1*lelt)
+      AW3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelt+1 : 6*lx1*ly1*lz1*lelt)
 
       if (ifusermv) return  ! Compute wx,wy,wz in userchk.
 c
@@ -849,16 +951,22 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine updxyz (nel)
+      use scrsf_mod
 C
       include 'SIZE'
       include 'TSTEP'
       include 'MVGEOM'
       include 'GEOM'
       include 'INPUT'
-      COMMON /SCRSF/ UX(LX1,LY1,LZ1,LELT)
-     $             , UY(LX1,LY1,LZ1,LELT)
-     $             , UZ(LX1,LY1,LZ1,LELT)
+      real, pointer :: UX(:,:,:,:), UY(:,:,:,:), UZ(:,:,:,:)
       DIMENSION ABM(3)
+C
+      UX(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      UY(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      UZ(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 C
       NTOT1 = lx1*ly1*lz1*NEL
 C
@@ -947,6 +1055,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine ptbgeom
+      use scruz_mod
 C-----------------------------------------------------------------------
 C
 C     Subroutine to impose perturbation to geometry before solution
@@ -959,9 +1068,14 @@ C-----------------------------------------------------------------------
       include 'SOLN'
       include 'TSTEP'
       include 'INPUT'
-      COMMON /SCRUZ/ XM3 (LX3,LY3,LZ3,LELT)
-     $ ,             YM3 (LX3,LY3,LZ3,LELT)
-     $ ,             ZM3 (LX3,LY3,LZ3,LELT)
+      real, pointer :: XM3(:,:,:,:), YM3(:,:,:,:), ZM3(:,:,:,:)
+C
+      XM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scruz(0*lx3*ly3*lz3*lelt+1 : 1*lx3*ly3*lz3*lelt)
+      YM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scruz(1*lx3*ly3*lz3*lelt+1 : 2*lx3*ly3*lz3*lelt)
+      ZM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scruz(2*lx3*ly3*lz3*lelt+1 : 3*lx3*ly3*lz3*lelt)
 C
       IF (ISTEP .EQ. 0) return
       IFIELD = 0

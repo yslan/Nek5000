@@ -317,16 +317,18 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      subroutine filter_s1(scalar,tf,nx,nel) ! filter scalar field 
+      subroutine filter_s1(scalar,tf,nx,nel) ! filter scalar field
+      use screv_mod
 
       include 'SIZE'
 
-      parameter(lxyz=lx1*ly1*lz1) 
+      parameter(lxyz=lx1*ly1*lz1)
       real scalar(lxyz,1)
       real fh(nx*nx),fht(nx*nx),tf(nx)
 
-      common /screv/ w1
-      real w1(lxyz,lelt)
+      real, pointer :: w1(:,:)
+
+      w1(1:lxyz,1:lelt) => cb_screv(1 : lxyz*lelt)
 
 c     Build 1D-filter based on the transfer function (tf)
       call build_1d_filt(fh,fht,tf,nx,nio)
@@ -340,7 +342,10 @@ c     Filter scalar
       return
       end
 c-----------------------------------------------------------------------
-      subroutine filter_s0(scalar,wght,ncut,name5) ! filter scalar field 
+      subroutine filter_s0(scalar,wght,ncut,name5) ! filter scalar field
+      use ctmp0_mod
+      use scrvh_mod
+      use screv_mod
 
       include 'SIZE'
       include 'TOTAL'
@@ -352,21 +357,26 @@ c-----------------------------------------------------------------------
       real intdv(l1),intuv(l1),intdp(l1),intup(l1),intv(l1),intp(l1)
       save intdv    ,intuv    ,intdp    ,intup    ,intv    ,intp
 
-      common /ctmp0/ intt
-      common /screv/ wk1,wk2
-      common /scrvh/ zgmv,wgtv,zgmp,wgtp,tmax(100)
-
-      real intt (lx1,lx1)
-      real wk1  (lx1,lx1,lx1,lelt)
-      real wk2  (lx1,lx1,lx1)
-      real zgmv (lx1),wgtv(lx1),zgmp(lx1),wgtp(lx1)
-
+      real, pointer :: intt(:,:)
+      real, pointer :: wk1(:,:,:,:)
+      real, pointer :: wk2(:,:,:)
+      real, pointer :: zgmv(:),wgtv(:),zgmp(:),wgtp(:),tmax(:)
 
       integer icall
       save    icall
       data    icall /0/
 
       logical ifdmpflt
+
+      intt(1:lx1,1:lx1) => cb_ctmp0(1 : lx1*lx1)
+      zgmv(1:lx1) => cb_scrvh(0*lx1+1 : 1*lx1)
+      wgtv(1:lx1) => cb_scrvh(1*lx1+1 : 2*lx1)
+      zgmp(1:lx1) => cb_scrvh(2*lx1+1 : 3*lx1)
+      wgtp(1:lx1) => cb_scrvh(3*lx1+1 : 4*lx1)
+      tmax(1:100) => cb_scrvh(4*lx1+1 : 4*lx1+100)
+      wk1(1:lx1,1:lx1,1:lx1,1:lelt) => cb_screv(1 : lx1*lx1*lx1*lelt)
+      wk2(1:lx1,1:lx1,1:lx1) => cb_screv(
+     $   lx1*lx1*lx1*lelt+1 : lx1*lx1*lx1*lelt+lx1*lx1*lx1)
 
       imax = nid
       imax = iglmax(imax,1)
@@ -671,12 +681,13 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine gen_re2(imid)  ! Generate and output essential parts of .rea
+      include 'SIZE'
+      include 'TOTAL'
+
                                 ! And re2
                                 ! Clobbers ccurve()
                                 ! byte read is float size..
                                 ! 4 wdsize
-      include 'SIZE'
-      include 'TOTAL'
 
       character*80 hdr
       real*4 test
@@ -718,12 +729,15 @@ c     imid = 2  ! All nontrivial midside node defs
       end
 c-----------------------------------------------------------------------
       subroutine gen_re2_xyz
+      use scrns_mod
+      use scruz_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
       include 'SIZE'
       include 'TOTAL'
 
       parameter (lv=2**ldim,lblock=1000)
-      common /scrns/ xyz(lv,ldim,lblock),wk(lv*ldim*lblock)
-      common /scruz/ igr(lblock)
+      real, pointer :: xyz(:,:,:),wk(:)
+      integer, pointer :: igr(:)
 
       integer e,eb,eg,ierr,wdsiz2
 
@@ -735,6 +749,11 @@ c-----------------------------------------------------------------------
       real   buf2(25)  ! double precsn
       equivalence (buf,buf2)
 
+      xyz(1:lv,1:ldim,1:lblock) =>
+     $   cb_scrns(0*lv*ldim*lblock+1 : 1*lv*ldim*lblock)
+      wk(1:lv*ldim*lblock) =>
+     $   cb_scrns(1*lv*ldim*lblock+1 : 2*lv*ldim*lblock)
+      call c_f_pointer(c_loc(cb_scruz(1)), igr, [lblock])
 
       nxs = lx1-1
       nys = ly1-1
@@ -901,8 +920,11 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine gen_re2_curve(imid)
+      use scrns_mod
+      use scruz_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
-c     This routine is complex because we must first count number of 
+c     This routine is complex because we must first count number of
 c     nontrivial curved sides.
 
 c     A two pass strategy is used:  first count, then write
@@ -918,8 +940,14 @@ c     A two pass strategy is used:  first count, then write
       equivalence (buf,buf2)
 
       parameter (lblock=500)
-      common /scrns/ vcurve(5,12,lblock),wk(5*12*lblock)
-      common /scruz/ icurve(12,lblock)
+      real, pointer :: vcurve(:,:,:),wk(:)
+      integer, pointer :: icurve(:,:)
+
+      vcurve(1:5,1:12,1:lblock) =>
+     $   cb_scrns(0*5*12*lblock+1 : 1*5*12*lblock)
+      wk(1:5*12*lblock) =>
+     $   cb_scrns(1*5*12*lblock+1 : 2*5*12*lblock)
+      call c_f_pointer(c_loc(cb_scruz(1)), icurve, [12,lblock])
 
       wdsiz2=4
       if(wdsize.eq.8) wdsiz2=8
@@ -1022,6 +1050,9 @@ c        imid = 2  ! All nontrivial midside node defs
       end
 c-----------------------------------------------------------------------
       subroutine gen_re2_bc (ifld)
+      use scrns_mod
+      use scruz_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'TOTAL'
@@ -1029,8 +1060,8 @@ c-----------------------------------------------------------------------
       integer e,eb,eg,wdsiz2
 
       parameter (lblock=500)
-      common /scrns/ vbc(5,6,lblock),wk(5*6*lblock)
-      common /scruz/ ibc(6,lblock)
+      real, pointer :: vbc(:,:,:),wk(:)
+      integer, pointer :: ibc(:,:)
 
       character*1 s4(4)
       character*3 s3
@@ -1046,6 +1077,11 @@ c-----------------------------------------------------------------------
       real   buf2( 8)  ! double precsn
       equivalence (buf,buf2)
 
+      vbc(1:5,1:6,1:lblock) =>
+     $   cb_scrns(0*5*6*lblock+1 : 1*5*6*lblock)
+      wk(1:5*6*lblock) =>
+     $   cb_scrns(1*5*6*lblock+1 : 2*5*6*lblock)
+      call c_f_pointer(c_loc(cb_scruz(1)), ibc, [6,lblock])
 
       nface = 2*ldim
       ierr = 0
@@ -1141,9 +1177,10 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine gen_rea(imid)  ! Generate and output essential parts of .rea
-                                ! Clobbers ccurve()
       include 'SIZE'
       include 'TOTAL'
+
+                                ! Clobbers ccurve()
 
 c     imid = 0  ! No midside node defs
 c     imid = 1  ! Midside defs where current curve sides don't exist
@@ -1166,12 +1203,15 @@ c     imid = 2  ! All nontrivial midside node defs
       end
 c-----------------------------------------------------------------------
       subroutine gen_rea_xyz
+      use scrns_mod
+      use scruz_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
       include 'SIZE'
       include 'TOTAL'
 
       parameter (lv=2**ldim,lblock=1000)
-      common /scrns/ xyz(lv,ldim,lblock),wk(lv*ldim*lblock)
-      common /scruz/ igr(lblock)
+      real, pointer :: xyz(:,:,:),wk(:)
+      integer, pointer :: igr(:)
 
       integer e,eb,eg
       character*1 letapt
@@ -1179,6 +1219,12 @@ c-----------------------------------------------------------------------
       integer isym2pre(8)   ! Symmetric-to-prenek vertex ordering
       save    isym2pre
       data    isym2pre / 1 , 2 , 4 , 3 , 5 , 6 , 8 , 7 /
+
+      xyz(1:lv,1:ldim,1:lblock) =>
+     $   cb_scrns(0*lv*ldim*lblock+1 : 1*lv*ldim*lblock)
+      wk(1:lv*ldim*lblock) =>
+     $   cb_scrns(1*lv*ldim*lblock+1 : 2*lv*ldim*lblock)
+      call c_f_pointer(c_loc(cb_scruz(1)), igr, [lblock])
 
       letapt = 'a'
       numapt = 1
@@ -1262,8 +1308,11 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine gen_rea_curve(imid)
+      use scrns_mod
+      use scruz_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
-c     This routine is complex because we must first count number of 
+c     This routine is complex because we must first count number of
 c     nontrivial curved sides.
 
 c     A two pass strategy is used:  first count, then write
@@ -1275,8 +1324,14 @@ c     A two pass strategy is used:  first count, then write
       character*1 cc
 
       parameter (lblock=500)
-      common /scrns/ vcurve(5,12,lblock),wk(5*12*lblock)
-      common /scruz/ icurve(12,lblock)
+      real, pointer :: vcurve(:,:,:),wk(:)
+      integer, pointer :: icurve(:,:)
+
+      vcurve(1:5,1:12,1:lblock) =>
+     $   cb_scrns(0*5*12*lblock+1 : 1*5*12*lblock)
+      wk(1:5*12*lblock) =>
+     $   cb_scrns(1*5*12*lblock+1 : 2*5*12*lblock)
+      call c_f_pointer(c_loc(cb_scruz(1)), icurve, [12,lblock])
 
       if (imid.gt.0) then
 
@@ -1364,6 +1419,9 @@ c        imid = 2  ! All nontrivial midside node defs
       end
 c-----------------------------------------------------------------------
       subroutine gen_rea_bc (ifld)
+      use scrns_mod
+      use scruz_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'TOTAL'
@@ -1371,8 +1429,8 @@ c-----------------------------------------------------------------------
       integer e,eb,eg
 
       parameter (lblock=500)
-      common /scrns/ vbc(5,6,lblock),wk(5*6*lblock)
-      common /scruz/ ibc(6,lblock)
+      real, pointer :: vbc(:,:,:),wk(:)
+      integer, pointer :: ibc(:,:)
 
       character*1 s4(4)
       character*3 s3
@@ -1383,6 +1441,12 @@ c-----------------------------------------------------------------------
       character*1 chtemp
       save        chtemp
       data        chtemp /' '/   ! For mesh bcs
+
+      vbc(1:5,1:6,1:lblock) =>
+     $   cb_scrns(0*5*6*lblock+1 : 1*5*6*lblock)
+      wk(1:5*6*lblock) =>
+     $   cb_scrns(1*5*6*lblock+1 : 2*5*6*lblock)
+      call c_f_pointer(c_loc(cb_scruz(1)), ibc, [6,lblock])
 
       nface = 2*ldim
 
@@ -1453,11 +1517,12 @@ c    $               chtemp = cbc(i,kb,0)
       end
 c-----------------------------------------------------------------------
       subroutine gen_rea_midside_e(e)
+      use scrns_mod
 
       include 'SIZE'
       include 'TOTAL'
 
-      common /scrns/ x3(27),y3(27),z3(27),xyz(3,3)
+      real, pointer :: x3(:),y3(:),z3(:),xyz(:,:)
       character*1 ccrve(12)
       integer e,edge
 
@@ -1468,6 +1533,11 @@ c-----------------------------------------------------------------------
      $           ,  1,10,19,    3,12,21,    9,18,27,    7,16,25 /
 
       real len
+
+      x3(1:27) => cb_scrns(0*27+1 : 1*27)
+      y3(1:27) => cb_scrns(1*27+1 : 2*27)
+      z3(1:27) => cb_scrns(2*27+1 : 3*27)
+      xyz(1:3,1:3) => cb_scrns(3*27+1 : 3*27+9)
 
       call chcopy(ccrve,ccurve(1,e),12)
 
@@ -1511,8 +1581,10 @@ c     Take care of spherical curved face defn
       end
 c-----------------------------------------------------------------------
       subroutine hpts
+      use scrcg_mod
+      use outtmp_mod
 c
-c     evaluate velocity, temperature, pressure and ps-scalars 
+c     evaluate velocity, temperature, pressure and ps-scalars
 c     for list of points and dump results
 c     note: read/write on rank0 only 
 c
@@ -1534,9 +1606,8 @@ c     ASSUMING LHIS IS MAX NUMBER OF POINTS TO READ IN ON ONE PROCESSOR
       integer rcode, elid, proc
       common /c_hptsi/ rcode(lhis),elid(lhis),proc(lhis)
 
-      common /scrcg/  pm1 (lx1,ly1,lz1,lelv) ! mapped pressure
-      common /outtmp/ wrk (lx1*ly1*lz1*lelt,nfldm)
-
+      real, pointer :: pm1(:,:,:,:) ! mapped pressure
+      real, pointer :: wrk(:,:)
 
       logical iffind
 
@@ -1546,6 +1617,10 @@ c     ASSUMING LHIS IS MAX NUMBER OF POINTS TO READ IN ON ONE PROCESSOR
       data    npoints /0/
 
       save    inth_hpts
+
+      pm1(1:lx1,1:ly1,1:lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
+      wrk(1:lx1*ly1*lz1*lelt,1:nfldm) =>
+     $   cb_outtmp(1 : lx1*ly1*lz1*lelt*nfldm)
 
       nxyz  = lx1*ly1*lz1
       ntot  = nxyz*nelt 
@@ -1709,16 +1784,22 @@ c-----------------------------------------------------------------------
       return
       end
 c-----------------------------------------------------------------------
-      subroutine hpts_in(pts,npts,npoints) 
+      subroutine hpts_in(pts,npts,npoints)
+      use scrns_mod
+      use scruz_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 c                        npts=local count; npoints=total count
 
       include 'SIZE'
       include 'PARALLEL'
 
       parameter (lt2=2*lx1*ly1*lz1*lelt)
-      common /scrns/ xyz(ldim,lt2)
-      common /scruz/ mid(lt2)  ! Target proc id
+      real, pointer :: xyz(:,:)
+      integer, pointer :: mid(:)  ! Target proc id
       real    pts(ldim,npts)
+
+      xyz(1:ldim,1:lt2) => cb_scrns(1 : ldim*lt2)
+      call c_f_pointer(c_loc(cb_scruz(1)), mid, [lt2])
 
       if (lt2.gt.npts) then
 
@@ -1820,9 +1901,10 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine gen_rea_full(imid)  ! Generate and output essential parts of .rea
-                                ! Clobbers ccurve()
       include 'SIZE'
       include 'TOTAL'
+
+                                ! Clobbers ccurve()
 
 c     imid = 0  ! No midside node defs
 c     imid = 1  ! Midside defs where current curve sides don't exist

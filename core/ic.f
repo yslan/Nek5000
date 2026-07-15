@@ -1,5 +1,6 @@
 c-----------------------------------------------------------------------
       subroutine setics
+      use ctmp1_mod
 C-----------------------------------------------------------------------
 C
 C     Set initial conditions.
@@ -22,12 +23,18 @@ C-----------------------------------------------------------------------
  
       LOGICAL  IFANYP
       common /inelr/ nelrr
-      common /ctmp1/ work(lx1,ly1,lz1,lelv)
-     $ ,             ta1 (lx2,ly1,lz1)
-     $ ,             ta2 (lx2,ly2,lz1)
+      real, pointer :: work(:,:,:,:), ta1(:,:,:), ta2(:,:,:)
       integer*8 ntotg,nn
 
       real psmax(ldimt)
+
+      work(1:lx1,1:ly1,1:lz1,1:lelv) => cb_ctmp1(
+     $   0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      ta1(1:lx2,1:ly1,1:lz1) => cb_ctmp1(
+     $   1*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv+lx2*ly1*lz1)
+      ta2(1:lx2,1:ly2,1:lz1) => cb_ctmp1(
+     $   1*lx1*ly1*lz1*lelv+lx2*ly1*lz1+1
+     $ : 1*lx1*ly1*lz1*lelv+lx2*ly1*lz1+lx2*ly2*lz1)
 
       if(nio.eq.0) write(6,*) 'set initial conditions'
 
@@ -413,6 +420,10 @@ c              write(6,*) 'ifgetps:',(ifgtps(k),k=1,ldimt-1)
       end
 c-----------------------------------------------------------------------
       subroutine restart(nfiles)
+      use scrns_mod
+      use ctmp1_mod
+      use scrcg_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 C----------------------------------------------------------------------
 C
 C     (1) Open restart file(s)
@@ -442,16 +453,16 @@ C----------------------------------------------------------------------
       PARAMETER (LXYZT=LX1*LY1*LZ1*LELT)
       PARAMETER (LPSC9=LDIMT+9)
 
-      common /scrcg/ pm1(lx1*ly1*lz1,lelv)
-      COMMON /SCRNS/ SDUMP(LXYZT,7)
+      real, pointer :: pm1(:,:)
+      real, pointer :: SDUMP(:,:)
       integer mesg(40)
 
 C     note, this usage of CTMP1 will be less than elsewhere if NELT ~> 9.
-      COMMON /CTMP1/ TDUMP(LXYZR,LPSC9)
-      real*4         tdump
+      real*4, pointer :: tdump(:,:)
 c
-      REAL SDMP2(LXYZT,LDIMT)
-      common /cbresdmp/ SDMP2 
+c      REAL SDMP2(LXYZT,LDIMT)
+      REAL SDMP2(1,LDIMT)
+c      common /cbresdmp/ SDMP2 
 
 c     cdump comes in via PARALLEL (->TOTAL)
 
@@ -480,6 +491,10 @@ C     Local logical flags to determine whether to copy data or not.
       real*4   bytetest
 
 c
+      SDUMP(1:LXYZT,1:7) => cb_scrns(1 : LXYZT*7)
+      call c_f_pointer(c_loc(cb_ctmp1(1)), tdump, [LXYZR,LPSC9])
+      pm1(1:lx1*ly1*lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
+
       ifok=.false.
       ifbytsw = .false.
 
@@ -1204,6 +1219,7 @@ C
       END
 c-----------------------------------------------------------------------
       subroutine mapab(x,y,nxr,nel)
+      use ctmp0_mod
 C---------------------------------------------------------------
 C
 C     Interpolate Y(NXR,NYR,NZR,NEL) to X(lx1,ly1,lz1,NEL)
@@ -1222,14 +1238,23 @@ C
       DIMENSION X(lx1,ly1,lz1,NEL)
       DIMENSION Y(NXR,NXR,NXR,NEL)
 
-      common /ctmp0/  xa(lxyzr)      ,xb(lx1,ly1,lzr) ,xc(lxyzr)
-     $              , zgmr(lxr)      ,wgtr(lxr)
+      real, pointer :: xa(:),xb(:,:,:),xc(:),zgmr(:),wgtr(:)
       common /ctmpab/ ires(lxr,lxr)  ,itres(lxr,lxr)
       real ires,itres
 
       INTEGER NOLD
       SAVE    NOLD
       DATA    NOLD /0/
+
+      xa(1:lxyzr) => cb_ctmp0(0*lxyzr+1 : 1*lxyzr)
+      xb(1:lx1,1:ly1,1:lzr) => cb_ctmp0(1*lxyzr+1
+     $                                : 1*lxyzr+lx1*ly1*lzr)
+      xc(1:lxyzr) => cb_ctmp0(1*lxyzr+lx1*ly1*lzr+1
+     $                      : 2*lxyzr+lx1*ly1*lzr)
+      zgmr(1:lxr) => cb_ctmp0(2*lxyzr+lx1*ly1*lzr+1
+     $                      : 2*lxyzr+lx1*ly1*lzr+lxr)
+      wgtr(1:lxr) => cb_ctmp0(2*lxyzr+lx1*ly1*lzr+lxr+1
+     $                      : 2*lxyzr+lx1*ly1*lzr+2*lxr)
 
 C     Bounds checking on mapped data.
       if (nxr.gt.lxr) then
@@ -1273,6 +1298,7 @@ C
       END
 c-----------------------------------------------------------------------
       subroutine mapab4R(x,y,nxr,nel)
+      use ctmp0_mod
 C---------------------------------------------------------------
 C
 C     Interpolate Y(NXR,NYR,NZR,NEL) to X(lx1,ly1,lz1,NEL)
@@ -1294,14 +1320,23 @@ C
       REAL*4 X(lx1,ly1,lz1,NEL)
       REAL   Y(NXR,NXR,NXR,NEL)
 
-      common /ctmp0/  xa(lxyzr)      ,xb(lx1,ly1,lzr) ,xc(lxyzr)
-     $              , zgmr(lxr)      ,wgtr(lxr)
+      real, pointer :: xa(:),xb(:,:,:),xc(:),zgmr(:),wgtr(:)
       common /ctmpa4/ ires(lxr,lxr)  ,itres(lxr,lxr)
       real ires,itres
 
       INTEGER NOLD
       SAVE    NOLD
       DATA    NOLD /0/
+
+      xa(1:lxyzr) => cb_ctmp0(0*lxyzr+1 : 1*lxyzr)
+      xb(1:lx1,1:ly1,1:lzr) => cb_ctmp0(1*lxyzr+1
+     $                                : 1*lxyzr+lx1*ly1*lzr)
+      xc(1:lxyzr) => cb_ctmp0(1*lxyzr+lx1*ly1*lzr+1
+     $                      : 2*lxyzr+lx1*ly1*lzr)
+      zgmr(1:lxr) => cb_ctmp0(2*lxyzr+lx1*ly1*lzr+1
+     $                      : 2*lxyzr+lx1*ly1*lzr+lxr)
+      wgtr(1:lxr) => cb_ctmp0(2*lxyzr+lx1*ly1*lzr+lxr+1
+     $                      : 2*lxyzr+lx1*ly1*lzr+2*lxr)
 
 C     Bounds checking on mapped data.
       if (nxr.gt.lxr) then
@@ -1822,6 +1857,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine geom_reset(icall)
+      use scruz_mod
 C
 C     Generate geometry data
 C
@@ -1832,10 +1868,14 @@ C
       INCLUDE 'TSTEP'
       include 'WZ'
 c
-      COMMON /scruz/ XM3 (LX1,LY1,LZ1,LELT)
-     $ ,             YM3 (LX1,LY1,LZ1,LELT)
-     $ ,             ZM3 (LX1,LY1,LZ1,LELT)
+      real, pointer :: XM3(:,:,:,:), YM3(:,:,:,:), ZM3(:,:,:,:)
 C
+      XM3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      YM3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      ZM3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 c
       if(nio.eq.0) write(6,*) 'regenerate geometry data',icall
 
@@ -1914,12 +1954,13 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine mfi_gets(u,wk,lwk,iskip)
+      use vrthov_mod
 
-      include 'mpif.h'
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
       include 'RESTART'
+      include 'mpif.h'
 
       real u(lx1*ly1*lz1,1)
 
@@ -1928,10 +1969,9 @@ c-----------------------------------------------------------------------
 
       parameter(lrbs_loc=20*lx1*ly1*lz1)
       parameter(lrbs=lrbs_loc*lelt)
-      common /vrthov/ w2(lrbs) ! read buffer
-      real*4 w2
+      real*4, pointer :: w2(:)
 
-      integer vi(2+lrbs_loc,lelt) ! [nid,iel,(data real*8)] x nelt
+      integer, pointer :: vi(:,:) ! [nid,iel,(data real*8)] x nelt
       real*8 etime0,dnekclock_sync
 
       integer e,ei
@@ -1940,13 +1980,16 @@ c-----------------------------------------------------------------------
 
       integer*8 disp
 
-      nxyzr  = nxr*nyr*nzr  
-      dnxyzr = nxyzr 
+      w2(1:lrbs) => cb_vrthov(1:lrbs)
+      vi(1:2+lrbs_loc,1:lelt) => cb_vrthov_i(1:(2+lrbs_loc)*lelt)
+
+      nxyzr  = nxr*nyr*nzr
+      dnxyzr = nxyzr
       if (wdsizr.eq.8) nxyzr = 2*nxyzr
 
       ! check message buffer wk
       num_recv  = nxyzr*nelt
-      num_avail = size(wk)
+      num_avail = 2*lwk 
       call lim_chk(num_recv,num_avail,'     ','     ','mfi_gets a')
 
       ! setup read buffer
@@ -2128,12 +2171,13 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mfi_getv(u,v,w,wk,lwk,iskip)
+      use vrthov_mod
 
-      include 'mpif.h'
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
       include 'RESTART'
+      include 'mpif.h'
 
       real u(lx1*ly1*lz1,1),v(lx1*ly1*lz1,1),w(lx1*ly1*lz1,1)
       logical iskip
@@ -2142,10 +2186,9 @@ c-----------------------------------------------------------------------
       real*4 wkg(2*lwk) ! storage buffer
       parameter(lrbs_loc=20*lx1*ly1*lz1)
       parameter(lrbs=lrbs_loc*lelt)
-      common /vrthov/ w2(lrbs) ! read buffer
-      real*4 w2
+      real*4, pointer :: w2(:)
 
-      integer vi(2+lrbs_loc,lelt) ! [nid,iel,(data real*8)] x nelt
+      integer, pointer :: vi(:,:) ! [nid,iel,(data real*8)] x nelt
       real*8 etime0,dnekclock_sync
 
       integer e,ei
@@ -2153,12 +2196,15 @@ c-----------------------------------------------------------------------
 
       integer*8 disp
 
+      w2(1:lrbs) => cb_vrthov(1:lrbs)
+      vi(1:2+lrbs_loc,1:lelt) => cb_vrthov_i(1:(2+lrbs_loc)*lelt)
+
       nxyzr  = ldim*nxr*nyr*nzr
       if (wdsizr.eq.8) nxyzr = 2*nxyzr
 
       ! check message buffer wk
       num_recv  = nxyzr*nelt 
-      num_avail = size(wk)
+      num_avail = 2*lwk 
       call lim_chk(num_recv,num_avail,'     ','     ','mfi_getv a')
 
       ! setup read buffer
@@ -2521,6 +2567,8 @@ c      ifgtim  = .true.  ! always get time
       end
 c-----------------------------------------------------------------------
       subroutine mfi(fname_in,ifile)
+      use scrns_mod
+      use scrcg_mod
 c
 c     (1) Open restart file(s)
 c     (2) Check previous spatial discretization 
@@ -2535,10 +2583,10 @@ c     ii.  For MHD and perturbation cases, 1st file is for U,P,T;
 c          subsequent files are for B-field or perturbation fields
 c
 c
-      include 'mpif.h'
       include 'SIZE'
       include 'TOTAL'
       include 'RESTART'
+      include 'mpif.h'
 
       character*132  hdr
       character*132  fname_in
@@ -2550,8 +2598,8 @@ c
       character*1    frontc
 
       parameter (lwk = 7*lx1*ly1*lz1*lelt)
-      common /scrns/ wk(lwk)
-      common /scrcg/ pm1(lx1*ly1*lz1,lelv)
+      real, pointer :: wk(:)
+      real, pointer :: pm1(:,:)
       integer e
 
       integer*8 offs0,offs,nbyte,stride,strideB,nxyzr8
@@ -2562,6 +2610,9 @@ c
 
       integer   disp_unit
       integer*8 win_size
+
+      wk(1:lwk) => cb_scrns(1 : lwk)
+      pm1(1:lx1*ly1*lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
 
 #ifdef MPI
       lbrst = min(lbrst, lelt)
@@ -2575,7 +2626,7 @@ c
         call fgslib_crystal_setup(cr_mfi,nekcomm,np)
       else
         disp_unit = 4
-        win_size = int(disp_unit,8)*size(wk)
+        win_size = int(disp_unit,8)*lwk
         if (lbrst.lt.nelt) then
           win_size = int(disp_unit,8)*(7*lx1*ly1*lz1*lbrst)*(wdsize/4)
         endif
@@ -2787,12 +2838,13 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mfi_prepare(hname)  ! determine which nodes are readers
-      character*132 hname
 
       include 'SIZE'
       include 'PARALLEL'
       include 'RESTART'
       include 'INPUT'
+
+      character*132 hname
 
       integer stride
       character*132 hdr, hname_
@@ -2907,6 +2959,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine axis_interp_ic(pm1)
+      use ctmp0_mod
 
       include 'SIZE'
       include 'TOTAL'
@@ -2914,8 +2967,10 @@ c-----------------------------------------------------------------------
 
       real pm1(lx1,ly1,lz1,lelv)
 
-      common /ctmp0/ axism1 (lx1,ly1)
+      real, pointer :: axism1(:,:)
       integer e
+
+      axism1(1:lx1,1:ly1) => cb_ctmp0(1 : lx1*ly1)
 
       if (.not.ifaxis) return
 

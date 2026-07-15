@@ -1,5 +1,6 @@
 c-----------------------------------------------------------------------
       subroutine gen_fast(df,sr,ss,st,x,y,z)
+      use ctmpf_mod
 c
 c     Generate fast diagonalization matrices for each element
 c
@@ -12,14 +13,10 @@ c
       parameter(lxx=lx1*lx1)
       real df(lx1*ly1*lz1,1),sr(lxx*2,1),ss(lxx*2,1),st(lxx*2,1)
 c
-      common /ctmpf/  lr(2*lx1+4),ls(2*lx1+4),lt(2*lx1+4)
-     $              , llr(lelt),lls(lelt),llt(lelt)
-     $              , lmr(lelt),lms(lelt),lmt(lelt)
-     $              , lrr(lelt),lrs(lelt),lrt(lelt)
-      real lr ,ls ,lt 
-      real llr,lls,llt
-      real lmr,lms,lmt
-      real lrr,lrs,lrt
+      real, pointer :: lr(:),ls(:),lt(:)
+     $               , llr(:),lls(:),llt(:)
+     $               , lmr(:),lms(:),lmt(:)
+     $               , lrr(:),lrs(:),lrt(:)
 c
       integer lbr,rbr,lbs,rbs,lbt,rbt,e
 c
@@ -27,6 +24,28 @@ c
       real y(lx1,ly1,lz1,nelv)
       real z(lx1,ly1,lz1,nelv)
       real axwt(lx2)
+
+      lr (1:2*lx1+4) => cb_ctmpf(0*(2*lx1+4)+1 : 1*(2*lx1+4))
+      ls (1:2*lx1+4) => cb_ctmpf(1*(2*lx1+4)+1 : 2*(2*lx1+4))
+      lt (1:2*lx1+4) => cb_ctmpf(2*(2*lx1+4)+1 : 3*(2*lx1+4))
+      llr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+0*lelt+1
+     $                      : 3*(2*lx1+4)+1*lelt)
+      lls(1:lelt) => cb_ctmpf(3*(2*lx1+4)+1*lelt+1
+     $                      : 3*(2*lx1+4)+2*lelt)
+      llt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+2*lelt+1
+     $                      : 3*(2*lx1+4)+3*lelt)
+      lmr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+3*lelt+1
+     $                      : 3*(2*lx1+4)+4*lelt)
+      lms(1:lelt) => cb_ctmpf(3*(2*lx1+4)+4*lelt+1
+     $                      : 3*(2*lx1+4)+5*lelt)
+      lmt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+5*lelt+1
+     $                      : 3*(2*lx1+4)+6*lelt)
+      lrr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+6*lelt+1
+     $                      : 3*(2*lx1+4)+7*lelt)
+      lrs(1:lelt) => cb_ctmpf(3*(2*lx1+4)+7*lelt+1
+     $                      : 3*(2*lx1+4)+8*lelt)
+      lrt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+8*lelt+1
+     $                      : 3*(2*lx1+4)+9*lelt)
 
       ierr = 0
 
@@ -140,6 +159,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine gen_fast_spacing(x,y,z)
+      use ctmpf_mod
 c
 c     Generate fast diagonalization matrices for each element
 c
@@ -151,14 +171,10 @@ c
 c
       parameter(lxx=lx1*lx1)
 c
-      common /ctmpf/  lr(2*lx1+4),ls(2*lx1+4),lt(2*lx1+4)
-     $              , llr(lelt),lls(lelt),llt(lelt)
-     $              , lmr(lelt),lms(lelt),lmt(lelt)
-     $              , lrr(lelt),lrs(lelt),lrt(lelt)
-      real lr ,ls ,lt 
-      real llr,lls,llt
-      real lmr,lms,lmt
-      real lrr,lrs,lrt
+      real, pointer :: lr(:),ls(:),lt(:)
+     $               , llr(:),lls(:),llt(:)
+     $               , lmr(:),lms(:),lmt(:)
+     $               , lrr(:),lrs(:),lrt(:)
 c
       integer lbr,rbr,lbs,rbs,lbt,rbt,e
 c
@@ -166,6 +182,28 @@ c
       real y(lx1,ly1,lz1,nelv)
       real z(lx1,ly1,lz1,nelv)
       real axwt(lx2)
+
+      lr (1:2*lx1+4) => cb_ctmpf(0*(2*lx1+4)+1 : 1*(2*lx1+4))
+      ls (1:2*lx1+4) => cb_ctmpf(1*(2*lx1+4)+1 : 2*(2*lx1+4))
+      lt (1:2*lx1+4) => cb_ctmpf(2*(2*lx1+4)+1 : 3*(2*lx1+4))
+      llr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+0*lelt+1
+     $                      : 3*(2*lx1+4)+1*lelt)
+      lls(1:lelt) => cb_ctmpf(3*(2*lx1+4)+1*lelt+1
+     $                      : 3*(2*lx1+4)+2*lelt)
+      llt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+2*lelt+1
+     $                      : 3*(2*lx1+4)+3*lelt)
+      lmr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+3*lelt+1
+     $                      : 3*(2*lx1+4)+4*lelt)
+      lms(1:lelt) => cb_ctmpf(3*(2*lx1+4)+4*lelt+1
+     $                      : 3*(2*lx1+4)+5*lelt)
+      lmt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+5*lelt+1
+     $                      : 3*(2*lx1+4)+6*lelt)
+      lrr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+6*lelt+1
+     $                      : 3*(2*lx1+4)+7*lelt)
+      lrs(1:lelt) => cb_ctmpf(3*(2*lx1+4)+7*lelt+1
+     $                      : 3*(2*lx1+4)+8*lelt)
+      lrt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+8*lelt+1
+     $                      : 3*(2*lx1+4)+9*lelt)
 
       ierr = 0
 
@@ -800,13 +838,14 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine get_fast_bc(lbr,rbr,lbs,rbs,lbt,rbt,e,bsym,ierr)
-      integer                lbr,rbr,lbs,rbs,lbt,rbt,e,bsym
-c
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
       include 'TOPOL'
       include 'TSTEP'
+
+      integer                lbr,rbr,lbs,rbs,lbt,rbt,e,bsym
+c
 c
       integer fbc(6)
 c
@@ -1540,23 +1579,44 @@ c        or maybe i should go from 0 to n-1
       end
 c-----------------------------------------------------------------------
       subroutine swap_lengths
+      use swaplengths_mod
+      use ctmpf_mod
 
       include 'SIZE'
       include 'INPUT'
       include 'GEOM'
       include 'WZ'
-      common /swaplengths/ l(lx1,ly1,lz1,lelv)
-      common /ctmpf/  lr(2*lx1+4),ls(2*lx1+4),lt(2*lx1+4)
-     $              , llr(lelt),lls(lelt),llt(lelt)
-     $              , lmr(lelt),lms(lelt),lmt(lelt)
-     $              , lrr(lelt),lrs(lelt),lrt(lelt)
-      real lr ,ls ,lt
-      real llr,lls,llt
-      real lmr,lms,lmt
-      real lrr,lrs,lrt
+      real, pointer :: l(:,:,:,:)
+      real, pointer :: lr(:),ls(:),lt(:)
+     $               , llr(:),lls(:),llt(:)
+     $               , lmr(:),lms(:),lmt(:)
+     $               , lrr(:),lrs(:),lrt(:)
 
-      real l,l2d
+      real l2d
       integer e
+
+      l(1:lx1,1:ly1,1:lz1,1:lelv) => cb_swaplengths(1:lx1*ly1*lz1*lelv)
+      lr (1:2*lx1+4) => cb_ctmpf(0*(2*lx1+4)+1 : 1*(2*lx1+4))
+      ls (1:2*lx1+4) => cb_ctmpf(1*(2*lx1+4)+1 : 2*(2*lx1+4))
+      lt (1:2*lx1+4) => cb_ctmpf(2*(2*lx1+4)+1 : 3*(2*lx1+4))
+      llr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+0*lelt+1
+     $                      : 3*(2*lx1+4)+1*lelt)
+      lls(1:lelt) => cb_ctmpf(3*(2*lx1+4)+1*lelt+1
+     $                      : 3*(2*lx1+4)+2*lelt)
+      llt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+2*lelt+1
+     $                      : 3*(2*lx1+4)+3*lelt)
+      lmr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+3*lelt+1
+     $                      : 3*(2*lx1+4)+4*lelt)
+      lms(1:lelt) => cb_ctmpf(3*(2*lx1+4)+4*lelt+1
+     $                      : 3*(2*lx1+4)+5*lelt)
+      lmt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+5*lelt+1
+     $                      : 3*(2*lx1+4)+6*lelt)
+      lrr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+6*lelt+1
+     $                      : 3*(2*lx1+4)+7*lelt)
+      lrs(1:lelt) => cb_ctmpf(3*(2*lx1+4)+7*lelt+1
+     $                      : 3*(2*lx1+4)+8*lelt)
+      lrt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+8*lelt+1
+     $                      : 3*(2*lx1+4)+9*lelt)
 
       n2 = lx1-1
       nz0 = 1
@@ -1626,6 +1686,11 @@ c----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mhd_bc_dn(ibc,face,e)
+      include 'SIZE'
+      include 'TOPOL'
+      include 'INPUT'
+      include 'TSTEP'
+
       integer                  face,e
 c
 c     sets Neumann BC on pressure (ibc=2) for face and e(lement) except
@@ -1634,10 +1699,6 @@ c     boundary condition setting ibc=1 (i.e. Direchlet BC on pressure)
 c
 c     Note: 'SYM' on a plane with r,s,t-normal is 'dnn','ndn','nnd'? bsym?
 c
-      include 'SIZE'
-      include 'TOPOL'
-      include 'INPUT'
-      include 'TSTEP'
 
       ied = eface(face)	! symmetric -> preprocessor notation
       nfc = face+1

@@ -36,6 +36,8 @@ c      if (istep.ge.nsteps) lastep=1
       end
 c-----------------------------------------------------------------------
       subroutine check_ioinfo
+      use ctmp1_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
 c     Check for io request in file 'ioinfo'
 
@@ -45,10 +47,8 @@ c     Check for io request in file 'ioinfo'
 
       parameter (lxyz=lx1*ly1*lz1)
       parameter (lpsc9=ldimt1+9)
-      common /ctmp1/ tdump(lxyz,lpsc9)
-      real*4         tdump
-      real           tdmp(4)
-      equivalence   (tdump,tdmp)
+      real*4, pointer :: tdump(:,:)
+      real,   pointer :: tdmp(:)
 
       integer maxstep
       save    maxstep
@@ -58,9 +58,12 @@ c     Check for io request in file 'ioinfo'
       character*1   fname1(132)
       equivalence  (fname,fname1)
 
+      call c_f_pointer(c_loc(cb_ctmp1(1)), tdump, [lxyz,lpsc9])
+      tdmp(1:4) => cb_ctmp1(1:4)
+
       ioinfodmp=0
       if (nid.eq.0 .and. (mod(istep,10).eq.0 .or. istep.lt.200)) then
-         call blank(fname1,size(fname1))
+         call blank(fname1,132)
          len = ltrunc(path,132)
          call chcopy(fname1,path,len)
          call chcopy(fname1(len+1),'ioinfo',6)
@@ -88,6 +91,7 @@ c     Check for io request in file 'ioinfo'
       end
 c-----------------------------------------------------------------------
       subroutine prepost(ifdoin,prefin)
+      use scrcg_mod
 
 c     Store results for later postprocessing
 c
@@ -101,11 +105,13 @@ c
       include 'TOTAL'
       include 'CTIMER'
 
-      common /scrcg/ pm1 (lx1,ly1,lz1,lelv)
+      real, pointer :: pm1(:,:,:,:)
 
       character*3    prefin,prefix
 
       logical  ifdoin
+
+      pm1(1:lx1,1:ly1,1:lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
 
       if (ioinfodmp.eq.-2) return
 
@@ -133,6 +139,9 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine prepost_map(isave) ! isave=0-->fwd, isave=1-->bkwd
+      use scrcg_mod
+      use scrmg_mod
+      use scruz_mod
 
 c     Store results for later postprocessing
 
@@ -141,16 +150,27 @@ c     Store results for later postprocessing
 C
 C     Work arrays and temporary arrays
 C
-      common /scruz/ vxax   (lx1,ly1,lelv)
-     $             , vyax   (lx1,ly1,lelv)
-     $             , prax   (lx2,ly2,lelv)
-     $             , yax    (lx1,ly1,lelt)
-      common /scrmg/ tax    (lx1,ly1,lelt,ldimt)
-      common /scrcg/ pm1    (lx1,ly1,lz1,lelv)
+      real, pointer :: vxax(:,:,:), vyax(:,:,:), prax(:,:,:)
+     $               , yax(:,:,:)
+      real, pointer :: tax(:,:,:,:)
+      real, pointer :: pm1(:,:,:,:)
 C
 c
       common /prepst/ pa(lx1,ly2,lz2),pb(lx1,ly1,lz2)
       integer e
+
+      pm1(1:lx1,1:ly1,1:lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
+      tax(1:lx1,1:ly1,1:lelt,1:ldimt) =>
+     $   cb_scrmg(1 : lx1*ly1*lelt*ldimt)
+      vxax(1:lx1,1:ly1,1:lelv) => cb_scruz(0*lx1*ly1*lelv+1
+     $                                    : 1*lx1*ly1*lelv)
+      vyax(1:lx1,1:ly1,1:lelv) => cb_scruz(1*lx1*ly1*lelv+1
+     $                                    : 2*lx1*ly1*lelv)
+      prax(1:lx2,1:ly2,1:lelv) => cb_scruz(2*lx1*ly1*lelv+1
+     $                                    : 2*lx1*ly1*lelv+lx2*ly2*lelv)
+      yax(1:lx1,1:ly1,1:lelt) => cb_scruz(
+     $   2*lx1*ly1*lelv+lx2*ly2*lelv+1
+     $ : 2*lx1*ly1*lelv+lx2*ly2*lelv+lx1*ly1*lelt)
 
       if (isave.eq.0) then ! map to GLL grid
 
@@ -249,8 +269,11 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine outfld(prefix)
+      use ctmp1_mod
+      use scrcg_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
-c     output .fld file 
+c     output .fld file
 
       include 'SIZE'
       include 'TOTAL'
@@ -258,15 +281,13 @@ c     output .fld file
 C
 C     Work arrays and temporary arrays
 C
-      common /scrcg/ pm1 (lx1,ly1,lz1,lelv)
+      real, pointer :: pm1(:,:,:,:)
 c
 c     note, this usage of CTMP1 will be less than elsewhere if NELT ~> 3.
       parameter (lxyz=lx1*ly1*lz1)
       parameter (lpsc9=ldimt1+9)
-      common /ctmp1/ tdump(lxyz,lpsc9)
-      real*4         tdump
-      real           tdmp(4)
-      equivalence   (tdump,tdmp)
+      real*4, pointer :: tdump(:,:)
+      real,   pointer :: tdmp(:)
 
       real*4         test_pattern
 
@@ -286,11 +307,15 @@ c     note, this usage of CTMP1 will be less than elsewhere if NELT ~> 3.
 
       logical ifxyo_s
 
-      if(nio.eq.0) then 
+      call c_f_pointer(c_loc(cb_ctmp1(1)), tdump, [lxyz,lpsc9])
+      tdmp(1:4) => cb_ctmp1(1:4)
+      pm1(1:lx1,1:ly1,1:lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
+
+      if(nio.eq.0) then
         WRITE(6,1001) istep,time
  1001   FORMAT(/,i9,1pe12.4,' Write checkpoint')
       endif
-      call nekgsync()      
+      call nekgsync()
 
       p66 = param(66)
       if (abs(p66).eq.6) then
@@ -455,8 +480,6 @@ C----------------------------------------------------------------------
 C
       CHARACTER*132 NAME
       CHARACTER*1   SESS1(132),PATH1(132),NAM1(132)
-      EQUIVALENCE  (SESSION,SESS1)
-      EQUIVALENCE  (PATH,PATH1)
       EQUIVALENCE  (NAME,NAM1)
       CHARACTER*1  DMP(4),FLD(4),REA(4),HIS(4),SCH(4) ,ORE(4), NRE(4)
       CHARACTER*4  DMP4  ,FLD4  ,REA4  ,HIS4  ,SCH4   ,ORE4  , NRE4
@@ -470,6 +493,9 @@ C
       CHARACTER*78  STRING
 c
       character*1    prefix(3)
+
+      sess1 = transfer(session, sess1)
+      path1 = transfer(path, path1)
 C
       call blank(name  ,132)
       call blank(fldfle,132)
@@ -701,11 +727,12 @@ C       write byte-ordering test pattern to byte file...
       end
 c-----------------------------------------------------------------------
       subroutine fill_tmp(tdump,id,ie)
+      use scrcg_mod
 C
       include 'SIZE'
       include 'TOTAL'
 c
-      common /scrcg/ pm1 (lx1,ly1,lz1,lelv)
+      real, pointer :: pm1(:,:,:,:)
 C
 C     Fill work array
 C
@@ -713,6 +740,8 @@ C
       parameter (lpsc9=ldimt1+9)
       real*4 tdump(lxyz,lpsc9)
 C
+      pm1(1:lx1,1:ly1,1:lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
+
       nxyz = lx1*ly1*lz1
 c
       ID=0
@@ -808,6 +837,8 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine out_tmp(id,p66,ierr)
+      use ctmp1_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'TOTAL'
@@ -815,10 +846,11 @@ c-----------------------------------------------------------------------
       parameter (lxyz=lx1*ly1*lz1)
       parameter (lpsc9=ldimt1+9)
 
-      common /ctmp1/ tdump(lxyz,lpsc9)
-      real*4         tdump
+      real*4, pointer :: tdump(:,:)
 
       character*11 frmat
+
+      call c_f_pointer(c_loc(cb_ctmp1(1)), tdump, [lxyz,lpsc9])
 
       nxyz = lx1*ly1*lz1
 
@@ -848,21 +880,29 @@ C        C binary i/o
       end
 c-----------------------------------------------------------------------
       subroutine mfo_outfld(prefix)  ! muti-file output
+      use scrcg_mod
+      use scruz_mod
 
       include 'SIZE'
       include 'TOTAL'
       include 'RESTART'
-      common /scrcg/ pm1 (lx1,ly1,lz1,lelv)  ! mapped pressure
+      real, pointer :: pm1(:,:,:,:)  ! mapped pressure
 
       integer*8 offs0,offs,nbyte,stride,strideB,nxyzo8
       character prefix*(*)
       logical ifxyo_s
 
       integer cnt, cntg
- 
-      common /SCRUZ/  ur1(lxo*lxo*lxo*lelt)
-     &              , ur2(lxo*lxo*lxo*lelt)
-     &              , ur3(lxo*lxo*lxo*lelt)
+
+      real, pointer :: ur1(:), ur2(:), ur3(:)
+
+      pm1(1:lx1,1:ly1,1:lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
+      ur1(1:lxo*lxo*lxo*lelt) => cb_scruz(0*lxo*lxo*lxo*lelt+1
+     $                                   : 1*lxo*lxo*lxo*lelt)
+      ur2(1:lxo*lxo*lxo*lelt) => cb_scruz(1*lxo*lxo*lxo*lelt+1
+     $                                   : 2*lxo*lxo*lxo*lelt)
+      ur3(1:lxo*lxo*lxo*lelt) => cb_scruz(2*lxo*lxo*lxo*lelt+1
+     $                                   : 3*lxo*lxo*lxo*lelt)
 
       tiostart=dnekclock_sync()
 
@@ -1071,13 +1111,13 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine io_init ! determine which nodes will output
-      character*132 hname
 
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
       include 'RESTART'
 
+      character*132 hname
       integer cnt
 
       ifdiro = .false.
@@ -1363,12 +1403,12 @@ c
 c-----------------------------------------------------------------------
       subroutine full_restart_save(iosave)
 
-      integer iosave,save_size,nfld_save
-      logical if_full_pres_tmp
-
       include 'SIZE'
       include 'INPUT'
       include 'TSTEP'
+
+      integer iosave,save_size,nfld_save
+      logical if_full_pres_tmp
 
       if (PARAM(27).lt. 0) then
           nfld_save=abs(PARAM(27))  ! For full restart
@@ -1392,10 +1432,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine restart_save(iosave,nfldi)
-
-      integer iosave,nfldi
-
-
+c
 c     Save current fields for later restart.
 c
 c     Input arguments:
@@ -1404,11 +1441,12 @@ c       .iosave plays the usual triggering role, like iostep
 c
 c       .nfldi is the number of rs files to save before overwriting
 c
-
+c
       include 'SIZE'
       include 'TOTAL'
       include 'RESTART'
 
+      integer iosave,nfldi
       character*3 prefix
 
       character*17 kst
@@ -1474,6 +1512,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine outpost2(v1,v2,v3,vp,vt,nfldt,name3)
+      use outtmp_mod
 
       include 'SIZE'
       include 'SOLN'
@@ -1481,13 +1520,19 @@ c-----------------------------------------------------------------------
 
       parameter(ltot1=lx1*ly1*lz1*lelt)
       parameter(ltot2=lx2*ly2*lz2*lelv)
-      common /outtmp/  w1(ltot1),w2(ltot1),w3(ltot1),wp(ltot2)
-     &                ,wt(ltot1,ldimt)
+      real, pointer :: w1(:),w2(:),w3(:),wp(:),wt(:,:)
 c
       real v1(1),v2(1),v3(1),vp(1),vt(ltot1,1)
       character*3 name3
       logical if_save(ldimt)
 c
+      w1(1:ltot1) => cb_outtmp(0*ltot1+1 : 1*ltot1)
+      w2(1:ltot1) => cb_outtmp(1*ltot1+1 : 2*ltot1)
+      w3(1:ltot1) => cb_outtmp(2*ltot1+1 : 3*ltot1)
+      wp(1:ltot2) => cb_outtmp(3*ltot1+1 : 3*ltot1+ltot2)
+      wt(1:ltot1,1:ldimt) => cb_outtmp(3*ltot1+ltot2+1
+     $                                : 3*ltot1+ltot2+ltot1*ldimt)
+
       ntot1  = lx1*ly1*lz1*nelt
       ntot1t = lx1*ly1*lz1*nelt
       ntot2  = lx2*ly2*lz2*nelt
@@ -1791,6 +1836,8 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mfo_outs(u,nel,mx,my,mz)   ! output a scalar field
+      use scrns_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'INPUT'
@@ -1799,13 +1846,16 @@ c-----------------------------------------------------------------------
 
       real u(mx*my*mz,1)
 
-      common /SCRNS/ u4(2+lxo*lxo*lxo*2*lelt)
-      real*4         u4
-      real*8         u8(1+lxo*lxo*lxo*1*lelt)
-      equivalence    (u4,u8)
+      real*4, pointer :: u4(:)
+      real*8, pointer :: u8(:)
 
       integer e
       integer cnt
+
+      call c_f_pointer(c_loc(cb_scrns(1)), u4,
+     $                 [2+lxo*lxo*lxo*2*lelt])
+      u8(1:1+lxo*lxo*lxo*1*lelt) =>
+     $   cb_scrns(1 : 1+lxo*lxo*lxo*1*lelt)
 
       call nekgsync() ! clear outstanding message queues.
       if(mx.gt.lxo .or. my.gt.lxo .or. mz.gt.lxo) then
@@ -1902,6 +1952,8 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mfo_outv(u,v,w,nel,mx,my,mz)   ! output a vector field
+      use scrns_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'INPUT'
@@ -1910,13 +1962,16 @@ c-----------------------------------------------------------------------
 
       real u(mx*my*mz,1),v(mx*my*mz,1),w(mx*my*mz,1)
 
-      common /SCRNS/ u4(2+lxo*lxo*lxo*6*lelt)
-      real*4         u4
-      real*8         u8(1+lxo*lxo*lxo*3*lelt)
-      equivalence    (u4,u8)
+      real*4, pointer :: u4(:)
+      real*8, pointer :: u8(:)
 
       integer e
       integer cnt
+
+      call c_f_pointer(c_loc(cb_scrns(1)), u4,
+     $                 [2+lxo*lxo*lxo*6*lelt])
+      u8(1:1+lxo*lxo*lxo*3*lelt) =>
+     $   cb_scrns(1 : 1+lxo*lxo*lxo*3*lelt)
 
       call nekgsync() ! clear outstanding message queues.
       if(mx.gt.lxo .or. my.gt.lxo .or. mz.gt.lxo) then
@@ -2037,6 +2092,8 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mfo_write_hdr(varcode)          ! write hdr, byte key, els.
+      use ctmp0_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'SOLN'
@@ -2049,13 +2106,16 @@ c-----------------------------------------------------------------------
       character*4 chrefcuts
 
       real*4 test_pattern
-      common /ctmp0/ lglist(0:lelt)
+      integer, pointer :: lglist0(:), lglist(:)
 
       character*132 hdr
       integer*8 ioff
       logical if_press_mesh
 
       integer cnt, cntg
+
+      call c_f_pointer(c_loc(cb_ctmp0(1)), lglist0, [lelt+1])
+      lglist(0:lelt) => lglist0
 
       call nekgsync()
       idum = 1

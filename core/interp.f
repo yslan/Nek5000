@@ -24,12 +24,20 @@ c
       data ihcounter /0/
       save ihcounter
 
-      real xmi, ymi, zmi
-      common /CBXMI/ xmi(lx1*ly1*lz1*lelt),
-     $               ymi(lx1*ly1*lz1*lelt),
-     $               zmi(lx1*ly1*lz1*lelt)
- 
-      real w(2*lx1**3)
+      real, allocatable, target, save :: cb_cbxmi(:)
+      real, pointer :: xmi(:), ymi(:), zmi(:)
+
+      parameter(lw = 2*lx1**3)
+      real w(lw)
+
+      if (.not. allocated(cb_cbxmi))
+     $   allocate(cb_cbxmi(3*lx1*ly1*lz1*lelt))
+      xmi(1:lx1*ly1*lz1*lelt) => cb_cbxmi(0*lx1*ly1*lz1*lelt+1
+     $                                    : 1*lx1*ly1*lz1*lelt)
+      ymi(1:lx1*ly1*lz1*lelt) => cb_cbxmi(1*lx1*ly1*lz1*lelt+1
+     $                                    : 2*lx1*ly1*lz1*lelt)
+      zmi(1:lx1*ly1*lz1*lelt) => cb_cbxmi(2*lx1*ly1*lz1*lelt+1
+     $                                    : 3*lx1*ly1*lz1*lelt)
 
       tol = max(5e-13,tolin)
       npt_max = 128
@@ -46,12 +54,12 @@ c
          if (if3d) nzi = nxi
          do ie = 1,nelm
            call map_m_to_n(xmi((ie-1)*nxi*nyi*nzi + 1),nxi,xm1(1,1,1,ie)
-     $                     ,lx1,if3d,w,size(w))
+     $                     ,lx1,if3d,w,lw)
            call map_m_to_n(ymi((ie-1)*nxi*nyi*nzi + 1),nyi,ym1(1,1,1,ie)
-     $                     ,ly1,if3d,w,size(w))
+     $                     ,ly1,if3d,w,lw)
            if (if3d) 
      $     call map_m_to_n(zmi((ie-1)*nxi*nyi*nzi + 1),nzi,zm1(1,1,1,ie)
-     $                     ,lz1,if3d,w,size(w))
+     $                     ,lz1,if3d,w,lw)
          enddo
 
          n = nelm*nxi*nyi*nzi 

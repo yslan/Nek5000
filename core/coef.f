@@ -388,6 +388,11 @@ C
       RETURN
       END
       subroutine glmapm3 (xm3,ym3,zm3)
+      use scrns_mod
+      use ctmp1_mod
+      use ctmp0_mod
+      use scrmg_mod
+      use screv_mod
 C-------------------------------------------------------------------
 C
 C     Routine to generate mapping data based on mesh 3
@@ -408,29 +413,57 @@ C
 C     Note : work arrays for mesh 3 in scratch commons will be 
 C            changed after exit of routine.
 C
-      COMMON /SCRNS/ XRM3 (LX3,LY3,LZ3,LELT)
-     $ ,             XSM3 (LX3,LY3,LZ3,LELT)
-     $ ,             XTM3 (LX3,LY3,LZ3,LELT)
-     $ ,             YRM3 (LX3,LY3,LZ3,LELT)
-     $ ,             YSM3 (LX3,LY3,LZ3,LELT)
-     $ ,             YTM3 (LX3,LY3,LZ3,LELT)
-     $ ,             ZRM3 (LX3,LY3,LZ3,LELT)
-      COMMON /CTMP0/ ZSM3 (LX3,LY3,LZ3,LELT)
-     $ ,             ZTM3 (LX3,LY3,LZ3,LELT)
-      COMMON /CTMP1/ RXM3 (LX3,LY3,LZ3,LELT)
-     $ ,             RYM3 (LX3,LY3,LZ3,LELT)
-     $ ,             RZM3 (LX3,LY3,LZ3,LELT)
-     $ ,             SXM3 (LX3,LY3,LZ3,LELT)
-      COMMON /SCRMG/ SYM3 (LX3,LY3,LZ3,LELT)
-     $ ,             SZM3 (LX3,LY3,LZ3,LELT)
-     $ ,             TXM3 (LX3,LY3,LZ3,LELT)
-     $ ,             TYM3 (LX3,LY3,LZ3,LELT)
-      COMMON /SCREV/ TZM3 (LX3,LY3,LZ3,LELT)
-     $ ,             JACM3(LX3,LY3,LZ3,LELT)
-      REAL           JACM3
+      real, pointer :: XRM3(:,:,:,:), XSM3(:,:,:,:), XTM3(:,:,:,:)
+     $               , YRM3(:,:,:,:), YSM3(:,:,:,:), YTM3(:,:,:,:)
+     $               , ZRM3(:,:,:,:)
+      real, pointer :: ZSM3(:,:,:,:), ZTM3(:,:,:,:)
+      real, pointer :: RXM3(:,:,:,:), RYM3(:,:,:,:), RZM3(:,:,:,:)
+     $               , SXM3(:,:,:,:)
+      real, pointer :: SYM3(:,:,:,:), SZM3(:,:,:,:)
+     $               , TXM3(:,:,:,:), TYM3(:,:,:,:)
+      real, pointer :: TZM3(:,:,:,:), JACM3(:,:,:,:)
       DIMENSION XM3(LX3,LY3,LZ3,1)
      $        , YM3(LX3,LY3,LZ3,1)
      $        , ZM3(LX3,LY3,LZ3,1)
+C
+      XRM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrns(0*lx3*ly3*lz3*lelt+1 : 1*lx3*ly3*lz3*lelt)
+      XSM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrns(1*lx3*ly3*lz3*lelt+1 : 2*lx3*ly3*lz3*lelt)
+      XTM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrns(2*lx3*ly3*lz3*lelt+1 : 3*lx3*ly3*lz3*lelt)
+      YRM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrns(3*lx3*ly3*lz3*lelt+1 : 4*lx3*ly3*lz3*lelt)
+      YSM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrns(4*lx3*ly3*lz3*lelt+1 : 5*lx3*ly3*lz3*lelt)
+      YTM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrns(5*lx3*ly3*lz3*lelt+1 : 6*lx3*ly3*lz3*lelt)
+      ZRM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrns(6*lx3*ly3*lz3*lelt+1 : 7*lx3*ly3*lz3*lelt)
+      RXM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_ctmp1(0*lx3*ly3*lz3*lelt+1 : 1*lx3*ly3*lz3*lelt)
+      RYM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_ctmp1(1*lx3*ly3*lz3*lelt+1 : 2*lx3*ly3*lz3*lelt)
+      RZM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_ctmp1(2*lx3*ly3*lz3*lelt+1 : 3*lx3*ly3*lz3*lelt)
+      SXM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_ctmp1(3*lx3*ly3*lz3*lelt+1 : 4*lx3*ly3*lz3*lelt)
+      ZSM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_ctmp0(0*lx3*ly3*lz3*lelt+1 : 1*lx3*ly3*lz3*lelt)
+      ZTM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_ctmp0(1*lx3*ly3*lz3*lelt+1 : 2*lx3*ly3*lz3*lelt)
+      SYM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrmg(0*lx3*ly3*lz3*lelt+1 : 1*lx3*ly3*lz3*lelt)
+      SZM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrmg(1*lx3*ly3*lz3*lelt+1 : 2*lx3*ly3*lz3*lelt)
+      TXM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrmg(2*lx3*ly3*lz3*lelt+1 : 3*lx3*ly3*lz3*lelt)
+      TYM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scrmg(3*lx3*ly3*lz3*lelt+1 : 4*lx3*ly3*lz3*lelt)
+      TZM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_screv(0*lx3*ly3*lz3*lelt+1 : 1*lx3*ly3*lz3*lelt)
+      JACM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_screv(1*lx3*ly3*lz3*lelt+1 : 2*lx3*ly3*lz3*lelt)
 C
       NXY3  = lx3*ly3
       NYZ3  = ly3*lz3
@@ -553,6 +586,8 @@ C
       RETURN
       END
       subroutine glmapm1
+      use scrns_mod
+      use ctmp1_mod
 C-----------------------------------------------------------------------
 C
 C     Routine to generate mapping data based on mesh 1
@@ -575,15 +610,29 @@ C
 C     Note: Subroutines GLMAPM1, GEODAT1, AREA2, SETWGTR and AREA3 
 C           share the same array structure in Scratch Common /SCRNS/.
 C
-      COMMON /SCRNS/ XRM1(LX1,LY1,LZ1,LELT)
-     $ ,             YRM1(LX1,LY1,LZ1,LELT)
-     $ ,             XSM1(LX1,LY1,LZ1,LELT)
-     $ ,             YSM1(LX1,LY1,LZ1,LELT)
-     $ ,             XTM1(LX1,LY1,LZ1,LELT)
-     $ ,             YTM1(LX1,LY1,LZ1,LELT)
-     $ ,             ZRM1(LX1,LY1,LZ1,LELT)
-      COMMON /CTMP1/ ZSM1(LX1,LY1,LZ1,LELT)
-     $ ,             ZTM1(LX1,LY1,LZ1,LELT)
+      real, pointer :: XRM1(:,:,:,:), YRM1(:,:,:,:), XSM1(:,:,:,:)
+     $               , YSM1(:,:,:,:), XTM1(:,:,:,:), YTM1(:,:,:,:)
+     $               , ZRM1(:,:,:,:)
+      real, pointer :: ZSM1(:,:,:,:), ZTM1(:,:,:,:)
+C
+      XRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      YRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      XSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      YSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
+      XTM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelt+1 : 5*lx1*ly1*lz1*lelt)
+      YTM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelt+1 : 6*lx1*ly1*lz1*lelt)
+      ZRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(6*lx1*ly1*lz1*lelt+1 : 7*lx1*ly1*lz1*lelt)
+      ZSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      ZTM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 C
       NXY1  = lx1*ly1
       NYZ1  = ly1*lz1
@@ -631,6 +680,8 @@ C
       RETURN
       END
       subroutine geodat1
+      use scrns_mod
+      use ctmp1_mod
 C-----------------------------------------------------------------------
 C
 C     Routine to generate elemental geometric matrices on mesh 1
@@ -647,16 +698,31 @@ C
 C     Note: Subroutines GLMAPM1, GEODAT1, AREA2, SETWGTR and AREA3 
 C           share the same array structure in Scratch Common /SCRNS/.
 C
-      COMMON /SCRNS/ XRM1(LX1,LY1,LZ1,LELT)
-     $ ,             YRM1(LX1,LY1,LZ1,LELT)
-     $ ,             XSM1(LX1,LY1,LZ1,LELT)
-     $ ,             YSM1(LX1,LY1,LZ1,LELT)
-     $ ,             XTM1(LX1,LY1,LZ1,LELT)
-     $ ,             YTM1(LX1,LY1,LZ1,LELT)
-     $ ,             ZRM1(LX1,LY1,LZ1,LELT)
-      COMMON /CTMP1/ ZSM1(LX1,LY1,LZ1,LELT)
-     $ ,             ZTM1(LX1,LY1,LZ1,LELT)
-     $ ,             WJ   (LX1,LY1,LZ1,LELT)
+      real, pointer :: XRM1(:,:,:,:), YRM1(:,:,:,:), XSM1(:,:,:,:)
+     $               , YSM1(:,:,:,:), XTM1(:,:,:,:), YTM1(:,:,:,:)
+     $               , ZRM1(:,:,:,:)
+      real, pointer :: ZSM1(:,:,:,:), ZTM1(:,:,:,:), WJ(:,:,:,:)
+C
+      XRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      YRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      XSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      YSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
+      XTM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelt+1 : 5*lx1*ly1*lz1*lelt)
+      YTM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelt+1 : 6*lx1*ly1*lz1*lelt)
+      ZRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(6*lx1*ly1*lz1*lelt+1 : 7*lx1*ly1*lz1*lelt)
+      ZSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      ZTM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      WJ  (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 C
       NXYZ1 = lx1*ly1*lz1
       NTOT1 = NXYZ1*NELT
@@ -1230,6 +1296,8 @@ C
       RETURN
       END
       subroutine area2
+      use scrns_mod
+      use ctmp0_mod
 C--------------------------------------------------------------------
 C
 C     Compute areas, normals and tangents (2D and Axisymmetric geom.)
@@ -1241,14 +1309,26 @@ C
 C     Note: Subroutines GLMAPM1, GEODAT1, AREA2, SETWGTR and AREA3 
 C           share the same array structure in Scratch Common /SCRNS/.
 C
-      COMMON /SCRNS/ XRM1(LX1,LY1,LZ1,LELT)
-     $ ,             YRM1(LX1,LY1,LZ1,LELT)
-     $ ,             XSM1(LX1,LY1,LZ1,LELT)
-     $ ,             YSM1(LX1,LY1,LZ1,LELT)
-      COMMON /CTMP0/ WGTR1(LX1,LELT)
-     $ ,             WGTR2(LY1,LELT)
-     $ ,             WGTR3(LX1,LELT)
-     $ ,             WGTR4(LY1,LELT)
+      real, pointer :: XRM1(:,:,:,:), YRM1(:,:,:,:), XSM1(:,:,:,:)
+     $               , YSM1(:,:,:,:)
+      real, pointer :: WGTR1(:,:), WGTR2(:,:), WGTR3(:,:), WGTR4(:,:)
+C
+      WGTR1(1:lx1,1:lelt) => cb_ctmp0(0*lx1*lelt+1 : 1*lx1*lelt)
+      WGTR2(1:ly1,1:lelt) => cb_ctmp0(1*lx1*lelt+1
+     $                              : 1*lx1*lelt+ly1*lelt)
+      WGTR3(1:lx1,1:lelt) => cb_ctmp0(1*lx1*lelt+ly1*lelt+1
+     $                              : 2*lx1*lelt+ly1*lelt)
+      WGTR4(1:ly1,1:lelt) => cb_ctmp0(2*lx1*lelt+ly1*lelt+1
+     $                              : 2*lx1*lelt+2*ly1*lelt)
+C
+      XRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      YRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      XSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      YSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
 C
       CALL SETWGTR (WGTR1,WGTR2,WGTR3,WGTR4)
 C
@@ -1299,6 +1379,7 @@ C
       RETURN
       END
       subroutine setwgtr (wgtr1,wgtr2,wgtr3,wgtr4)
+      use scrns_mod
 C
       INCLUDE 'SIZE'
       INCLUDE 'GEOM'
@@ -1308,15 +1389,22 @@ C
 C     Note: Subroutines GLMAPM1, GEODAT1, AREA2, SETWGTR and AREA3 
 C           share the same array structure in Scratch Common /SCRNS/.
 C
-      COMMON /SCRNS/ XRM1(LX1,LY1,LZ1,LELT)
-     $ ,             YRM1(LX1,LY1,LZ1,LELT)
-     $ ,             XSM1(LX1,LY1,LZ1,LELT)
-     $ ,             YSM1(LX1,LY1,LZ1,LELT)
+      real, pointer :: XRM1(:,:,:,:), YRM1(:,:,:,:), XSM1(:,:,:,:)
+     $               , YSM1(:,:,:,:)
 C
       DIMENSION WGTR1(LX1,1)
      $ ,        WGTR2(LY1,1)
      $ ,        WGTR3(LX1,1)
      $ ,        WGTR4(LY1,1)
+C
+      XRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      YRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      XSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      YSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
 C
       IF (IFAXIS) THEN
          DO 100 IEL=1,NELT
@@ -1352,6 +1440,9 @@ C
       RETURN
       END
       subroutine area3
+      use scrns_mod
+      use ctmp1_mod
+      use ctmp0_mod
 C--------------------------------------------------------------------
 C
 C     Compute areas, normals and tangents (3D geom.)
@@ -1364,19 +1455,39 @@ C
 C     Note: Subroutines GLMAPM1, GEODAT1, AREA2, SETWGTR and AREA3 
 C           share the same array structure in Scratch Common /SCRNS/.
 C
-      COMMON /SCRNS/ XRM1(LX1,LY1,LZ1,LELT)
-     $ ,             YRM1(LX1,LY1,LZ1,LELT)
-     $ ,             XSM1(LX1,LY1,LZ1,LELT)
-     $ ,             YSM1(LX1,LY1,LZ1,LELT)
-     $ ,             XTM1(LX1,LY1,LZ1,LELT)
-     $ ,             YTM1(LX1,LY1,LZ1,LELT)
-     $ ,             ZRM1(LX1,LY1,LZ1,LELT)
-      COMMON /CTMP1/ ZSM1(LX1,LY1,LZ1,LELT)
-     $ ,             ZTM1(LX1,LY1,LZ1,LELT)
-     $ ,             A  (LX1,LY1,LZ1,LELT)
-     $ ,             B  (LX1,LY1,LZ1,LELT)
-      COMMON /CTMP0/ C  (LX1,LY1,LZ1,LELT)
-     $ ,             DOT(LX1,LY1,LZ1,LELT)
+      real, pointer :: XRM1(:,:,:,:), YRM1(:,:,:,:), XSM1(:,:,:,:)
+     $               , YSM1(:,:,:,:), XTM1(:,:,:,:), YTM1(:,:,:,:)
+     $               , ZRM1(:,:,:,:)
+      real, pointer :: ZSM1(:,:,:,:), ZTM1(:,:,:,:)
+     $               , A(:,:,:,:), B(:,:,:,:)
+      real, pointer :: C(:,:,:,:), DOT(:,:,:,:)
+C
+      XRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      YRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      XSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      YSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
+      XTM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelt+1 : 5*lx1*ly1*lz1*lelt)
+      YTM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelt+1 : 6*lx1*ly1*lz1*lelt)
+      ZRM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(6*lx1*ly1*lz1*lelt+1 : 7*lx1*ly1*lz1*lelt)
+      ZSM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      ZTM1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      A   (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      B   (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
+      C   (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      DOT (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 C
       NXY1  = lx1*ly1
       NFACE = 2*ldim
@@ -1545,6 +1656,7 @@ csk      ENDIF
 c-----------------------------------------------------------------------
 
       subroutine maprs(y,x,xa,nrest,iel)
+      use ctmp0_mod
 C
 C     Map the elemental array X from Restart mesh to Y on mesh M1
 C     Conforming elements, i.e. lx1=ly1=lz1.
@@ -1561,7 +1673,7 @@ C
       REAL Y(LX1,LY1,LZ1)
 C
       REAL XA(lx1,NREST,NREST)
-      COMMON /CTMP0/ XB(LX1,LY1,LZ1)
+      real, pointer :: XB(:,:,:)
 C
       REAL IXRES(LX1,LX1),IXTRES(LX1,LX1)
       REAL IYRES(LY1,LY1),IYTRES(LY1,LY1)
@@ -1569,6 +1681,8 @@ C
       REAL ZCRES(20),WCRES(20)
       REAL ZARES(20),WARES(20)
 C
+      XB(1:lx1,1:ly1,1:lz1) => cb_ctmp0(1 : lx1*ly1*lz1)
+
       NZREST = NREST
       IF(lz1.EQ.1) NZREST=1
       NYZRES = NREST*NZREST
@@ -1614,6 +1728,7 @@ C
       END
 C
       subroutine map31 (y,x,iel)
+      use ctmp0_mod
 C---------------------------------------------------------------
 C
 C     Map the elemental array X from mesh M3 to mesh M1
@@ -1628,7 +1743,12 @@ C
       REAL X(LX3,LY3,LZ3)
       REAL Y(LX1,LY1,LZ1)
 C
-      COMMON /CTMP0/ XA(LX1,LY3,LZ3), XB(LX1,LY1,LZ3)
+      real, pointer :: XA(:,:,:), XB(:,:,:)
+C
+      XA(1:lx1,1:ly3,1:lz3) => cb_ctmp0(0*lx1*ly3*lz3+1
+     $                                : 1*lx1*ly3*lz3)
+      XB(1:lx1,1:ly1,1:lz3) => cb_ctmp0(1*lx1*ly3*lz3+1
+     $                                : 1*lx1*ly3*lz3+lx1*ly1*lz3)
 C
       NYZ3 = ly3*lz3
       NXY1 = lx1*ly1
@@ -1657,6 +1777,7 @@ C
       END
 C
       subroutine map13 (y,x,iel)
+      use ctmp0_mod
 C---------------------------------------------------------------
 C
 C     Map the elemental array X from mesh M1 to mesh M3
@@ -1671,7 +1792,12 @@ C
       REAL X(LX1,LY1,LZ1)
       REAL Y(LX3,LY3,LZ3)
 C
-      COMMON /CTMP0/ XA(LX3,LY1,LZ1),  XB(LX3,LY3,LZ1)
+      real, pointer :: XA(:,:,:), XB(:,:,:)
+C
+      XA(1:lx3,1:ly1,1:lz1) => cb_ctmp0(0*lx3*ly1*lz1+1
+     $                                : 1*lx3*ly1*lz1)
+      XB(1:lx3,1:ly3,1:lz1) => cb_ctmp0(1*lx3*ly1*lz1+1
+     $                                : 1*lx3*ly1*lz1+lx3*ly3*lz1)
 C
       NYZ1 = ly1*lz1
       NXY3 = lx3*ly3
@@ -1732,6 +1858,7 @@ C
       END
 C
       subroutine map21t (y,x,iel)
+      use ctmp0_mod
 C---------------------------------------------------------------
 C
 C     Map the elemental array X from mesh M2 to mesh M1 (Y)
@@ -1746,7 +1873,12 @@ C
       REAL X(LX2,LY2,LZ2)
       REAL Y(LX1,LY1,LZ1)
 C
-      COMMON /CTMP0/ XA(LX1,LY2,LZ2), XB(LX1,LY1,LZ2)
+      real, pointer :: XA(:,:,:), XB(:,:,:)
+C
+      XA(1:lx1,1:ly2,1:lz2) => cb_ctmp0(0*lx1*ly2*lz2+1
+     $                                : 1*lx1*ly2*lz2)
+      XB(1:lx1,1:ly1,1:lz2) => cb_ctmp0(1*lx1*ly2*lz2+1
+     $                                : 1*lx1*ly2*lz2+lx1*ly1*lz2)
 C
       NYZ2 = ly2*lz2
       NXY1 = lx1*ly1
@@ -1773,6 +1905,7 @@ C
       RETURN
       END
       subroutine map21e (y,x,iel)
+      use ctmp0_mod
 C---------------------------------------------------------------
 C
 C     Map the elemental array X from mesh M2 to mesh M1
@@ -1787,7 +1920,12 @@ C
       REAL X(LX2,LY2,LZ2)
       REAL Y(LX1,LY1,LZ1)
 C
-      COMMON /CTMP0/ XA(LX1,LY2,LZ2), XB(LX1,LY1,LZ2)
+      real, pointer :: XA(:,:,:), XB(:,:,:)
+C
+      XA(1:lx1,1:ly2,1:lz2) => cb_ctmp0(0*lx1*ly2*lz2+1
+     $                                : 1*lx1*ly2*lz2)
+      XB(1:lx1,1:ly1,1:lz2) => cb_ctmp0(1*lx1*ly2*lz2+1
+     $                                : 1*lx1*ly2*lz2+lx1*ly1*lz2)
 C
       NYZ2 = ly2*lz2
       NXY1 = lx1*ly1

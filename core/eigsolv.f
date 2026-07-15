@@ -88,6 +88,8 @@ C
       END
 C
       SUBROUTINE EIGENV
+      use scrvh_mod
+      use scrhi_mod
 C-------------------------------------------------------------------------
 C
 C     Compute the following eigenvalues:
@@ -109,9 +111,15 @@ C-------------------------------------------------------------------------
       INCLUDE 'SOLN'
       INCLUDE 'TSTEP'
 C
-      COMMON /SCRVH/ H1 (LX1,LY1,LZ1,LELT)
-     $ ,             H2 (LX1,LY1,LZ1,LELT)
-      COMMON /SCRHI/ H2INV (LX1,LY1,LZ1,LELV)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
+      real, pointer :: H2INV(:,:,:,:)
+C
+      H2INV(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrhi(1 : lx1*ly1*lz1*lelv)
+      H1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      H2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 C
       NTOT1  = lx1*ly1*lz1*NELV
 C
@@ -201,6 +209,7 @@ C
       END
 C
       SUBROUTINE ALPHAM1 (ALPHA,MASK,MULT,H1,H2,ISD)
+      use screv_mod
 C---------------------------------------------------------------------------
 C
 C     Compute minimum eigenvalue, ALPHA, of the discrete Helmholtz operator
@@ -214,9 +223,13 @@ C
       REAL            MULT (LX1,LY1,LZ1,1)
       REAL            H1   (LX1,LY1,LZ1,1)
       REAL            H2   (LX1,LY1,LZ1,1)
-      COMMON /SCREV/  X1   (LX1,LY1,LZ1,LELT)
-     $ ,              Y1   (LX1,LY1,LZ1,LELT)
+      real, pointer :: X1(:,:,:,:), Y1(:,:,:,:)
       CHARACTER NAME*4
+C
+      X1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      Y1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 C
       IF (IMESH.EQ.1) NEL  = NELV
       IF (IMESH.EQ.2) NEL  = NELT
@@ -256,6 +269,7 @@ C
       END
 C
       SUBROUTINE GAMMAM1 (GAMMA,MASK,MULT,H1,H2,ISD)
+      use screv_mod
 C---------------------------------------------------------------------------
 C
 C     Compute maximum eigenvalue of the discrete Helmholtz operator
@@ -269,8 +283,12 @@ C
       REAL            MULT (LX1,LY1,LZ1,1)
       REAL            H1   (LX1,LY1,LZ1,1)
       REAL            H2   (LX1,LY1,LZ1,1)
-      COMMON /SCREV/  X1   (LX1,LY1,LZ1,LELT)
-     $ ,              Y1   (LX1,LY1,LZ1,LELT)
+      real, pointer :: X1(:,:,:,:), Y1(:,:,:,:)
+C
+      X1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      Y1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 C
       IF (IMESH.EQ.1) NEL = NELV
       IF (IMESH.EQ.2) NEL = NELT
@@ -307,6 +325,7 @@ C
       END
 C
       SUBROUTINE ALPHAM2 (ALPHA,H1,H2,H2INV,INLOC)
+      use screv_mod
 C----------------------------------------------------------------------
 C
 C     Compute minimum eigenvalue, ALPHA, of one of the matrices
@@ -323,8 +342,12 @@ C
       REAL           H1   (LX1,LY1,LZ1,1)
       REAL           H2   (LX1,LY1,LZ1,1)
       REAL           H2INV(LX1,LY1,LZ1,1)
-      COMMON /SCREV/ X2   (LX2,LY2,LZ2,LELV)
-     $ ,             Y2   (LX2,LY2,LZ2,LELV)
+      real, pointer :: X2(:,:,:,:), Y2(:,:,:,:)
+C
+      X2(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_screv(0*lx2*ly2*lz2*lelv+1 : 1*lx2*ly2*lz2*lelv)
+      Y2(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_screv(1*lx2*ly2*lz2*lelv+1 : 2*lx2*ly2*lz2*lelv)
 C
       NTOT2  = lx2*ly2*lz2*NELV
       EVNEW  = 0.
@@ -352,6 +375,7 @@ C
       END
 C
       SUBROUTINE GAMMAM2 (GAMMA,H1,H2,H2INV,INLOC)
+      use screv_mod
 C-------------------------------------------------------------------
 C
 C     Compute maximum eigenvalue, GAMMA, of one of the matrices
@@ -368,8 +392,12 @@ C
       REAL           H1    (LX1,LY1,LZ1,1)
       REAL           H2    (LX1,LY1,LZ1,1)
       REAL           H2INV (LX1,LY1,LZ1,1)
-      COMMON /SCREV/ X2 (LX2,LY2,LZ2,LELV)
-     $ ,             Y2 (LX2,LY2,LZ2,LELV)
+      real, pointer :: X2(:,:,:,:), Y2(:,:,:,:)
+C
+      X2(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_screv(0*lx2*ly2*lz2*lelv+1 : 1*lx2*ly2*lz2*lelv)
+      Y2(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_screv(1*lx2*ly2*lz2*lelv+1 : 2*lx2*ly2*lz2*lelv)
 C
       NTOT2  = lx2*ly2*lz2*NELV
       EVNEW  = 0.

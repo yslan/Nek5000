@@ -30,20 +30,36 @@ C
       END
 C-----------------------------------------------------------------------
       SUBROUTINE STNRINV
+      use ctmp1_mod
+      use ctmp0_mod
+      use screv_mod
 C
 C     Calculate 2nd and 3rd strain-rate invariants
 C
       INCLUDE 'SIZE'
       INCLUDE 'SOLN'
       INCLUDE 'TSTEP'
-      common /screv/ ei2(lx1,ly1,lz1,lelt)
-     $             , ei3(lx1,ly1,lz1,lelt)
-      common /ctmp1/ exx(lx1,ly1,lz1,lelt)
-     $             , exy(lx1,ly1,lz1,lelt)
-     $             , eyy(lx1,ly1,lz1,lelt)
-     $             , ezz(lx1,ly1,lz1,lelt)
-      common /ctmp0/ exz(lx1,ly1,lz1,lelt)
-     $             , eyz(lx1,ly1,lz1,lelt)
+      real, pointer :: ei2(:,:,:,:), ei3(:,:,:,:)
+      real, pointer :: exx(:,:,:,:), exy(:,:,:,:)
+     $               , eyy(:,:,:,:), ezz(:,:,:,:)
+      real, pointer :: exz(:,:,:,:), eyz(:,:,:,:)
+c
+      ei2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      ei3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      exz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      eyz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      exx(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      exy(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      eyy(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      ezz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
 c
       NTOT1  = lx1*ly1*lz1*NELV
       CALL RZERO (EI2,NTOT1)
@@ -253,6 +269,8 @@ C
       END
 C-----------------------------------------------------------------------
       SUBROUTINE GAMMASF (H1,H2)
+      use scrmg_mod
+      use scruz_mod
 C-----------------------------------------------------------------------
 C
 C     Compute lagrest eigenvalue of coupled Helmholtz operator
@@ -266,15 +284,23 @@ C-----------------------------------------------------------------------
       INCLUDE 'SOLN'
       INCLUDE 'TSTEP'
       INCLUDE 'WZ'
-      common /scrmg/ ae1(lx1,ly1,lz1,lelv)
-     $             , ae2(lx1,ly1,lz1,lelv)
-     $             , ae3(lx1,ly1,lz1,lelv)
-      common /scruz/ e1(lx1,ly1,lz1,lelv)
-     $             , e2(lx1,ly1,lz1,lelv)
-     $             , e3(lx1,ly1,lz1,lelv)
+      real, pointer :: ae1(:,:,:,:), ae2(:,:,:,:), ae3(:,:,:,:)
+      real, pointer :: e1(:,:,:,:), e2(:,:,:,:), e3(:,:,:,:)
 C
       DIMENSION H1(LX1,LY1,LZ1,1),H2(LX1,LY1,LZ1,1)
 C
+      e1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      e2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      e3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      ae1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      ae2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      ae3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
       NTOT1  = lx1*ly1*lz1*NELV
       IMESH  = 1
       MATMOD = 0
@@ -436,6 +462,8 @@ C
       END
 C-----------------------------------------------------------------------
       SUBROUTINE STX1SF
+      use scrmg_mod
+      use scruz_mod
 C------------------------------------------------------------------
 C
 C     Compute startvector for finding an eigenvalue on mesh 1.
@@ -445,12 +473,21 @@ C------------------------------------------------------------------
       INCLUDE 'SIZE'
       INCLUDE 'MASS'
       INCLUDE 'SOLN'
-      common /scrmg/ ae1(lx1,ly1,lz1,lelv)
-     $             , ae2(lx1,ly1,lz1,lelv)
-     $             , ae3(lx1,ly1,lz1,lelv)
-      common /scruz/ e1(lx1,ly1,lz1,lelv)
-     $             , e2(lx1,ly1,lz1,lelv)
-     $             , e3(lx1,ly1,lz1,lelv)
+      real, pointer :: ae1(:,:,:,:), ae2(:,:,:,:), ae3(:,:,:,:)
+      real, pointer :: e1(:,:,:,:), e2(:,:,:,:), e3(:,:,:,:)
+C
+      e1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      e2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      e3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      ae1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      ae2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      ae3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
 C
       NTOT1 = lx1*ly1*lz1*NELV
       CALL RZERO3 (E1 ,E2 ,E3 ,NTOT1)
@@ -673,13 +710,13 @@ C
       END
 C-----------------------------------------------------------------------
       SUBROUTINE STSMASK (C1MASK,C2MASK,C3MASK)
+      use screv_mod
 C
       INCLUDE 'SIZE'
       INCLUDE 'GEOM'
       INCLUDE 'TSTEP'
       include 'INPUT'
-      common /screv/ hfmask(lx1,lz1,6,lelt)
-     $             , hvmask(lx1,ly1,lz1,lelt)
+      real, pointer :: hfmask(:,:,:,:), hvmask(:,:,:,:)
 C
       DIMENSION C1MASK(LX1,LY1,LZ1,1)
      $        , C2MASK(LX1,LY1,LZ1,1)
@@ -687,6 +724,11 @@ C
       INTEGER   IMDATA
       SAVE      IMDATA
       DATA      IMDATA /0/
+C
+      hfmask(1:lx1,1:lz1,1:6,1:lelt) =>
+     $   cb_screv(0*6*lx1*lz1*lelt+1 : 1*6*lx1*lz1*lelt)
+      hvmask(1:lx1,1:ly1,1:lz1,1:lelt) => cb_screv(
+     $   6*lx1*lz1*lelt+1 : 6*lx1*lz1*lelt+lx1*ly1*lz1*lelt)
 C
       IFLD = IFIELD
       NEL  = NELFLD(IFIELD)
@@ -709,12 +751,17 @@ C
       END
 C-----------------------------------------------------------------------
       SUBROUTINE UPDMSYS (IFLD)
+      use screv_mod
 C
       INCLUDE 'SIZE'
       INCLUDE 'GEOM'
       INCLUDE 'TSTEP'
-      common /screv/ hfmask(lx1,lz1,6,lelt)
-     $             , hvmask(lx1,ly1,lz1,lelt)
+      real, pointer :: hfmask(:,:,:,:), hvmask(:,:,:,:)
+C
+      hfmask(1:lx1,1:lz1,1:6,1:lelt) =>
+     $   cb_screv(0*6*lx1*lz1*lelt+1 : 1*6*lx1*lz1*lelt)
+      hvmask(1:lx1,1:ly1,1:lz1,1:lelt) => cb_screv(
+     $   6*lx1*lz1*lelt+1 : 6*lx1*lz1*lelt+lx1*ly1*lz1*lelt)
 C
       IF (.NOT.IFLMSF(IFLD)) RETURN
 C
@@ -1102,10 +1149,11 @@ C
       END
 C-----------------------------------------------------------------------
       SUBROUTINE COMAVN3 (HVMASK,HFMASK,NEL)
+      use scrcg_mod
 C
       INCLUDE 'SIZE'
       INCLUDE 'GEOM'
-      common /scrcg/  vnmag(lx1,ly1,lz1,lelt)
+      real, pointer :: vnmag(:,:,:,:)
       common /indxfc/ mcrfc(4,6)
      $              , MFCCR(3,8)
      $              , MEGCR(3,8)
@@ -1116,10 +1164,12 @@ C
      $              , MCRIND(8)
      $              , MEDIND(2,4)
      $              , NTEFC(2,12)
-     $              , NTCRF(2,3)     
+     $              , NTCRF(2,3)
 C
       DIMENSION HVMASK(LX1,LY1,LZ1,1)
      $        , HFMASK(LX1,LZ1,6,1)
+C
+      vnmag(1:lx1,1:ly1,1:lz1,1:lelt) => cb_scrcg(1 : lx1*ly1*lz1*lelt)
 C
       NTOT1  = lx1*ly1*lz1*NEL
       NFACE  = 2*ldim
@@ -1754,16 +1804,16 @@ C
       END
 C-----------------------------------------------------------------------
       SUBROUTINE AMASK (VB1,VB2,VB3,V1,V2,V3,NEL)
+      use ctmp0_mod
+      use scrsf_mod
 C
       INCLUDE 'SIZE'
       INCLUDE 'GEOM'
       INCLUDE 'INPUT'
       INCLUDE 'SOLN'
       INCLUDE 'TSTEP'
-      common /scrsf/ a1mask(lx1,ly1,lz1,lelt)
-     $             , a2mask(lx1,ly1,lz1,lelt)
-     $             , a3mask(lx1,ly1,lz1,lelt)
-      common /ctmp0/ wa(lx1,ly1,lz1,lelt)
+      real, pointer :: a1mask(:,:,:,:), a2mask(:,:,:,:), a3mask(:,:,:,:)
+      real, pointer :: wa(:,:,:,:)
 C
       DIMENSION VB1(LX1,LY1,LZ1,1)
      $        , VB2(LX1,LY1,LZ1,1)
@@ -1771,6 +1821,14 @@ C
      $        , V1(LX1,LY1,LZ1,1)
      $        , V2(LX1,LY1,LZ1,1)
      $        , V3(LX1,LY1,LZ1,1)
+C
+      wa(1:lx1,1:ly1,1:lz1,1:lelt) => cb_ctmp0(1 : lx1*ly1*lz1*lelt)
+      a1mask(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      a2mask(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      a3mask(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 C
       NTOT1 = lx1*ly1*lz1*NEL
       CALL RONE (WA,NTOT1)
@@ -1833,13 +1891,12 @@ c     call exitti   ('quit in rmask$,',nel)
       END
 C-----------------------------------------------------------------------
       SUBROUTINE QMASK (R1,R2,R3,R1MASK,R2MASK,R3MASK,NEL)
+      use ctmp1_mod
 C
       INCLUDE 'SIZE'
       INCLUDE 'GEOM'
       INCLUDE 'TSTEP'
-      common /ctmp1/ s1(lx1,ly1,lz1,lelt)
-     $             , s2(lx1,ly1,lz1,lelt)
-     $             , s3(lx1,ly1,lz1,lelt)
+      real, pointer :: s1(:,:,:,:), s2(:,:,:,:), s3(:,:,:,:)
 C
       DIMENSION R1(LX1,LY1,LZ1,1)
      $        , R2(LX1,LY1,LZ1,1)
@@ -1847,6 +1904,13 @@ C
      $        , R1MASK(LX1,LY1,LZ1,1)
      $        , R2MASK(LX1,LY1,LZ1,1)
      $        , R3MASK(LX1,LY1,LZ1,1)
+C
+      s1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      s2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      s3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 C
       NTOT1 = lx1*ly1*lz1*NEL
 C
@@ -2161,20 +2225,26 @@ c     calculate surface normal
       end
 
       subroutine fixmska (c1mask,c2mask,c3mask)
+      use ctmp0_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
 c     fixes masks for A/SYM face corners
 
       include 'SIZE'
       include 'INPUT'
- 
+
       real   c1mask(lx1,ly1,lz1,1)
      $      ,c2mask(lx1,ly1,lz1,1)
      $      ,c3mask(lx1,ly1,lz1,1)
 
-      common /ctmp0/ im1(lx1,ly1,lz1),im2(lx1,ly1,lz1)
-      integer e,f,val,im1,im2
+      integer, pointer :: im1(:,:,:), im2(:,:,:)
+      integer e,f,val
 
       character*3 cb
+
+      call c_f_pointer(c_loc(cb_ctmp0(1)), im1, [lx1,ly1,lz1])
+      call c_f_pointer(c_loc(cb_ctmp0(lx1*ly1*lz1+1)), im2,
+     $                  [lx1,ly1,lz1])
 
       n = lx1*ly1*lz1
 

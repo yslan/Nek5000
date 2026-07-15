@@ -1,5 +1,7 @@
 c-----------------------------------------------------------------------
       subroutine plan4 (igeom)
+      use scrns_mod
+      use scrvh_mod
 
 C     Splitting scheme A.G. Tomboulides et al.
 c     Journal of Sci.Comp.,Vol. 12, No. 2, 1998
@@ -18,23 +20,40 @@ c
       INCLUDE 'ORTHOP'
       INCLUDE 'CTIMER'
 C
-      COMMON /SCRNS/ RES1  (LX1,LY1,LZ1,LELV)
-     $ ,             RES2  (LX1,LY1,LZ1,LELV)
-     $ ,             RES3  (LX1,LY1,LZ1,LELV)
-     $ ,             DV1   (LX1,LY1,LZ1,LELV)
-     $ ,             DV2   (LX1,LY1,LZ1,LELV)
-     $ ,             DV3   (LX1,LY1,LZ1,LELV)
-     $ ,             RESPR (LX2,LY2,LZ2,LELV)
-      common /scrvh/ h1    (lx1,ly1,lz1,lelv)
-     $ ,             h2    (lx1,ly1,lz1,lelv)
- 
-      REAL           DPR   (LX2,LY2,LZ2,LELV)
-      EQUIVALENCE   (DPR,DV1)
+      real, pointer :: RES1(:,:,:,:), RES2(:,:,:,:), RES3(:,:,:,:)
+     $               , DV1(:,:,:,:), DV2(:,:,:,:), DV3(:,:,:,:)
+     $               , RESPR(:,:,:,:)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:)
+
+      real, pointer :: DPR(:,:,:,:)
       LOGICAL        IFSTSP
 
       REAL DVC (LX1,LY1,LZ1,LELV), DFC(LX1,LY1,LZ1,LELV)
       REAL DIV1, DIV2, DIF1, DIF2, QTL1, QTL2
 c
+      h1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      h2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      RES1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      RES2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      RES3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      DV1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      DV2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      DV3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
+      RESPR(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrns(6*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv
+     $                                 + lx2*ly2*lz2*lelv)
+      DPR(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv
+     $                                 + lx2*ly2*lz2*lelv)
+
       INTYPE = -1
       NTOT1  = lx1*ly1*lz1*NELV
 
@@ -97,6 +116,9 @@ c
 
 c-----------------------------------------------------------------------
       subroutine crespsp (respr)
+      use scrns_mod
+      use scrmg_mod
+      use scruz_mod
 
 C     Compute startresidual/right-hand-side in the pressure
 
@@ -105,24 +127,38 @@ C     Compute startresidual/right-hand-side in the pressure
 
       REAL           RESPR (LX1*LY1*LZ1,LELV)
 c
-      COMMON /SCRNS/ TA1   (LX1*LY1*LZ1,LELV)
-     $ ,             TA2   (LX1*LY1*LZ1,LELV)
-     $ ,             TA3   (LX1*LY1*LZ1,LELV)
-     $ ,             WA1   (LX1*LY1*LZ1*LELV)
-     $ ,             WA2   (LX1*LY1*LZ1*LELV)
-     $ ,             WA3   (LX1*LY1*LZ1*LELV)
-      COMMON /SCRMG/ W1    (LX1*LY1*LZ1,LELV)
-     $ ,             W2    (LX1*LY1*LZ1,LELV)
-     $ ,             W3    (LX1*LY1*LZ1,LELV)
+      real, pointer :: TA1(:,:), TA2(:,:), TA3(:,:)
+     $               , WA1(:), WA2(:), WA3(:)
+      real, pointer :: W1(:,:), W2(:,:), W3(:,:)
 
-      common /scruz/         sij (lx1*ly1*lz1,6,lelv)
+      real, pointer :: sij(:,:)
       parameter (lr=lx1*ly1*lz1)
       common /scrvz/         ur(lr),us(lr),ut(lr)
      $                     , vr(lr),vs(lr),vt(lr)
      $                     , wr(lr),ws(lr),wt(lr)
 
       CHARACTER CB*3
-      
+
+      TA1(1:lx1*ly1*lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      TA2(1:lx1*ly1*lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      TA3(1:lx1*ly1*lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      WA1(1:lx1*ly1*lz1*lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      WA2(1:lx1*ly1*lz1*lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      WA3(1:lx1*ly1*lz1*lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
+      W1(1:lx1*ly1*lz1,1:lelv) => cb_scrmg(0*lx1*ly1*lz1*lelv+1
+     $                                    : 1*lx1*ly1*lz1*lelv)
+      W2(1:lx1*ly1*lz1,1:lelv) => cb_scrmg(1*lx1*ly1*lz1*lelv+1
+     $                                    : 2*lx1*ly1*lz1*lelv)
+      W3(1:lx1*ly1*lz1,1:lelv) => cb_scrmg(2*lx1*ly1*lz1*lelv+1
+     $                                    : 3*lx1*ly1*lz1*lelv)
+      sij(1:lx1*ly1*lz1,1:6*lelv) => cb_scruz(1 : 6*lx1*ly1*lz1*lelv)
+
       NXYZ1  = lx1*ly1*lz1
       NTOT1  = NXYZ1*NELV
       NFACES = 2*ldim
@@ -262,6 +298,7 @@ C     (only if all Dirichlet b.c.)
       END
 c----------------------------------------------------------------------
       subroutine cresvsp (resv1,resv2,resv3,h1,h2)
+      use scruz_mod
 
 C     Compute the residual for the velocity
 
@@ -274,10 +311,17 @@ C     Compute the residual for the velocity
      $   , h1   (lx1,ly1,lz1,lelv)
      $   , h2   (lx1,ly1,lz1,lelv)
 
-      COMMON /SCRUZ/ TA1   (LX1,LY1,LZ1,LELV)
-     $ ,             TA2   (LX1,LY1,LZ1,LELV)
-     $ ,             TA3   (LX1,LY1,LZ1,LELV)
-     $ ,             TA4   (LX1,LY1,LZ1,LELV)
+      real, pointer :: TA1(:,:,:,:), TA2(:,:,:,:), TA3(:,:,:,:)
+     $               , TA4(:,:,:,:)
+
+      TA1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      TA2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      TA3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      TA4(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
 
       NTOT = lx1*ly1*lz1*NELV
       INTYPE = -1
@@ -306,6 +350,8 @@ c
 
 c----------------------------------------------------------------------
       subroutine cresvsp_weak (resv1,resv2,resv3,h1,h2)
+      use scrmg_mod
+      use scruz_mod
 
 C     Compute the residual for the velocity
 
@@ -318,13 +364,24 @@ C     Compute the residual for the velocity
      $   , h1   (lx1,ly1,lz1,lelv)
      $   , h2   (lx1,ly1,lz1,lelv)
 
-      COMMON /SCRUZ/ TA1   (LX1,LY1,LZ1,LELV)
-     $ ,             TA2   (LX1,LY1,LZ1,LELV)
-     $ ,             TA3   (LX1,LY1,LZ1,LELV)
-     $ ,             TA4   (LX1,LY1,LZ1,LELV)
-      COMMON /SCRMG/ wa1   (LX1*LY1*LZ1,LELV)
-     $ ,             wa2   (LX1*LY1*LZ1,LELV)
-     $ ,             wa3   (LX1*LY1*LZ1,LELV)
+      real, pointer :: TA1(:,:,:,:), TA2(:,:,:,:), TA3(:,:,:,:)
+     $               , TA4(:,:,:,:)
+      real, pointer :: wa1(:,:), wa2(:,:), wa3(:,:)
+
+      TA1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      TA2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      TA3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      TA4(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      wa1(1:lx1*ly1*lz1,1:lelv) => cb_scrmg(0*lx1*ly1*lz1*lelv+1
+     $                                     : 1*lx1*ly1*lz1*lelv)
+      wa2(1:lx1*ly1*lz1,1:lelv) => cb_scrmg(1*lx1*ly1*lz1*lelv+1
+     $                                     : 2*lx1*ly1*lz1*lelv)
+      wa3(1:lx1*ly1*lz1,1:lelv) => cb_scrmg(2*lx1*ly1*lz1*lelv+1
+     $                                     : 3*lx1*ly1*lz1*lelv)
 
       NTOT = lx1*ly1*lz1*NELV
       INTYPE = -1
@@ -542,6 +599,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine userqtl_scig
+      use scrns_mod
 c
 c     Compute the thermal divergence QTL for an ideal single component gas 
 c     QTL := div(v) = -1/rho * Drho/Dt
@@ -550,12 +608,21 @@ c
       include 'TOTAL'
       include 'CVODE'
 
-      common /scrns/ w1(lx1,ly1,lz1,lelt)
-     $              ,w2(lx1,ly1,lz1,lelt)
-     $              ,w3(lx1,ly1,lz1,lelt)
-     $              ,tx(lx1,ly1,lz1,lelt)
-     $              ,ty(lx1,ly1,lz1,lelt)
-     $              ,tz(lx1,ly1,lz1,lelt)
+      real, pointer :: w1(:,:,:,:),w2(:,:,:,:),w3(:,:,:,:)
+     $               , tx(:,:,:,:),ty(:,:,:,:),tz(:,:,:,:)
+
+      w1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      w2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      w3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      tx(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
+      ty(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelt+1 : 5*lx1*ly1*lz1*lelt)
+      tz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelt+1 : 6*lx1*ly1*lz1*lelt)
 
       nxyz = lx1*ly1*lz1
       ntot = nxyz*nelv
@@ -649,15 +716,23 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine printdiverr
+      use scrns_mod
 c
       INCLUDE 'SIZE'
       INCLUDE 'TOTAL'
 
-      COMMON /SCRNS/ DVC  (LX1,LY1,LZ1,LELV),
-     $               DV1  (LX1,LY1,LZ1,LELV),
-     $               DV2  (LX1,LY1,LZ1,LELV),
-     $               DFC  (LX1,LY1,LZ1,LELV)
- 
+      real, pointer :: DVC(:,:,:,:), DV1(:,:,:,:)
+     $               , DV2(:,:,:,:), DFC(:,:,:,:)
+
+      DVC(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      DV1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      DV2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      DFC(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+
       ntot1 = lx1*ly1*lz1*nelv
 
       !Calculate Divergence norms of new VX,VY,VZ
@@ -706,6 +781,7 @@ c
       end
 c-----------------------------------------------------------------------
       SUBROUTINE BCDIRPR(S)
+      use scrsf_mod
 C
 C     Apply Dirichlet boundary conditions to surface of Pressure.
 C     Use IFIELD=1.
@@ -718,11 +794,16 @@ C
       INCLUDE 'CTIMER'
 C
       DIMENSION S(LX1,LY1,LZ1,LELT)
-      COMMON /SCRSF/ TMP(LX1,LY1,LZ1,LELT)
-     $             , TMA(LX1,LY1,LZ1,LELT)
-     $             , SMU(LX1,LY1,LZ1,LELT)
+      real, pointer :: TMP(:,:,:,:), TMA(:,:,:,:), SMU(:,:,:,:)
       common  /nekcb/ cb
       CHARACTER CB*3
+
+      TMP(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      TMA(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      SMU(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 
       if (icalld.eq.0) then
          tusbc=0.0

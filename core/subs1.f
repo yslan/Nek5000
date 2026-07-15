@@ -1,28 +1,24 @@
 c-----------------------------------------------------------------------
       subroutine cggosf (u1,u2,u3,r1,r2,r3,h1,h2,rmult,binv,
      $                   vol,tin,maxit,matmod)
+      use scrch_mod
+      use scrmg_mod
+      use screv_mod
 
-C     Conjugate gradient iteration for solution of coupled 
-C     Helmholtz equations 
+C     Conjugate gradient iteration for solution of coupled
+C     Helmholtz equations
 
       include 'SIZE'
       include 'TOTAL'
       include 'DOMAIN'
       include 'FDMH1'
 
-      common /screv/  dpc(lx1*ly1*lz1*lelt)
-     $     ,          p1 (lx1*ly1*lz1*lelt)
-      common /scrch/  p2 (lx1*ly1*lz1*lelt)
-     $     ,          p3 (lx1*ly1*lz1*lelt)
-      common /scrsl/  qq1(lx1*ly1*lz1*lelt)
-     $     ,          qq2(lx1*ly1*lz1*lelt)
-     $     ,          qq3(lx1*ly1*lz1*lelt)
-      common /scrmg/  pp1(lx1*ly1*lz1*lelt)
-     $     ,          pp2(lx1*ly1*lz1*lelt)
-     $     ,          pp3(lx1*ly1*lz1*lelt)
-     $     ,          wa (lx1*ly1*lz1*lelt)
-      real ap1(1),ap2(1),ap3(1)
-      equivalence (ap1,pp1),(ap2,pp2),(ap3,pp3)
+      real, pointer :: dpc(:), p1(:)
+      real, pointer :: p2(:), p3(:)
+      real, allocatable, target, save :: cb_scrsl(:)
+      real, pointer :: qq1(:), qq2(:), qq3(:)
+      real, pointer :: pp1(:), pp2(:), pp3(:), wa(:)
+      real, pointer :: ap1(:), ap2(:), ap3(:)
 
       common /fastmd/ ifdfrm(lelt), iffast(lelt), ifh2, ifsolv
       common /cprint/ ifprint
@@ -33,6 +29,37 @@ C     Helmholtz equations
 
 
       logical iffdm,ifcrsl
+
+      dpc(1:lx1*ly1*lz1*lelt) => cb_screv(0*lx1*ly1*lz1*lelt+1
+     $                                    : 1*lx1*ly1*lz1*lelt)
+      p1 (1:lx1*ly1*lz1*lelt) => cb_screv(1*lx1*ly1*lz1*lelt+1
+     $                                    : 2*lx1*ly1*lz1*lelt)
+      p2(1:lx1*ly1*lz1*lelt) => cb_scrch(0*lx1*ly1*lz1*lelt+1
+     $                                  : 1*lx1*ly1*lz1*lelt)
+      p3(1:lx1*ly1*lz1*lelt) => cb_scrch(1*lx1*ly1*lz1*lelt+1
+     $                                  : 2*lx1*ly1*lz1*lelt)
+      pp1(1:lx1*ly1*lz1*lelt) => cb_scrmg(0*lx1*ly1*lz1*lelt+1
+     $                                   : 1*lx1*ly1*lz1*lelt)
+      pp2(1:lx1*ly1*lz1*lelt) => cb_scrmg(1*lx1*ly1*lz1*lelt+1
+     $                                   : 2*lx1*ly1*lz1*lelt)
+      pp3(1:lx1*ly1*lz1*lelt) => cb_scrmg(2*lx1*ly1*lz1*lelt+1
+     $                                   : 3*lx1*ly1*lz1*lelt)
+      wa (1:lx1*ly1*lz1*lelt) => cb_scrmg(3*lx1*ly1*lz1*lelt+1
+     $                                   : 4*lx1*ly1*lz1*lelt)
+      ap1(1:lx1*ly1*lz1*lelt) => cb_scrmg(0*lx1*ly1*lz1*lelt+1
+     $                                   : 1*lx1*ly1*lz1*lelt)
+      ap2(1:lx1*ly1*lz1*lelt) => cb_scrmg(1*lx1*ly1*lz1*lelt+1
+     $                                   : 2*lx1*ly1*lz1*lelt)
+      ap3(1:lx1*ly1*lz1*lelt) => cb_scrmg(2*lx1*ly1*lz1*lelt+1
+     $                                   : 3*lx1*ly1*lz1*lelt)
+      if (.not. allocated(cb_scrsl))
+     $   allocate(cb_scrsl(3*lx1*ly1*lz1*lelt))
+      qq1(1:lx1*ly1*lz1*lelt) => cb_scrsl(0*lx1*ly1*lz1*lelt+1
+     $                                   : 1*lx1*ly1*lz1*lelt)
+      qq2(1:lx1*ly1*lz1*lelt) => cb_scrsl(1*lx1*ly1*lz1*lelt+1
+     $                                   : 2*lx1*ly1*lz1*lelt)
+      qq3(1:lx1*ly1*lz1*lelt) => cb_scrsl(2*lx1*ly1*lz1*lelt+1
+     $                                   : 3*lx1*ly1*lz1*lelt)
 
       iffdm  = .true.
       iffdm  = .false.
@@ -176,6 +203,7 @@ c     call copy (dpc,binv,n)
       end
 c-----------------------------------------------------------------------
       subroutine setdt
+      use scruz_mod
 c
 c     Set the new time step. All cases covered.
 c
@@ -186,9 +214,7 @@ c
       include 'TSTEP'
       include 'PARALLEL'
 
-      common /scruz/ cx(lx1*ly1*lz1*lelt)
-     $ ,             cy(lx1,ly1,lz1,lelt)
-     $ ,             cz(lx1,ly1,lz1,lelt)
+      real, pointer :: cx(:), cy(:,:,:,:), cz(:,:,:,:)
 
       common /cprint/ ifprint
       logical         ifprint
@@ -203,6 +229,12 @@ c
       save    iffxdt
       data    iffxdt /.false./
 C
+      cx(1:lx1*ly1*lz1*lelt) => cb_scruz(0*lx1*ly1*lz1*lelt+1
+     $                                  : 1*lx1*ly1*lz1*lelt)
+      cy(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      cz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 
       if (param(12).lt.0.or.iffxdt) then
          iffxdt    = .true.
@@ -460,6 +492,9 @@ C
 C
 C
       subroutine setdtc
+      use ctmp1_mod
+      use ctmp0_mod
+      use scruz_mod
 C--------------------------------------------------------------
 C
 C     Compute new timestep based on CFL-condition
@@ -473,16 +508,11 @@ C--------------------------------------------------------------
       include 'SOLN'
       include 'TSTEP'
 C
-      common /ctmp1/ u(lx1,ly1,lz1,lelv)
-     $ ,             v(lx1,ly1,lz1,lelv)
-     $ ,             w(lx1,ly1,lz1,lelv)
-      common /ctmp0/ x(lx1,ly1,lz1,lelv)
-     $ ,             r(lx1,ly1,lz1,lelv)
+      real, pointer :: u(:,:,:,:), v(:,:,:,:), w(:,:,:,:)
+      real, pointer :: x(:,:,:,:), r(:,:,:,:)
       common /udxmax/ umax
 
-      common /scruz/ cx(lx1*ly1*lz1*lelv)
-     $ ,             cy(lx1,ly1,lz1,lelv)
-     $ ,             cz(lx1,ly1,lz1,lelv)
+      real, pointer :: cx(:), cy(:,:,:,:), cz(:,:,:,:)
 C
 C
       REAL VCOUR
@@ -492,6 +522,22 @@ C
       SAVE    IFIRST
       DATA    IFIRST/0/
 C
+      u(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      v(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      w(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      x(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_ctmp0(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      r(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_ctmp0(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      cx(1:lx1*ly1*lz1*lelv) => cb_scruz(0*lx1*ly1*lz1*lelv+1
+     $                                  : 1*lx1*ly1*lz1*lelv)
+      cy(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      cz(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
 C
 C     Steady state => all done
 C
@@ -677,14 +723,22 @@ C
       end
 C
       subroutine setdtfs (dtfs)
+      use ctmp0_mod
 C
       include 'SIZE'
       include 'INPUT'
       include 'SOLN'
       include 'GEOM'
       include 'TSTEP'
-      common /ctmp0/  stc(lx1,ly1,lz1),sigst(lx1,ly1),dtst(lx1,ly1)
+      real, pointer :: stc(:,:,:), sigst(:,:), dtst(:,:)
       character cb*3,cb2*2
+C
+      stc  (1:lx1,1:ly1,1:lz1) => cb_ctmp0(0*lx1*ly1*lz1+1
+     $                                    : 1*lx1*ly1*lz1)
+      sigst(1:lx1,1:ly1) => cb_ctmp0(1*lx1*ly1*lz1+1
+     $                              : 1*lx1*ly1*lz1+lx1*ly1)
+      dtst (1:lx1,1:ly1) => cb_ctmp0(1*lx1*ly1*lz1+lx1*ly1+1
+     $                              : 1*lx1*ly1*lz1+2*lx1*ly1)
 C
 C     Applicable?
 C
@@ -748,14 +802,20 @@ C
       return
       end
       subroutine cdxmin2 (dtst,rhosig,iel,ifc,ifaxis)
+      use ctmp0_mod
 C
       include 'SIZE'
       include 'GEOM'
       include 'DXYZ'
       common /delrst/ drst(lx1),drsti(lx1)
-      common /ctmp0/  xfm1(lx1),yfm1(lx1),t1xf(lx1),t1yf(lx1)
+      real, pointer :: xfm1(:), yfm1(:), t1xf(:), t1yf(:)
       DIMENSION DTST(LX1,1)
       LOGICAL IFAXIS
+C
+      xfm1(1:lx1) => cb_ctmp0(0*lx1+1 : 1*lx1)
+      yfm1(1:lx1) => cb_ctmp0(1*lx1+1 : 2*lx1)
+      t1xf(1:lx1) => cb_ctmp0(2*lx1+1 : 3*lx1)
+      t1yf(1:lx1) => cb_ctmp0(3*lx1+1 : 4*lx1)
 C
       DELTA = 1.E-9
       X     = 1.+DELTA
@@ -794,17 +854,36 @@ C
       return
       end
       subroutine cdxmin3 (dtst,rhosig,iel,ifc)
+      use ctmp1_mod
+      use ctmp0_mod
+      use scrmg_mod
 C
       include 'SIZE'
       include 'GEOM'
       include 'DXYZ'
       common /delrst/ drst(lx1),drsti(lx1)
-      common /ctmp0/  xfm1(lx1,ly1),yfm1(lx1,ly1),zfm1(lx1,ly1)
-      common /ctmp1/  drm1(lx1,lx1),drtm1(lx1,ly1)
-     $             ,  dsm1(lx1,lx1),dstm1(lx1,ly1)
-      common /scrmg/  xrm1(lx1,ly1),yrm1(lx1,ly1),zrm1(lx1,ly1)
-     $             ,  xsm1(lx1,ly1),ysm1(lx1,ly1),zsm1(lx1,ly1)
+      real, pointer :: xfm1(:,:),yfm1(:,:),zfm1(:,:)
+      real, pointer ::  drm1(:,:),drtm1(:,:)
+     $               ,  dsm1(:,:),dstm1(:,:)
+      real, pointer :: xrm1(:,:),yrm1(:,:),zrm1(:,:)
+     $               , xsm1(:,:),ysm1(:,:),zsm1(:,:)
       dimension dtst(lx1,ly1)
+C
+      xrm1(1:lx1,1:ly1) => cb_scrmg(0*lx1*ly1+1 : 1*lx1*ly1)
+      yrm1(1:lx1,1:ly1) => cb_scrmg(1*lx1*ly1+1 : 2*lx1*ly1)
+      zrm1(1:lx1,1:ly1) => cb_scrmg(2*lx1*ly1+1 : 3*lx1*ly1)
+      xsm1(1:lx1,1:ly1) => cb_scrmg(3*lx1*ly1+1 : 4*lx1*ly1)
+      ysm1(1:lx1,1:ly1) => cb_scrmg(4*lx1*ly1+1 : 5*lx1*ly1)
+      zsm1(1:lx1,1:ly1) => cb_scrmg(5*lx1*ly1+1 : 6*lx1*ly1)
+      drm1 (1:lx1,1:lx1) => cb_ctmp1(0*lx1*lx1+1 : 1*lx1*lx1)
+      drtm1(1:lx1,1:ly1) => cb_ctmp1(1*lx1*lx1+1 : 1*lx1*lx1+lx1*ly1)
+      dsm1 (1:lx1,1:lx1) => cb_ctmp1(1*lx1*lx1+lx1*ly1+1
+     $                             : 2*lx1*lx1+lx1*ly1)
+      dstm1(1:lx1,1:ly1) => cb_ctmp1(2*lx1*lx1+lx1*ly1+1
+     $                             : 2*lx1*lx1+2*lx1*ly1)
+      xfm1(1:lx1,1:ly1) => cb_ctmp0(0*lx1*ly1+1 : 1*lx1*ly1)
+      yfm1(1:lx1,1:ly1) => cb_ctmp0(1*lx1*ly1+1 : 2*lx1*ly1)
+      zfm1(1:lx1,1:ly1) => cb_ctmp0(2*lx1*ly1+1 : 3*lx1*ly1)
 C
       call facexv (xfm1,yfm1,zfm1,xm1(1,1,1,iel),ym1(1,1,1,iel),
      $             zm1(1,1,1,iel),ifc,0)
@@ -1157,6 +1236,7 @@ c     Solve coupled Helmholtz equations (stress formulation)
 
       subroutine chktcgs (r1,r2,r3,rmask1,rmask2,rmask3,rmult,binv,
      $                    vol,tol,nel)
+      use ctmp0_mod
 C-------------------------------------------------------------------
 C
 C     Check that the tolerances are not too small for the CG-solver.
@@ -1170,7 +1250,7 @@ C-------------------------------------------------------------------
       include 'EIGEN'
       common /cprint/ ifprint
       logical         ifprint
-      common /ctmp0/ wa (lx1,ly1,lz1,lelt)
+      real, pointer :: wa(:,:,:,:)
 C
       dimension r1    (lx1,ly1,lz1,1)
      $        , r2    (lx1,ly1,lz1,1)
@@ -1180,6 +1260,8 @@ C
      $        , rmask3(lx1,ly1,lz1,1)
      $        , rmult (lx1,ly1,lz1,1)
      $        , binv  (lx1,ly1,lz1,1)
+C
+      wa(1:lx1,1:ly1,1:lz1,1:lelt) => cb_ctmp0(1 : lx1*ly1*lz1*lelt)
 C
       NTOT1 = lx1*ly1*lz1*NEL
 C
@@ -1316,6 +1398,8 @@ c     if (matmod.lt.0) icase=3 ! Block-diagonal Axhelm
       end
 c-----------------------------------------------------------------------
       subroutine stnrate (u1,u2,u3,nel,matmod)
+      use ctmp1_mod
+      use ctmp0_mod
 C
 C     Compute strainrates
 C
@@ -1326,16 +1410,25 @@ C
       include 'GEOM'
       include 'TSTEP'
 
-      common /ctmp0/ exz(lx1*ly1*lz1*lelt)
-     $             , eyz(lx1*ly1*lz1*lelt)
-      common /ctmp1/ exx(lx1*ly1*lz1*lelt)
-     $             , exy(lx1*ly1*lz1*lelt)
-     $             , eyy(lx1*ly1*lz1*lelt)
-     $             , ezz(lx1*ly1*lz1*lelt)
+      real, pointer :: exz(:), eyz(:)
+      real, pointer :: exx(:), exy(:), eyy(:), ezz(:)
 c
       dimension u1(lx1,ly1,lz1,1)
      $        , u2(lx1,ly1,lz1,1)
      $        , u3(lx1,ly1,lz1,1)
+C
+      exz(1:lx1*ly1*lz1*lelt) => cb_ctmp0(0*lx1*ly1*lz1*lelt+1
+     $                                   : 1*lx1*ly1*lz1*lelt)
+      eyz(1:lx1*ly1*lz1*lelt) => cb_ctmp0(1*lx1*ly1*lz1*lelt+1
+     $                                   : 2*lx1*ly1*lz1*lelt)
+      exx(1:lx1*ly1*lz1*lelt) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      exy(1:lx1*ly1*lz1*lelt) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      eyy(1:lx1*ly1*lz1*lelt) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      ezz(1:lx1*ly1*lz1*lelt) =>
+     $   cb_ctmp1(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
 C
       NTOT1 = lx1*ly1*lz1*NEL
 
@@ -1362,6 +1455,9 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine stress (h1,h2,nel,matmod,ifaxis)
+      use ctmp1_mod
+      use ctmp0_mod
+      use scrsf_mod
 C
 C     MATMOD.GE.0        Fluid material models
 C     MATMOD.LT.0        Solid material models
@@ -1369,19 +1465,36 @@ C
 C     CAUTION : Stresses and strainrates share the same scratch commons
 C
       include 'SIZE'
-      common /ctmp1/ txx(lx1,ly1,lz1,lelt)
-     $             , txy(lx1,ly1,lz1,lelt)
-     $             , tyy(lx1,ly1,lz1,lelt)
-     $             , tzz(lx1,ly1,lz1,lelt)
-      common /ctmp0/ txz(lx1,ly1,lz1,lelt)
-     $             , tyz(lx1,ly1,lz1,lelt)
-      common /scrsf/ t11(lx1,ly1,lz1,lelt)
-     $             , t22(lx1,ly1,lz1,lelt)
-     $             , t33(lx1,ly1,lz1,lelt)
-     $             , hii(lx1,ly1,lz1,lelt)
+      real, pointer :: txx(:,:,:,:), txy(:,:,:,:)
+     $               , tyy(:,:,:,:), tzz(:,:,:,:)
+      real, pointer :: txz(:,:,:,:), tyz(:,:,:,:)
+      real, pointer :: t11(:,:,:,:), t22(:,:,:,:)
+     $               , t33(:,:,:,:), hii(:,:,:,:)
 C
       DIMENSION H1(LX1,LY1,LZ1,1),H2(LX1,LY1,LZ1,1)
       LOGICAL IFAXIS
+
+      txz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      tyz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      t11(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      t22(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      t33(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      hii(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
+
+      txx(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      txy(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      tyy(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      tzz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
 
       NTOT1 = lx1*ly1*lz1*NEL
 
@@ -1432,19 +1545,31 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine aijuj (au1,au2,au3,nel,ifaxis)
+      use ctmp1_mod
+      use ctmp0_mod
 C
       include 'SIZE'
-      common /ctmp1/ txx(lx1,ly1,lz1,lelt)
-     $             , txy(lx1,ly1,lz1,lelt)
-     $             , tyy(lx1,ly1,lz1,lelt)
-     $             , tzz(lx1,ly1,lz1,lelt)
-      common /ctmp0/ txz(lx1,ly1,lz1,lelt)
-     $             , tyz(lx1,ly1,lz1,lelt)
+      real, pointer :: txx(:,:,:,:), txy(:,:,:,:)
+     $               , tyy(:,:,:,:), tzz(:,:,:,:)
+      real, pointer :: txz(:,:,:,:), tyz(:,:,:,:)
 C
       DIMENSION AU1(LX1,LY1,LZ1,1)
      $        , AU2(LX1,LY1,LZ1,1)
      $        , AU3(LX1,LY1,LZ1,1)
       LOGICAL IFAXIS
+C
+      txz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      tyz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      txx(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      txy(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      tyy(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      tzz(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
 C
       CALL TTXYZ (AU1,TXX,TXY,TXZ,NEL)
       CALL TTXYZ (AU2,TXY,TYY,TYZ,NEL)
@@ -1455,17 +1580,23 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine uxyz (u,ex,ey,ez,nel)
+      use scrsf_mod
 C
       include 'SIZE'
       include 'GEOM'
-      common /scrsf/ ur(lx1,ly1,lz1,lelt)
-     $             , us(lx1,ly1,lz1,lelt)
-     $             , ut(lx1,ly1,lz1,lelt)
+      real, pointer :: ur(:,:,:,:), us(:,:,:,:), ut(:,:,:,:)
 c
       dimension u (lx1,ly1,lz1,1)
      $        , ex(lx1,ly1,lz1,1)
      $        , ey(lx1,ly1,lz1,1)
      $        , ez(lx1,ly1,lz1,1)
+C
+      ur(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      us(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      ut(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 C
       NTOT1 = lx1*ly1*lz1*NEL
 C
@@ -1640,12 +1771,14 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine fdm_h1a(z,r,d,nel,kt,rr)
+      use ctmp0_mod
       include 'SIZE'
       include 'TOTAL'
-c
-      common /ctmp0/ w(lx1,ly1,lz1)
-c
       include 'FDMH1'
+
+c
+      real, pointer :: w(:,:,:)
+c
 c
 c     Overlapping Schwarz, FDM based
 c
@@ -1659,6 +1792,8 @@ c
       integer icalld
       save    icalld
       data    icalld /0/
+
+      w(1:lx1,1:ly1,1:lz1) => cb_ctmp0(1 : lx1*ly1*lz1)
 
       n1 = lx1
       n2 = lx1*lx1
@@ -1719,6 +1854,8 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine set_vert_strs(glo_num,ngv,nx,nel,vertex,ifcenter)
+      use ctmp0_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
 c     Given global array, vertex, pointing to hex vertices, set up
 c     a new array of global pointers for an nx^ldim set of elements.
@@ -1730,8 +1867,9 @@ c     a new array of global pointers for an nx^ldim set of elements.
       integer*8 vertex(1)
       logical ifcenter
 
-      common /ctmp0/ gnum(lx1*ly1*lz1*lelt)
-      integer*8 gnum
+      integer*8, pointer :: gnum(:)
+
+      call c_f_pointer(c_loc(cb_ctmp0(1)), gnum, [lx1*ly1*lz1*lelt])
 
       call set_vert(gnum,ngv,nx,nel,vertex,ifcenter)
 
@@ -1827,12 +1965,31 @@ c     Galerkin projection
       real    a(ldim,ncl,ldim,ncl,1),h1(1),h2(1)
 c     real    a(ncl,ldim,ncl,ldim,1),h1(1),h2(1)
 
-      common /scrcr2/ a1(lx1*ly1*lz1,lelt),w1(lx1*ly1*lz1,lelt)
-     $              , a2(lx1*ly1*lz1,lelt),w2(lx1*ly1*lz1,lelt)
-      common /scrcr3/ a3(lx1*ly1*lz1,lelt),w3(lx1*ly1*lz1,lelt)
-     $              , b (lx1*ly1*lz1,8)
+      real, allocatable, target, save :: cb_scrcr2(:), cb_scrcr3(:)
+      real, pointer :: a1(:,:),w1(:,:),a2(:,:),w2(:,:)
+      real, pointer :: a3(:,:),w3(:,:),b(:,:)
 
       integer e
+
+      if (.not. allocated(cb_scrcr2))
+     $   allocate(cb_scrcr2(4*lx1*ly1*lz1*lelt))
+      if (.not. allocated(cb_scrcr3))
+     $   allocate(cb_scrcr3(2*lx1*ly1*lz1*lelt + 8*lx1*ly1*lz1))
+
+      a1(1:lx1*ly1*lz1,1:lelt) => cb_scrcr2(0*lx1*ly1*lz1*lelt+1
+     $                                     : 1*lx1*ly1*lz1*lelt)
+      w1(1:lx1*ly1*lz1,1:lelt) => cb_scrcr2(1*lx1*ly1*lz1*lelt+1
+     $                                     : 2*lx1*ly1*lz1*lelt)
+      a2(1:lx1*ly1*lz1,1:lelt) => cb_scrcr2(2*lx1*ly1*lz1*lelt+1
+     $                                     : 3*lx1*ly1*lz1*lelt)
+      w2(1:lx1*ly1*lz1,1:lelt) => cb_scrcr2(3*lx1*ly1*lz1*lelt+1
+     $                                     : 4*lx1*ly1*lz1*lelt)
+      a3(1:lx1*ly1*lz1,1:lelt) => cb_scrcr3(0*lx1*ly1*lz1*lelt+1
+     $                                     : 1*lx1*ly1*lz1*lelt)
+      w3(1:lx1*ly1*lz1,1:lelt) => cb_scrcr3(1*lx1*ly1*lz1*lelt+1
+     $                                     : 2*lx1*ly1*lz1*lelt)
+      b (1:lx1*ly1*lz1,1:8)   => cb_scrcr3(2*lx1*ly1*lz1*lelt+1
+     $                    : 2*lx1*ly1*lz1*lelt+8*lx1*ly1*lz1)
 
       nel = nelfld(ifield)
 
@@ -1873,6 +2030,7 @@ c     real    a(ncl,ldim,ncl,ldim,1),h1(1),h2(1)
       end
 c-----------------------------------------------------------------------
       subroutine crs_strs(u1,u2,u3,v1,v2,v3)
+      use scrpr2_mod
 c     Given an input vector v, this generates the H1 coarse-grid solution
       include 'SIZE'
       include 'DOMAIN'
@@ -1885,14 +2043,22 @@ c     Given an input vector v, this generates the H1 coarse-grid solution
 
       real u1(1),u2(1),u3(1),v1(1),v2(1),v3(1)
 
-      common /scrpr3/ uc1(lcr*lelt),uc2(lcr*lelt),uc3(lcr*lelt)
-      common /scrpr2/ vc1(lcr*lelt),vc2(lcr*lelt),vc3(lcr*lelt)
+      real, allocatable, target, save :: cb_scrpr3(:)
+      real, pointer :: uc1(:), uc2(:), uc3(:)
+      real, pointer :: vc1(:), vc2(:), vc3(:)
 
       integer icalld1
       save    icalld1
       data    icalld1 /0/
 
-      
+      if (.not. allocated(cb_scrpr3)) allocate(cb_scrpr3(3*lcr*lelt))
+      uc1(1:lcr*lelt) => cb_scrpr3(0*lcr*lelt+1 : 1*lcr*lelt)
+      uc2(1:lcr*lelt) => cb_scrpr3(1*lcr*lelt+1 : 2*lcr*lelt)
+      uc3(1:lcr*lelt) => cb_scrpr3(2*lcr*lelt+1 : 3*lcr*lelt)
+      vc1(1:lcr*lelt) => cb_scrpr2(0*lcr*lelt+1 : 1*lcr*lelt)
+      vc2(1:lcr*lelt) => cb_scrpr2(1*lcr*lelt+1 : 2*lcr*lelt)
+      vc3(1:lcr*lelt) => cb_scrpr2(2*lcr*lelt+1 : 3*lcr*lelt)
+
       if (icalld1.eq.0) then ! timer info
          ncrsl=0
          tcrsl=0.0
@@ -1950,6 +2116,8 @@ c     Given an input vector v, this generates the H1 coarse-grid solution
       end
 c-----------------------------------------------------------------------
       subroutine set_up_h1_crs_strs(h1,h2,ifld,matmod)
+      use scrxxti_mod
+      use ivrtx_mod
 
       include 'SIZE'
       include 'GEOM'
@@ -1959,21 +2127,29 @@ c-----------------------------------------------------------------------
       include 'TSTEP'
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
 
-      common /ivrtx/ vertex ((2**ldim)*lelt)
-      integer*8 vertex
+      integer*8, pointer :: vertex(:)
 
       integer null_space,e
 
       character*3 cb
-      common /scrxxti/ ia(ldim*ldim*lcr*lcr*lelv)
-     $               , ja(ldim*ldim*lcr*lcr*lelv)
+      integer, pointer :: ia(:), ja(:)
 
       parameter (lcc=2**ldim)
-      common /scrcr1/ a(ldim*ldim*lcc*lcc*lelt)
-      real mask(ldim,lcr,lelv)
-      equivalence (mask,a)
+      real, allocatable, target, save :: cb_scrcr1(:)
+      real, pointer :: a(:)
+      real, pointer :: mask(:,:,:)
 
       integer*8 ngv
+
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
+      ia(1:ldim*ldim*lcr*lcr*lelv) => cb_scrxxti(
+     $   0*ldim*ldim*lcr*lcr*lelv+1 : 1*ldim*ldim*lcr*lcr*lelv)
+      ja(1:ldim*ldim*lcr*lcr*lelv) => cb_scrxxti(
+     $   1*ldim*ldim*lcr*lcr*lelv+1 : 2*ldim*ldim*lcr*lcr*lelv)
+      if (.not. allocated(cb_scrcr1))
+     $   allocate(cb_scrcr1(ldim*ldim*lcc*lcc*lelt))
+      a(1:ldim*ldim*lcc*lcc*lelt) => cb_scrcr1(1:ldim*ldim*lcc*lcc*lelt)
+      mask(1:ldim,1:lcr,1:lelv) => cb_scrcr1(1:ldim*lcr*lelv)
 
       t0 = dnekclock()
 
@@ -2203,6 +2379,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine ttxyz (ff,tx,ty,tz,nel)
+      use scrsf_mod
 C
       include 'SIZE'
       include 'DXYZ'
@@ -2216,12 +2393,18 @@ C
      $        , TZ(LX1,LY1,LZ1,1)
      $        , FF(LX1*LY1*LZ1,1)
 
-      common /scrsf/ fr(lx1*ly1*lz1,lelt)
-     $             , fs(lx1*ly1*lz1,lelt)
-     $             , ft(lx1*ly1*lz1,lelt)
-      real           wa(lx1,ly1,lz1,lelt)
-      equivalence   (wa,ft)
+      real, pointer :: fr(:,:), fs(:,:), ft(:,:)
+      real, pointer :: wa(:,:,:,:)
       real ys(lx1)
+
+      fr(1:lx1*ly1*lz1,1:lelt) => cb_scrsf(0*lx1*ly1*lz1*lelt+1
+     $                                    : 1*lx1*ly1*lz1*lelt)
+      fs(1:lx1*ly1*lz1,1:lelt) => cb_scrsf(1*lx1*ly1*lz1*lelt+1
+     $                                    : 2*lx1*ly1*lz1*lelt)
+      ft(1:lx1*ly1*lz1,1:lelt) => cb_scrsf(2*lx1*ly1*lz1*lelt+1
+     $                                    : 3*lx1*ly1*lz1*lelt)
+      wa(1:lx1,1:ly1,1:lz1,1:lelt) => cb_scrsf(2*lx1*ly1*lz1*lelt+1
+     $                                        : 3*lx1*ly1*lz1*lelt)
 
       NXYZ1 = lx1*ly1*lz1
       NTOT1 = NXYZ1*NEL
@@ -2307,15 +2490,18 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine axitzz (vfy,tzz,nel)
+      use ctmp0_mod
 C
       include 'SIZE'
       include 'DXYZ'
       include 'GEOM'
       include 'WZ'
-      common /ctmp0/ phi(lx1,ly1)
+      real, pointer :: phi(:,:)
 C
       DIMENSION VFY(LX1,LY1,LZ1,1)
      $        , TZZ(LX1,LY1,LZ1,1)
+C
+      phi(1:lx1,1:ly1) => cb_ctmp0(1 : lx1*ly1)
 C
       NXYZ1 = lx1*ly1*lz1
 C
@@ -2374,6 +2560,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine strs_project_a(b1,b2,b3,h1,h2,wt,ifld,ierr,matmod)
+      use ctmp1_mod
 
 c     Assumes if uservp is true and thus reorthogonalizes every step
 
@@ -2383,8 +2570,11 @@ c     Assumes if uservp is true and thus reorthogonalizes every step
       include 'CTIMER'
 
       real b1(1),b2(1),b3(1),h1(1),h2(1),wt(1)
-      common /ctmp1/ w(lx1*ly1*lz1*lelt,ldim)
+      real, pointer :: w(:,:)
       real l2a,l2b
+
+      w(1:lx1*ly1*lz1*lelt,1:ldim) =>
+     $   cb_ctmp1(1 : lx1*ly1*lz1*lelt*ldim)
 
       kmax = napproxstrs(1)
       k    = napproxstrs(2)
@@ -2461,7 +2651,12 @@ c     Reconstruct solution; don't bother to orthonomalize bases
       include 'CTIMER'
 
       real x1(1),x2(1),x3(1),h1(1),h2(1),wt(1)
-      common /cptst/ xs(lx1*ly1*lz1*lelt*ldim)
+      real, allocatable, target, save :: cb_cptst(:)
+      real, pointer :: xs(:)
+
+      if (.not. allocated(cb_cptst))
+     $   allocate(cb_cptst(lx1*ly1*lz1*lelt*ldim))
+      xs(1:lx1*ly1*lz1*lelt*ldim) => cb_cptst(1:lx1*ly1*lz1*lelt*ldim)
 
       kmax = napproxstrs(1)
       k    = napproxstrs(2)
@@ -2615,6 +2810,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine setprop
+      use screv_mod
 C------------------------------------------------------------------------
 C
 C     Set variable property arrays
@@ -2627,7 +2823,12 @@ C
 C     Caution: 2nd and 3rd strainrate invariants residing in scratch
 C              common /SCREV/ are used in STNRINV and NEKASGN
 C
-      common /screv/ sii (lx1,ly1,lz1,lelt),siii(lx1,ly1,lz1,lelt)
+      real, pointer :: sii(:,:,:,:), siii(:,:,:,:)
+
+      sii (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      siii(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 
       if (nio.eq.0.and.loglevel.gt.2)
      $   write(6,*) 'setprop'
