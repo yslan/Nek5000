@@ -87,6 +87,24 @@ c     local variables
       call fields_init
       ierr = 0
 
+c     W2 (PR#900) acceptance: high-order FP64 checkpoint. Gated by uparam(3):
+c       1 -> WRITE an FP64 single-file checkpoint at this build's order
+c       2 -> READ 'hio' checkpoint back (interp to this build's lx1); assert
+c     Run 1 builds at high order (nxr large), run 2 at lx1=6 so the per-element
+c     payload nxyzr=ldim*nxr^3*2 exceeds the OLD lrbs_loc cap -> exercises W2.
+      if (int(uparam(3)).ge.1) then
+         call hio_highorder_test(int(uparam(3)),eps4,eps_map,ierr)
+         if (NIO.eq.0) then
+            write(*,*) ' '
+            if (ierr.eq.0) then
+               write(*,*) 'All I/O tests PASSED'
+            else
+               write(*,*) 'Some I/O test FAILED'
+            endif
+         endif
+         call exitt
+      endif
+
       if (nhref.gt.0) then ! read-only for h-refine
          valid_hr = .false.
          if (nhref.eq.1) then
@@ -198,7 +216,13 @@ c-----------------------------------------------------------------------
 c     This routine to modify element vertices
       subroutine usrdat
       include 'SIZE'
-      
+      include 'INPUT'          ! ifcrrs, uparam
+
+c     Restart redistribution path toggle for I/O tests:
+c       uparam(2) = 0 (default) -> crystal router (ifcrrs=.true.)
+c       uparam(2) = 1           -> MPI-RMA one-sided (ifcrrs=.false.)
+      if (int(uparam(2)).eq.1) ifcrrs = .false.
+
       return
       end
 c-----------------------------------------------------------------------
@@ -326,6 +350,59 @@ c     local variables
          nn =nx1*ny1*nz1*nelfld(il+1)
          call copy(t(1,1,1,1,il),cmp_t(1,il),nn)
       enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+c     W2 (PR#900) acceptance: high-order FP64 checkpoint write/read.
+c     mode=1: write an FP64 single .f checkpoint ('hio' prefix) at this
+c             build's order (run at high lx1 so nxr is large).
+c     mode=2: read 'hio' checkpoint back into this build (run at lx1=6) and
+c             compare against the analytic fields; interp tolerance eps_map.
+c     When the read build's lx1 < write order and wdsizr=8, the per-element
+c     payload nxyzr = ldim*nxr^3*2 exceeds the OLD crystal-router cap
+c     lrbs_loc = 20*lx1^3, which the W2 refactor lifts to lelem_mx.
+      subroutine hio_highorder_test(mode,eps4,eps_map,ierr)
+      include 'SIZE'
+      include 'INPUT'           ! PARAM
+      include 'TSTEP'           ! PI, IF_FULL_PRES
+      include 'RESTART'
+      include 'PARALLEL'
+
+      integer mode,ierr
+      real eps4,eps_map
+      logical test_pass
+      character*132 fstring
+
+      test_pass = .true.
+
+      if (mode.eq.1) then
+c        WRITE FP64 checkpoint at this build's (high) order
+         if (NIO.eq.0) write(*,*) 'hio: write FP64 hi-order'
+         if_full_pres = .false.
+         param(63) = 1.0          ! double precision (wdsizr=8)
+         param(65) = 1.0          ! single file (mpiio)
+         param(66) = 6.0          ! file format
+         time = pi
+         call fields_restore
+         call prepost (.true.,'hio')
+
+      else
+c        READ it back into this (lx1=6) build; interp from high order
+         if (NIO.eq.0) write(*,*) 'hio: read FP64 hi-order'
+         param(67) = 6.0
+         time = 0.0
+         fstring='hioio_test0.f00001 '
+         call load_fld(fstring)
+         call fields_compare(eps_map,eps_map,test_pass)
+         if (NID.eq.0) then
+            if (wdsizr.ne.8) then
+               test_pass = .false.
+               write(*,*) 'hio: expected wdsizr=8, got ',wdsizr
+            endif
+         endif
+         if (.not.test_pass) ierr = ierr + 1
+      endif
 
       return
       end

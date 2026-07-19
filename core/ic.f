@@ -1923,15 +1923,23 @@ c-----------------------------------------------------------------------
 
       real u(lx1*ly1*lz1,1)
 
-      real*4 wk(2*lwk) ! message buffer
-      real*4 wkg(2*lwk) ! storage buffer
+      real*4 wk(2*lwk) ! message buffer (also RMA window)
 
       parameter(lrbs_loc=20*lx1*ly1*lz1)
       parameter(lrbs=lrbs_loc*lelt)
       common /vrthov/ w2(lrbs) ! read buffer
       real*4 w2
 
-      integer vi(2+lrbs_loc,lelt) ! [nid,iel,(data real*8)] x nelt
+c     W2: CR tuple item must hold ONE whole (scalar) element's real*4 payload.
+c     Max is set by mapab's interpolation bound nxr<=lx1+6, and x2 for FP64:
+c       lelem_mx = 2*(lx1+6)*(ly1+6)*(lz1+6)
+c     lbrst_max = # tuple columns (batch capacity). Runtime lbrst<=lbrst_max is
+c     required (asserted below). lbrst_max is THE memory knob -- for huge lelt,
+c     reduce it (batch holds only lbrst<=min(1024,lelt) elements at once).
+c     See reports/report_B.md for the old-vs-new memory comparison.
+      parameter(lelem_mx=2*(lx1+6)*(ly1+6)*(lz1+6))
+      parameter(lbrst_max=lelt)
+      integer vi(2+lelem_mx,lbrst_max) ! [nid,iel,(data real*8)] x lbrst_max
       real*8 etime0,dnekclock_sync
 
       integer e,ei
@@ -1961,8 +1969,12 @@ c-----------------------------------------------------------------------
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_gets b')
+      ! W2: per-element payload now bounded by lelem_mx (mapab nxr<=lx1+6),
+      ! not lrbs_loc -- lifts the PR#900 'c' limit for high-order FP64.
       if (ifcrrs)
-     $  call lim_chk(nxyzr,lrbs_loc,'     ','     ','mfi_gets c')
+     $  call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_gets c')
+      if (ifcrrs)
+     $  call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_gets d')
 
       call nekgsync()
 
@@ -2017,24 +2029,48 @@ c-----------------------------------------------------------------------
                 ! crystal route nr real items of size lrs to rank vi(key,1:nr)
                 nrmax = lbrst
                 n = iloc - 1
-                li = 2+lrbs_loc ! offset
+                li = 2+lelem_mx ! tuple item width (W2)
                 key = 1
                 etime0 = dnekclock_sync()
                 call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
      &                   vl,0,vr,0,key)
                 rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
-                ! unpack buffer
+                ! unpack buffer + fused assign (W1: CR path skips wkg)
+                ! Assign each received element vi(3,iloc) directly into its
+                ! target slot iel: byte_reverse + copy/interp, one element.
+                ! npts = point count (nxyzr is real*4 words here, x2 if FP64).
                 etime0 = dnekclock_sync()
                 ierr = 0
                 if (n.gt.nrmax) then
                   ierr = 1
                   goto 100
                 endif
+                npts = nxr*nyr*nzr
                 do iloc = 1,n
                   iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                  l = (iel-1) * nxyzr + 1
-                  call icopy (wkg(l),vi(3,iloc),nxyzr)
+                  if (.not.iskip) then
+                    if (if_byte_sw) then
+                      if (wdsizr.eq.8) then
+                        call byte_reverse8(vi(3,iloc),npts*2,ierr)
+                      else
+                        call byte_reverse (vi(3,iloc),npts  ,ierr)
+                      endif
+                    endif
+                    if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
+                      if (wdsizr.eq.4) then       ! COPY
+                        call copy4r(u(1,iel),vi(3,iloc),npts)
+                      else
+                        call copy  (u(1,iel),vi(3,iloc),npts)
+                      endif
+                    else                          ! INTERPOLATE
+                      if (wdsizr.eq.4) then
+                        call mapab4r(u(1,iel),vi(3,iloc),nxr,1)
+                      else
+                        call mapab  (u(1,iel),vi(3,iloc),nxr,1)
+                      endif
+                    endif
+                  endif
                 enddo
                 call nekgsync()
                 rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
@@ -2059,11 +2095,35 @@ c-----------------------------------------------------------------------
                 call nekgsync()
                 rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
+                ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
+                ! wk holds this batch's elements at local slot e-jeln1+1;
+                ! the global slot is e (np>1), clamp to valid range nelt_hr0.
                 etime0 = dnekclock_sync()
+                npts = nxr*nyr*nzr
                 l = 1
                 do e = jeln1,jeln2
-                  lg = (e-1) * nxyzr + 1
-                  call icopy (wkg(lg),wk(l),nxyzr)
+                  if (e.le.nelt_hr0 .and. .not.iskip) then
+                    if (if_byte_sw) then
+                      if (wdsizr.eq.8) then
+                        call byte_reverse8(wk(l),npts*2,ierr)
+                      else
+                        call byte_reverse (wk(l),npts  ,ierr)
+                      endif
+                    endif
+                    if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
+                      if (wdsizr.eq.4) then     ! COPY
+                        call copy4r(u(1,e),wk(l),npts)
+                      else
+                        call copy  (u(1,e),wk(l),npts)
+                      endif
+                    else                        ! INTERPOLATE
+                      if (wdsizr.eq.4) then
+                        call mapab4r(u(1,e),wk(l),nxr,1)
+                      else
+                        call mapab  (u(1,e),wk(l),nxr,1)
+                      endif
+                    endif
+                  endif
                   l = l+nxyzr
                 enddo
                 rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
@@ -2075,11 +2135,13 @@ c-----------------------------------------------------------------------
             k  = k + nelrr
          enddo
       elseif (np.eq.1) then
+         ! W3: np==1 direct read into w2 (file order == er() order); assign
+         ! per element below from w2 using ei=er(e). No wkg.
          etime0 = dnekclock_sync()
          if(ifmpiio) then
-           call byte_read_mpi(wkg,nxyzr*nelr,-1,ifh_mbyte,ierr)
+           call byte_read_mpi(w2,nxyzr*nelr,-1,ifh_mbyte,ierr)
          else
-           call byte_read(wkg,nxyzr*nelr,ierr)
+           call byte_read(w2,nxyzr*nelr,ierr)
          endif
          rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
       endif
@@ -2090,40 +2152,40 @@ c-----------------------------------------------------------------------
          goto 100     ! don't use the data
       endif
 
-      nxyzr = nxr*nyr*nzr
-      nxyzv = nxr*nyr*nzr
+      ! Final assign for the np==1 direct-read bypass, straight from w2
+      ! (file order == er() order). The parallel CR and RMA paths already
+      ! assigned inline above (W1/W3); wkg is no longer used.
+      if (np.eq.1) then
       nxyzw = nxr*nyr*nzr
       if (wdsizr.eq.8) nxyzw = 2*nxyzw
+      npts = nxr*nyr*nzr
 
       l = 1
       do e=1,nelt_hr0
-         if (np.gt.1) then
-            ei = e
-         elseif(np.eq.1) then
-            ei = er(e)
-         endif
+         ei = er(e)
          if (if_byte_sw) then
             if(wdsizr.eq.8) then
-              call byte_reverse8(wkg(l),nxyzv*2,ierr)
+              call byte_reverse8(w2(l),npts*2,ierr)
             else
-              call byte_reverse(wkg(l),nxyzv,ierr)
+              call byte_reverse(w2(l),npts,ierr)
             endif
          endif
          if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
             if (wdsizr.eq.4) then         ! COPY
-               call copy4r(u(1,ei),wkg(l        ),nxyzr)
+               call copy4r(u(1,ei),w2(l         ),npts)
             else
-               call copy  (u(1,ei),wkg(l        ),nxyzr)
+               call copy  (u(1,ei),w2(l         ),npts)
             endif
          else                             ! INTERPOLATE
             if (wdsizr.eq.4) then
-               call mapab4r(u(1,ei),wkg(l        ),nxr,1)
+               call mapab4r(u(1,ei),w2(l         ),nxr,1)
             else
-               call mapab  (u(1,ei),wkg(l        ),nxr,1)
+               call mapab  (u(1,ei),w2(l         ),nxr,1)
             endif
          endif
          l = l+nxyzw
       enddo
+      endif
 
  100  call err_chk(ierr,'Error reading restart data,in gets.$')
       return
@@ -2140,14 +2202,22 @@ c-----------------------------------------------------------------------
       real u(lx1*ly1*lz1,1),v(lx1*ly1*lz1,1),w(lx1*ly1*lz1,1)
       logical iskip
 
-      real*4 wk(2*lwk) ! message buffer
-      real*4 wkg(2*lwk) ! storage buffer
+      real*4 wk(2*lwk) ! message buffer (also RMA window)
       parameter(lrbs_loc=20*lx1*ly1*lz1)
       parameter(lrbs=lrbs_loc*lelt)
       common /vrthov/ w2(lrbs) ! read buffer
       real*4 w2
 
-      integer vi(2+lrbs_loc,lelt) ! [nid,iel,(data real*8)] x nelt
+c     W2: CR tuple item must hold ONE whole VECTOR element (ldim components),
+c     bounded by mapab's nxr<=lx1+6 and x2 for FP64:
+c       lelem_mx = 2*ldim*(lx1+6)*(ly1+6)*(lz1+6)
+c     lbrst_max = # tuple columns (batch capacity); runtime lbrst<=lbrst_max
+c     asserted below. lbrst_max is THE memory knob -- reduce for huge lelt.
+c     NOTE: at lbrst_max=lelt the getv vi can exceed the old wkg+vi footprint;
+c     reduce lbrst_max to stay within the old peak. See reports/report_B.md.
+      parameter(lelem_mx=2*ldim*(lx1+6)*(ly1+6)*(lz1+6))
+      parameter(lbrst_max=lelt)
+      integer vi(2+lelem_mx,lbrst_max) ! [nid,iel,(data real*8)] x lbrst_max
       real*8 etime0,dnekclock_sync
 
       integer e,ei
@@ -2175,8 +2245,12 @@ c-----------------------------------------------------------------------
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_getv b')
+      ! W2: per-element payload now bounded by lelem_mx (mapab nxr<=lx1+6),
+      ! not lrbs_loc -- lifts the PR#900 'c' limit for high-order FP64.
       if (ifcrrs)
-     $  call lim_chk(nxyzr,lrbs_loc,'     ','     ','mfi_getv c')
+     $  call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_getv c')
+      if (ifcrrs)
+     $  call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_getv d')
 
       call nekgsync()
 
@@ -2229,24 +2303,62 @@ c-----------------------------------------------------------------------
                 ! crystal route nr real items of size lrs to rank vi(key,1:nr)
                 nrmax = lbrst
                 n = iloc - 1
-                li = 2+lrbs_loc ! offset
+                li = 2+lelem_mx ! tuple item width (W2)
                 key = 1
                 etime0 = dnekclock_sync()
                 call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
      &                   vl,0,vr,0,key)
                 rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
-                ! unpack buffer
+                ! unpack buffer + fused assign (W1: CR path skips wkg)
+                ! Assign each received vector element vi(3,iloc) directly into
+                ! its target slot iel. Components u,v,w sit at real*4 offsets
+                ! 0, nw, 2*nw within the tuple payload; npts = point count.
                 etime0 = dnekclock_sync()
                 ierr = 0
                 if (n.gt.nrmax) then
                   ierr = 1
                   goto 100
                 endif
+                npts = nxr*nyr*nzr
+                nw   = npts
+                if (wdsizr.eq.8) nw = 2*npts
                 do iloc = 1,n
                   iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                  l = (iel-1) * nxyzr + 1
-                  call icopy (wkg(l),vi(3,iloc),nxyzr)
+                  if (.not.iskip) then
+                    if (if_byte_sw) then
+                      if (wdsizr.eq.8) then
+                        call byte_reverse8(vi(3,iloc),ldim*npts*2,ierr)
+                      else
+                        call byte_reverse (vi(3,iloc),ldim*npts  ,ierr)
+                      endif
+                    endif
+                    if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
+                      if (wdsizr.eq.4) then       ! COPY
+                        call copy4r(u(1,iel),vi(3       ,iloc),npts)
+                        call copy4r(v(1,iel),vi(3+  nw  ,iloc),npts)
+                        if (if3d)
+     $                  call copy4r(w(1,iel),vi(3+2*nw  ,iloc),npts)
+                      else
+                        call copy  (u(1,iel),vi(3       ,iloc),npts)
+                        call copy  (v(1,iel),vi(3+  nw  ,iloc),npts)
+                        if (if3d)
+     $                  call copy  (w(1,iel),vi(3+2*nw  ,iloc),npts)
+                      endif
+                    else                          ! INTERPOLATE
+                      if (wdsizr.eq.4) then
+                        call mapab4r(u(1,iel),vi(3       ,iloc),nxr,1)
+                        call mapab4r(v(1,iel),vi(3+  nw  ,iloc),nxr,1)
+                        if (if3d)
+     $                  call mapab4r(w(1,iel),vi(3+2*nw  ,iloc),nxr,1)
+                      else
+                        call mapab  (u(1,iel),vi(3       ,iloc),nxr,1)
+                        call mapab  (v(1,iel),vi(3+  nw  ,iloc),nxr,1)
+                        if (if3d)
+     $                  call mapab  (w(1,iel),vi(3+2*nw  ,iloc),nxr,1)
+                      endif
+                    endif
+                  endif
                 enddo
                 call nekgsync()
                 rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
@@ -2270,11 +2382,49 @@ c-----------------------------------------------------------------------
                 call nekgsync()
                 rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
+                ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
+                ! wk holds this batch's vector elements at local slot; global
+                ! slot is e (np>1); components u,v,w at real*4 offsets 0,nw,2nw.
                 etime0 = dnekclock_sync()
+                npts = nxr*nyr*nzr
+                nw   = npts
+                if (wdsizr.eq.8) nw = 2*npts
                 l = 1
                 do e = jeln1,jeln2
-                  lg = (e-1) * nxyzr + 1
-                  call icopy (wkg(lg),wk(l),nxyzr)
+                  if (e.le.nelt_hr0 .and. .not.iskip) then
+                    if (if_byte_sw) then
+                      if (wdsizr.eq.8) then
+                        call byte_reverse8(wk(l),ldim*npts*2,ierr)
+                      else
+                        call byte_reverse (wk(l),ldim*npts  ,ierr)
+                      endif
+                    endif
+                    if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
+                      if (wdsizr.eq.4) then     ! COPY
+                        call copy4r(u(1,e),wk(l       ),npts)
+                        call copy4r(v(1,e),wk(l+  nw  ),npts)
+                        if (if3d)
+     $                  call copy4r(w(1,e),wk(l+2*nw  ),npts)
+                      else
+                        call copy  (u(1,e),wk(l       ),npts)
+                        call copy  (v(1,e),wk(l+  nw  ),npts)
+                        if (if3d)
+     $                  call copy  (w(1,e),wk(l+2*nw  ),npts)
+                      endif
+                    else                        ! INTERPOLATE
+                      if (wdsizr.eq.4) then
+                        call mapab4r(u(1,e),wk(l       ),nxr,1)
+                        call mapab4r(v(1,e),wk(l+  nw  ),nxr,1)
+                        if (if3d)
+     $                  call mapab4r(w(1,e),wk(l+2*nw  ),nxr,1)
+                      else
+                        call mapab  (u(1,e),wk(l       ),nxr,1)
+                        call mapab  (v(1,e),wk(l+  nw  ),nxr,1)
+                        if (if3d)
+     $                  call mapab  (w(1,e),wk(l+2*nw  ),nxr,1)
+                      endif
+                    endif
+                  endif
                   l = l+nxyzr
                 enddo
                 rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
@@ -2286,11 +2436,12 @@ c-----------------------------------------------------------------------
             k  = k + nelrr
          enddo
       elseif (np.eq.1) then
+         ! W3: np==1 direct read into w2 (file order); assign from w2 below.
          etime0 = dnekclock_sync()
-         if(ifmpiio) then 
-           call byte_read_mpi(wkg,nxyzr*nelr,-1,ifh_mbyte,ierr)
+         if(ifmpiio) then
+           call byte_read_mpi(w2,nxyzr*nelr,-1,ifh_mbyte,ierr)
          else
-           call byte_read(wkg,nxyzr*nelr,ierr)
+           call byte_read(w2,nxyzr*nelr,ierr)
          endif
          rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
       endif
@@ -2301,54 +2452,55 @@ c-----------------------------------------------------------------------
          goto 100     ! don't assign the data we just read
       endif
 
-      nxyzr = nxr*nyr*nzr
-      nxyzv = ldim*nxr*nyr*nzr
+      ! Final assign for the np==1 direct-read bypass, straight from w2
+      ! (file order). Parallel CR and RMA paths already assigned inline
+      ! above (W1/W3); wkg is no longer used. Components at 0,nw,2nw.
+      if (np.eq.1) then
       nxyzw = nxr*nyr*nzr
       if (wdsizr.eq.8) nxyzw = 2*nxyzw
+      npts = nxr*nyr*nzr
+      nw   = nxyzw
 
       l = 1
       do e=1,nelt_hr0
-         if (np.gt.1) then
-            ei = e
-         else if(np.eq.1) then
-            ei = ie_map_r2o(er(e),nhrefblkrs)
-         endif
+         ei = er(e)   ! not ie_map_r2o(er(e),...): fixes np==1 h-refine (PR #908)
 
          if (if_byte_sw) then
             if(wdsizr.eq.8) then
-               call byte_reverse8(wkg(l),nxyzv*2,ierr)
+               call byte_reverse8(w2(l),ldim*npts*2,ierr)
             else
-               call byte_reverse(wkg(l),nxyzv,ierr)
+               call byte_reverse(w2(l),ldim*npts,ierr)
             endif
          endif
 
          if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
             if (wdsizr.eq.4) then         ! COPY
-               call copy4r(u(1,ei),wkg(l        ),nxyzr)
-               call copy4r(v(1,ei),wkg(l+  nxyzw),nxyzr)
-               if (if3d) 
-     $         call copy4r(w(1,ei),wkg(l+2*nxyzw),nxyzr)
+               call copy4r(u(1,ei),w2(l        ),npts)
+               call copy4r(v(1,ei),w2(l+  nw   ),npts)
+               if (if3d)
+     $         call copy4r(w(1,ei),w2(l+2*nw   ),npts)
             else
-               call copy  (u(1,ei),wkg(l        ),nxyzr)
-               call copy  (v(1,ei),wkg(l+  nxyzw),nxyzr)
-               if (if3d) 
-     $         call copy  (w(1,ei),wkg(l+2*nxyzw),nxyzr)
+               call copy  (u(1,ei),w2(l        ),npts)
+               call copy  (v(1,ei),w2(l+  nw   ),npts)
+               if (if3d)
+     $         call copy  (w(1,ei),w2(l+2*nw   ),npts)
             endif
          else                             ! INTERPOLATE
             if (wdsizr.eq.4) then
-               call mapab4r(u(1,ei),wkg(l        ),nxr,1)
-               call mapab4r(v(1,ei),wkg(l+  nxyzw),nxr,1)
-               if (if3d) 
-     $         call mapab4r(w(1,ei),wkg(l+2*nxyzw),nxr,1)
+               call mapab4r(u(1,ei),w2(l        ),nxr,1)
+               call mapab4r(v(1,ei),w2(l+  nw   ),nxr,1)
+               if (if3d)
+     $         call mapab4r(w(1,ei),w2(l+2*nw   ),nxr,1)
             else
-               call mapab  (u(1,ei),wkg(l        ),nxr,1)
-               call mapab  (v(1,ei),wkg(l+  nxyzw),nxr,1)
-               if (if3d) 
-     $         call mapab  (w(1,ei),wkg(l+2*nxyzw),nxr,1)
+               call mapab  (u(1,ei),w2(l        ),nxr,1)
+               call mapab  (v(1,ei),w2(l+  nw   ),nxr,1)
+               if (if3d)
+     $         call mapab  (w(1,ei),w2(l+2*nw   ),nxr,1)
             endif
          endif
          l = l+ldim*nxyzw
       enddo
+      endif
 
  100  call err_chk(ierr,'Error reading restart data, in getv.$')
 
@@ -2568,11 +2720,15 @@ c
 
 #ifdef MPI
       lbrst = min(lbrst, lelt)
+      nelt_hr0 = nelt ! upper bound; true nelt_hr0=nelt/nhrefblkrs, but href not set yet
       if (lbrst.lt.nelt_hr0.AND.nio.eq.0)
      $  write(*,*)'Batched restart with lbrst',lbrst,nelt_hr0
 
       call rzero(rst_etime,4) ! mpiio / pack / transfer / unpack
 
+      ! np==1 uses the direct-read bypass (no redistribution), so skip both
+      ! the crystal-router setup and the RMA window creation in that case.
+      if (np.gt.1) then
       if (ifcrrs) then
         call fgslib_crystal_setup(cr_mfi,nekcomm,np)
       else
@@ -2593,6 +2749,7 @@ c
           if (ierr .ne. 0 ) call exitti('MPI_Win_allocate failed!$',0)
           call rzero(wk,lwk) ! avoid unexpected FE_INVALID
         endif
+      endif
       endif
 #endif
 
@@ -2743,7 +2900,7 @@ c               if(nid.eq.0) write(6,'(A,I2,A)') ' Reading ps',k,' field'
       if (ifgetp) call map_pm1_to_pr(pm1,ifile) ! Interpolate pressure
 
 #ifdef MPI
-      if (ifcrrs) then
+      if (np.gt.1 .and. ifcrrs) then    ! matched to the np>1 setup above
         call fgslib_crystal_free(cr_mfi)
       endif
 
