@@ -2049,28 +2049,9 @@ c     See reports/report_B.md for the old-vs-new memory comparison.
                 npts = nxr*nyr*nzr
                 do iloc = 1,n
                   iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                  if (.not.iskip) then
-                    if (if_byte_sw) then
-                      if (wdsizr.eq.8) then
-                        call byte_reverse8(vi(3,iloc),npts*2,ierr)
-                      else
-                        call byte_reverse (vi(3,iloc),npts  ,ierr)
-                      endif
-                    endif
-                    if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
-                      if (wdsizr.eq.4) then       ! COPY
-                        call copy4r(u(1,iel),vi(3,iloc),npts)
-                      else
-                        call copy  (u(1,iel),vi(3,iloc),npts)
-                      endif
-                    else                          ! INTERPOLATE
-                      if (wdsizr.eq.4) then
-                        call mapab4r(u(1,iel),vi(3,iloc),nxr,1)
-                      else
-                        call mapab  (u(1,iel),vi(3,iloc),nxr,1)
-                      endif
-                    endif
-                  endif
+                  if (.not.iskip)
+     $              call mfi_assign_elem(u(1,iel),vi(3,iloc),npts,
+     $                             nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
                 enddo
                 call nekgsync()
                 rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
@@ -2102,28 +2083,9 @@ c     See reports/report_B.md for the old-vs-new memory comparison.
                 npts = nxr*nyr*nzr
                 l = 1
                 do e = jeln1,jeln2
-                  if (e.le.nelt_hr0 .and. .not.iskip) then
-                    if (if_byte_sw) then
-                      if (wdsizr.eq.8) then
-                        call byte_reverse8(wk(l),npts*2,ierr)
-                      else
-                        call byte_reverse (wk(l),npts  ,ierr)
-                      endif
-                    endif
-                    if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
-                      if (wdsizr.eq.4) then     ! COPY
-                        call copy4r(u(1,e),wk(l),npts)
-                      else
-                        call copy  (u(1,e),wk(l),npts)
-                      endif
-                    else                        ! INTERPOLATE
-                      if (wdsizr.eq.4) then
-                        call mapab4r(u(1,e),wk(l),nxr,1)
-                      else
-                        call mapab  (u(1,e),wk(l),nxr,1)
-                      endif
-                    endif
-                  endif
+                  if (e.le.nelt_hr0 .and. .not.iskip)
+     $              call mfi_assign_elem(u(1,e),wk(l),npts,
+     $                             nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
                   l = l+nxyzr
                 enddo
                 rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
@@ -2163,26 +2125,8 @@ c     See reports/report_B.md for the old-vs-new memory comparison.
       l = 1
       do e=1,nelt_hr0
          ei = er(e)
-         if (if_byte_sw) then
-            if(wdsizr.eq.8) then
-              call byte_reverse8(w2(l),npts*2,ierr)
-            else
-              call byte_reverse(w2(l),npts,ierr)
-            endif
-         endif
-         if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
-            if (wdsizr.eq.4) then         ! COPY
-               call copy4r(u(1,ei),w2(l         ),npts)
-            else
-               call copy  (u(1,ei),w2(l         ),npts)
-            endif
-         else                             ! INTERPOLATE
-            if (wdsizr.eq.4) then
-               call mapab4r(u(1,ei),w2(l         ),nxr,1)
-            else
-               call mapab  (u(1,ei),w2(l         ),nxr,1)
-            endif
-         endif
+         call mfi_assign_elem(u(1,ei),w2(l),npts,
+     $                        nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
          l = l+nxyzw
       enddo
       endif
@@ -2326,38 +2270,13 @@ c     reduce lbrst_max to stay within the old peak. See reports/report_B.md.
                 do iloc = 1,n
                   iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
                   if (.not.iskip) then
-                    if (if_byte_sw) then
-                      if (wdsizr.eq.8) then
-                        call byte_reverse8(vi(3,iloc),ldim*npts*2,ierr)
-                      else
-                        call byte_reverse (vi(3,iloc),ldim*npts  ,ierr)
-                      endif
-                    endif
-                    if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
-                      if (wdsizr.eq.4) then       ! COPY
-                        call copy4r(u(1,iel),vi(3       ,iloc),npts)
-                        call copy4r(v(1,iel),vi(3+  nw  ,iloc),npts)
-                        if (if3d)
-     $                  call copy4r(w(1,iel),vi(3+2*nw  ,iloc),npts)
-                      else
-                        call copy  (u(1,iel),vi(3       ,iloc),npts)
-                        call copy  (v(1,iel),vi(3+  nw  ,iloc),npts)
-                        if (if3d)
-     $                  call copy  (w(1,iel),vi(3+2*nw  ,iloc),npts)
-                      endif
-                    else                          ! INTERPOLATE
-                      if (wdsizr.eq.4) then
-                        call mapab4r(u(1,iel),vi(3       ,iloc),nxr,1)
-                        call mapab4r(v(1,iel),vi(3+  nw  ,iloc),nxr,1)
-                        if (if3d)
-     $                  call mapab4r(w(1,iel),vi(3+2*nw  ,iloc),nxr,1)
-                      else
-                        call mapab  (u(1,iel),vi(3       ,iloc),nxr,1)
-                        call mapab  (v(1,iel),vi(3+  nw  ,iloc),nxr,1)
-                        if (if3d)
-     $                  call mapab  (w(1,iel),vi(3+2*nw  ,iloc),nxr,1)
-                      endif
-                    endif
+                    call mfi_assign_elem(u(1,iel),vi(3     ,iloc),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                    call mfi_assign_elem(v(1,iel),vi(3+nw  ,iloc),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                    if (if3d)
+     $              call mfi_assign_elem(w(1,iel),vi(3+2*nw,iloc),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
                   endif
                 enddo
                 call nekgsync()
@@ -2392,38 +2311,13 @@ c     reduce lbrst_max to stay within the old peak. See reports/report_B.md.
                 l = 1
                 do e = jeln1,jeln2
                   if (e.le.nelt_hr0 .and. .not.iskip) then
-                    if (if_byte_sw) then
-                      if (wdsizr.eq.8) then
-                        call byte_reverse8(wk(l),ldim*npts*2,ierr)
-                      else
-                        call byte_reverse (wk(l),ldim*npts  ,ierr)
-                      endif
-                    endif
-                    if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
-                      if (wdsizr.eq.4) then     ! COPY
-                        call copy4r(u(1,e),wk(l       ),npts)
-                        call copy4r(v(1,e),wk(l+  nw  ),npts)
-                        if (if3d)
-     $                  call copy4r(w(1,e),wk(l+2*nw  ),npts)
-                      else
-                        call copy  (u(1,e),wk(l       ),npts)
-                        call copy  (v(1,e),wk(l+  nw  ),npts)
-                        if (if3d)
-     $                  call copy  (w(1,e),wk(l+2*nw  ),npts)
-                      endif
-                    else                        ! INTERPOLATE
-                      if (wdsizr.eq.4) then
-                        call mapab4r(u(1,e),wk(l       ),nxr,1)
-                        call mapab4r(v(1,e),wk(l+  nw  ),nxr,1)
-                        if (if3d)
-     $                  call mapab4r(w(1,e),wk(l+2*nw  ),nxr,1)
-                      else
-                        call mapab  (u(1,e),wk(l       ),nxr,1)
-                        call mapab  (v(1,e),wk(l+  nw  ),nxr,1)
-                        if (if3d)
-     $                  call mapab  (w(1,e),wk(l+2*nw  ),nxr,1)
-                      endif
-                    endif
+                    call mfi_assign_elem(u(1,e),wk(l     ),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                    call mfi_assign_elem(v(1,e),wk(l+nw  ),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                    if (if3d)
+     $              call mfi_assign_elem(w(1,e),wk(l+2*nw),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
                   endif
                   l = l+nxyzr
                 enddo
@@ -2464,45 +2358,63 @@ c     reduce lbrst_max to stay within the old peak. See reports/report_B.md.
       l = 1
       do e=1,nelt_hr0
          ei = er(e)   ! not ie_map_r2o(er(e),...): fixes np==1 h-refine (PR #908)
-
-         if (if_byte_sw) then
-            if(wdsizr.eq.8) then
-               call byte_reverse8(w2(l),ldim*npts*2,ierr)
-            else
-               call byte_reverse(w2(l),ldim*npts,ierr)
-            endif
-         endif
-
-         if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
-            if (wdsizr.eq.4) then         ! COPY
-               call copy4r(u(1,ei),w2(l        ),npts)
-               call copy4r(v(1,ei),w2(l+  nw   ),npts)
-               if (if3d)
-     $         call copy4r(w(1,ei),w2(l+2*nw   ),npts)
-            else
-               call copy  (u(1,ei),w2(l        ),npts)
-               call copy  (v(1,ei),w2(l+  nw   ),npts)
-               if (if3d)
-     $         call copy  (w(1,ei),w2(l+2*nw   ),npts)
-            endif
-         else                             ! INTERPOLATE
-            if (wdsizr.eq.4) then
-               call mapab4r(u(1,ei),w2(l        ),nxr,1)
-               call mapab4r(v(1,ei),w2(l+  nw   ),nxr,1)
-               if (if3d)
-     $         call mapab4r(w(1,ei),w2(l+2*nw   ),nxr,1)
-            else
-               call mapab  (u(1,ei),w2(l        ),nxr,1)
-               call mapab  (v(1,ei),w2(l+  nw   ),nxr,1)
-               if (if3d)
-     $         call mapab  (w(1,ei),w2(l+2*nw   ),nxr,1)
-            endif
-         endif
+         call mfi_assign_elem(u(1,ei),w2(l     ),
+     $                     npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+         call mfi_assign_elem(v(1,ei),w2(l+nw  ),
+     $                     npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+         if (if3d)
+     $   call mfi_assign_elem(w(1,ei),w2(l+2*nw),
+     $                     npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
          l = l+ldim*nxyzw
       enddo
       endif
 
  100  call err_chk(ierr,'Error reading restart data, in getv.$')
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine mfi_assign_elem(u,src,npts,nxr,nyr,nzr,
+     $                           wdsizr,if_byte_sw,ierr)
+c
+c     Assign ONE scalar field/component from the real*4 payload 'src' into the
+c     destination field slot 'u': optional in-place endian byte-swap, then a
+c     straight copy (matching order) or spectral interpolation (nxr->lx1).
+c     Stateless per element; shared by mfi_gets (1 call) and mfi_getv (ldim
+c     calls, one per component). Byte-identical to the previously-inlined
+c     assign blocks in both routines.
+c
+c     wdsizr=8: 'src' is real*4 but copy/mapab reinterpret its address as
+c     real*8 (two real*4 slots per value); byte_reverse8 swaps npts doubles
+c     = npts*2 real*4 words -- matches the original inlined semantics.
+c
+      include 'SIZE'
+      real    u(1)              ! default-precision destination (one elem/comp)
+      real*4  src(1)            ! real*4 payload (reinterpreted r*8 if wdsizr=8)
+      integer npts,nxr,nyr,nzr,wdsizr,ierr
+      logical if_byte_sw
+
+      if (if_byte_sw) then
+         if (wdsizr.eq.8) then
+            call byte_reverse8(src,npts*2,ierr)
+         else
+            call byte_reverse (src,npts  ,ierr)
+         endif
+      endif
+
+      if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then  ! COPY
+         if (wdsizr.eq.4) then
+            call copy4r(u,src,npts)
+         else
+            call copy  (u,src,npts)
+         endif
+      else                                                ! INTERPOLATE
+         if (wdsizr.eq.4) then
+            call mapab4r(u,src,nxr,1)
+         else
+            call mapab  (u,src,nxr,1)
+         endif
+      endif
 
       return
       end
