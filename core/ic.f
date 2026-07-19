@@ -1925,20 +1925,26 @@ c-----------------------------------------------------------------------
 
       real*4 wk(2*lwk) ! message buffer (also RMA window)
 
+c     Read buffer w2 (common /vrthov/, shared with mfi_getv): sized to hold
+c     lread_mx elements' worth of file-order payload. lread_mx is the read-block
+c     memory knob -- default lelt keeps w2 at the OLD size (lrbs_loc*lelt) so no
+c     memory regression; reduce it for large lelt to bound w2 to a read block
+c     (nread then auto-grows to cover nelr).  lrbs_loc must match mfi_getv.
       parameter(lrbs_loc=20*lx1*ly1*lz1)
-      parameter(lrbs=lrbs_loc*lelt)
+      parameter(lread_mx=lelt)
+      parameter(lrbs=lrbs_loc*lread_mx)
       common /vrthov/ w2(lrbs) ! read buffer
       real*4 w2
 
-c     W2: CR tuple item must hold ONE whole (scalar) element's real*4 payload.
+c     CR tuple item must hold ONE whole (scalar) element's real*4 payload.
 c     Max is set by mapab's interpolation bound nxr<=lx1+6, and x2 for FP64:
 c       lelem_mx = 2*(lx1+6)*(ly1+6)*(lz1+6)
 c     lbrst_max = # tuple columns (batch capacity). Runtime lbrst<=lbrst_max is
-c     required (asserted below). lbrst_max is THE memory knob -- for huge lelt,
-c     reduce it (batch holds only lbrst<=min(1024,lelt) elements at once).
-c     See reports/report_B.md for the old-vs-new memory comparison.
+c     asserted (check 'd'). lbrst_max defaults to min(1024,lelt) (same as
+c     lbrst's default) so vi is batch-scaled and stays under the old wkg+vi
+c     footprint; raise it (up to lelt) if a larger batch is wanted.
       parameter(lelem_mx=2*(lx1+6)*(ly1+6)*(lz1+6))
-      parameter(lbrst_max=lelt)
+      parameter(lbrst_max=min(1024,lelt))
       integer vi(2+lelem_mx,lbrst_max) ! [nid,iel,(data real*8)] x lbrst_max
       real*8 etime0,dnekclock_sync
 
@@ -1954,10 +1960,15 @@ c     See reports/report_B.md for the old-vs-new memory comparison.
 
       nelt_hr0 = nelt / nhrefblkrs
 
-      ! check message buffer wk
-      num_recv  = nxyzr*nelt_hr0
-      num_avail = size(wk)
-      call lim_chk(num_recv,num_avail,'     ','     ','mfi_gets a')
+      ! check message buffer wk -- only the RMA path (.not.ifcrrs) uses wk (as
+      ! the one-sided window). RMA uses a FULL-FIELD window (nbatch=1) so the
+      ! window must hold all nelt_hr0 destination slots. The CR path never
+      ! touches wk (uses vi + w2), so no check is needed there.
+      if (.not.ifcrrs) then
+        num_recv  = nxyzr*nelt_hr0
+        num_avail = size(wk)
+        call lim_chk(num_recv,num_avail,'     ','     ','mfi_gets a')
+      endif
 
       ! setup read buffer
       if (nid.eq.pid0r) then
@@ -1999,14 +2010,28 @@ c     See reports/report_B.md for the old-vs-new memory comparison.
             endif
 
 #ifdef MPI
-            nbatch = (nelt_hr0 - 1) / lbrst + 1
-            nbatch = iglmax(nbatch, 1)
+            ! CR batches the redistribute over destination-local windows of
+            ! width lbrst (bounds the tuple vi). RMA cannot batch both the
+            ! read block and the window under a sequential read, so it uses a
+            ! single full-field window (nbatch=1); it batch-scales only w2
+            ! (via lread_mx). See report_C.md.
+            if (ifcrrs) then
+              nbatch = (nelt_hr0 - 1) / lbrst + 1
+              nbatch = iglmax(nbatch, 1)
+            else
+              nbatch = 1
+            endif
 
             do ibatch = 1,nbatch
 
-              ! range for jeln in this batch
-              jeln1 = (ibatch-1)*lbrst+1
-              jeln2 = ibatch*lbrst
+              ! range for jeln in this batch (CR: width lbrst; RMA: full field)
+              if (ifcrrs) then
+                jeln1 = (ibatch-1)*lbrst+1
+                jeln2 = ibatch*lbrst
+              else
+                jeln1 = 1
+                jeln2 = nelt_hr0
+              endif
 
               ! redistribute data based on the current el-proc map
               if (ifcrrs) then
@@ -2077,8 +2102,10 @@ c     See reports/report_B.md for the old-vs-new memory comparison.
                 rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
                 ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
-                ! wk holds this batch's elements at local slot e-jeln1+1;
-                ! the global slot is e (np>1), clamp to valid range nelt_hr0.
+                ! The full-field window accumulates Puts across ALL read blocks,
+                ! so assign only on the LAST read block (i.eq.nread), once every
+                ! destination slot has been filled. wk slot = global slot e.
+                if (i.eq.nread) then
                 etime0 = dnekclock_sync()
                 npts = nxr*nyr*nzr
                 l = 1
@@ -2089,6 +2116,7 @@ c     See reports/report_B.md for the old-vs-new memory comparison.
                   l = l+nxyzr
                 enddo
                 rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+                endif
 
               endif
 
@@ -2147,20 +2175,26 @@ c-----------------------------------------------------------------------
       logical iskip
 
       real*4 wk(2*lwk) ! message buffer (also RMA window)
+
+c     Read buffer w2 (common /vrthov/, shared with mfi_gets): lread_mx and
+c     lrbs_loc MUST match mfi_gets so the common block is sized consistently.
+c     lread_mx defaults to lelt (w2 == old size, no regression); reduce for
+c     large lelt to bound w2 to a read block (nread auto-grows).
       parameter(lrbs_loc=20*lx1*ly1*lz1)
-      parameter(lrbs=lrbs_loc*lelt)
+      parameter(lread_mx=lelt)
+      parameter(lrbs=lrbs_loc*lread_mx)
       common /vrthov/ w2(lrbs) ! read buffer
       real*4 w2
 
-c     W2: CR tuple item must hold ONE whole VECTOR element (ldim components),
+c     CR tuple item must hold ONE whole VECTOR element (ldim components),
 c     bounded by mapab's nxr<=lx1+6 and x2 for FP64:
 c       lelem_mx = 2*ldim*(lx1+6)*(ly1+6)*(lz1+6)
 c     lbrst_max = # tuple columns (batch capacity); runtime lbrst<=lbrst_max
-c     asserted below. lbrst_max is THE memory knob -- reduce for huge lelt.
-c     NOTE: at lbrst_max=lelt the getv vi can exceed the old wkg+vi footprint;
-c     reduce lbrst_max to stay within the old peak. See reports/report_B.md.
+c     asserted (check 'd'). Default min(1024,lelt) (same as lbrst) keeps the
+c     getv vi under the old wkg+vi footprint; raise (up to lelt) for a larger
+c     batch if memory allows. See reports/report_B.md and report_C.md.
       parameter(lelem_mx=2*ldim*(lx1+6)*(ly1+6)*(lz1+6))
-      parameter(lbrst_max=lelt)
+      parameter(lbrst_max=min(1024,lelt))
       integer vi(2+lelem_mx,lbrst_max) ! [nid,iel,(data real*8)] x lbrst_max
       real*8 etime0,dnekclock_sync
 
@@ -2174,10 +2208,15 @@ c     reduce lbrst_max to stay within the old peak. See reports/report_B.md.
 
       nelt_hr0 = nelt / nhrefblkrs
 
-      ! check message buffer wk
-      num_recv  = nxyzr*nelt_hr0
-      num_avail = size(wk)
-      call lim_chk(num_recv,num_avail,'     ','     ','mfi_getv a')
+      ! check message buffer wk -- only the RMA path (.not.ifcrrs) uses wk (as
+      ! the one-sided window). RMA uses a FULL-FIELD window (nbatch=1) so the
+      ! window must hold all nelt_hr0 destination slots. The CR path never
+      ! touches wk (uses vi + w2), so no check is needed there.
+      if (.not.ifcrrs) then
+        num_recv  = nxyzr*nelt_hr0
+        num_avail = size(wk)
+        call lim_chk(num_recv,num_avail,'     ','     ','mfi_getv a')
+      endif
 
       ! setup read buffer
       if(nid.eq.pid0r) then
@@ -2218,14 +2257,27 @@ c     reduce lbrst_max to stay within the old peak. See reports/report_B.md.
             endif
 
 #ifdef MPI
-            nbatch = (nelt_hr0 - 1) / lbrst + 1
-            nbatch = iglmax(nbatch, 1)
+            ! CR batches the redistribute over destination windows of width
+            ! lbrst (bounds vi). RMA uses a single full-field window (nbatch=1)
+            ! since read block and window cannot both be bounded under a
+            ! sequential read; RMA batch-scales only w2 (lread_mx). report_C.md.
+            if (ifcrrs) then
+              nbatch = (nelt_hr0 - 1) / lbrst + 1
+              nbatch = iglmax(nbatch, 1)
+            else
+              nbatch = 1
+            endif
 
             do ibatch = 1,nbatch
 
-              ! range for jeln in this batch, it's ok if it's out of nelrr
-              jeln1 = (ibatch-1)*lbrst+1
-              jeln2 = ibatch*lbrst
+              ! range for jeln in this batch (CR: width lbrst; RMA: full field)
+              if (ifcrrs) then
+                jeln1 = (ibatch-1)*lbrst+1
+                jeln2 = ibatch*lbrst
+              else
+                jeln1 = 1
+                jeln2 = nelt_hr0
+              endif
               ! redistribute data based on the current el-proc map
               if (ifcrrs) then
                 etime0 = dnekclock_sync()
@@ -2302,8 +2354,10 @@ c     reduce lbrst_max to stay within the old peak. See reports/report_B.md.
                 rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
                 ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
-                ! wk holds this batch's vector elements at local slot; global
-                ! slot is e (np>1); components u,v,w at real*4 offsets 0,nw,2nw.
+                ! The full-field window accumulates Puts across ALL read blocks,
+                ! so assign only on the LAST read block (i.eq.nread). wk slot =
+                ! global slot e; components u,v,w at real*4 offsets 0,nw,2nw.
+                if (i.eq.nread) then
                 etime0 = dnekclock_sync()
                 npts = nxr*nyr*nzr
                 nw   = npts
@@ -2322,6 +2376,7 @@ c     reduce lbrst_max to stay within the old peak. See reports/report_B.md.
                   l = l+nxyzr
                 enddo
                 rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+                endif
 
               endif
 
@@ -2644,11 +2699,12 @@ c
       if (ifcrrs) then
         call fgslib_crystal_setup(cr_mfi,nekcomm,np)
       else
+        ! RMA uses a FULL-FIELD window (Plan C: nbatch=1 for RMA), so the
+        ! window must span size(wk); it is NOT batch-sized to lbrst. The read
+        ! order nxr is unknown here (before mfi_prepare), so size(wk) is the
+        ! safe bound; the per-field 'a' check verifies nxyzr*nelt_hr0 fits.
         disp_unit = 4
         win_size = int(disp_unit,8)*size(wk)
-        if (lbrst.lt.nelt_hr0) then
-          win_size = int(disp_unit,8)*(7*lx1*ly1*lz1*lbrst)*(wdsize/4)
-        endif
 
         if (commrs .eq. MPI_COMM_NULL) then
           call mpi_comm_dup(nekcomm,commrs,ierr)
