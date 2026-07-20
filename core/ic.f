@@ -1934,14 +1934,11 @@ c     lrbs_loc must match mfi_getv.
       common /vrthov/ w2(lrbs) ! read buffer
       real*4 w2
 
-c     CR tuple item holds one whole (scalar) element's real*4 payload; the
-c     mapab interp bound nxr<=lx1+6 (x2 for FP64) sets lelem_mx. lrst_mx =
-c     tuple columns = CR receive capacity: the fused loop routes a whole
-c     batch (no dest-window), so a rank may receive its full local field ->
-c     size lelt (=old lbrst_max for lelt<=1024). lbrst_max bounds the send
-c     batch lbrst (check 'd').
+c     CR tuple buffer: one element's real*4 payload per column. lelem_mx
+c     bounds a payload (mapab bound nxr<=lx1+6, x2 FP64). vi has lrst_mx
+c     cols = recv capacity (a rank may receive its whole field).
       parameter(lelem_mx=2*(lx1+6)*(ly1+6)*(lz1+6))
-      parameter(lbrst_max=min(1024,lelt))
+      parameter(lbrst_max=1024)
       parameter(lrst_mx=lelt)
       common /mfi_vis/ vi
       integer vi(2+lelem_mx,lrst_mx) ! [nid,iel,(data real*8)] x lrst_mx
@@ -1983,16 +1980,13 @@ c     batch lbrst (check 'd').
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_gets b')
-      ! per-element payload bounded by lelem_mx (mapab nxr<=lx1+6), lifting
-      ! the old per-element cap for high-order FP64.
+      ! per-element payload bounded by lelem_mx
       if (ifcrrs)
      $  call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_gets c')
       if (ifcrrs)
      $  call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_gets d')
 
-      ! nb = read/send batch (bounds w2 to one batch). niter is GLOBAL so
-      ! every rank calls the collective crystal transfer the same #times
-      ! (crystal_router is a butterfly over all np; n=0 is legal).
+      ! nb = read/send batch (bounds w2 to one batch)
       is_reader = (nid.eq.pid0r)
       local_nb  = 0
       nb        = 0
@@ -2007,9 +2001,9 @@ c     batch lbrst (check 'd').
 
       ierr = 0
       if (ifcrrs.or.np.eq.1) then
-         ! Fused loop: read one file-order batch -> route by owner via the
-         ! crystal router -> assign. w2 holds one batch; vi holds the receive
-         ! side. np==1 folds in (transfer skipped, columns stay file order).
+         ! Fused loop: read a file-order batch -> redist (CR) -> assign.
+         ! w2 holds one batch; vi holds the receive side.
+         ! np==1 folds in (transfer skipped, columns stay file order).
          k = 0
          do ibatch = 1,niter
             nb_this = 0
@@ -2029,8 +2023,8 @@ c     batch lbrst (check 'd').
             endif
 
 #ifdef MPI
-            ! skipped field: keep the read (advances the fd) but skip the
-            ! redistribute + assign.
+            ! skipped fld: keep the read (advances the fd) but skip the
+            ! redist + assign.
             if (.not.iskip) then
               ! pack whole batch (key = owner rank; no dest-window)
               etime0 = dnekclock_sync()
@@ -2046,7 +2040,7 @@ c     batch lbrst (check 'd').
               n = iloc - 1
               rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
 
-              ! crystal route (collective over all np; skip only at np==1)
+              ! crystal router
               nrmax = lrst_mx
               if (np.gt.1) then
                 li = 2+lelem_mx ! tuple item width
@@ -2059,7 +2053,6 @@ c     batch lbrst (check 'd').
 
               ! assign received elements. np>1: slot = ie_map_r2o(gllel(er));
               ! np==1: no route, columns stay file order -> ei=er(k+iloc)
-              ! (fixes np==1 h-refine, cf. PR #908).
               etime0 = dnekclock_sync()
               if (n.gt.nrmax) then
                 ierr = 1
@@ -2177,12 +2170,11 @@ c     lrbs_loc must match mfi_gets so the common is sized consistently.
       common /vrthov/ w2(lrbs) ! read buffer
       real*4 w2
 
-c     CR tuple item holds one whole VECTOR element (ldim components); the
-c     mapab interp bound nxr<=lx1+6 (x2 for FP64) sets lelem_mx. lrst_mx =
-c     CR receive capacity (see mfi_gets): sized lelt since the fused loop
-c     routes a whole batch. lbrst_max bounds the send batch lbrst (check 'd').
+c     CR tuple buffer: one VECTOR element's payload per col (ldim comps).
+c     lelem_mx bounds a payload (mapab bound nxr<=lx1+6, x2 FP64). vi has
+c     lrst_mx cols = recv capacity (a rank may receive its whole field).
       parameter(lelem_mx=2*ldim*(lx1+6)*(ly1+6)*(lz1+6))
-      parameter(lbrst_max=min(1024,lelt))
+      parameter(lbrst_max=1024)
       parameter(lrst_mx=lelt)
       common /mfi_viv/ vi
       integer vi(2+lelem_mx,lrst_mx) ! [nid,iel,(data real*8)] x lrst_mx
@@ -2223,15 +2215,13 @@ c     routes a whole batch. lbrst_max bounds the send batch lbrst (check 'd').
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_getv b')
-      ! per-element payload bounded by lelem_mx (mapab nxr<=lx1+6), lifting
-      ! the old per-element cap for high-order FP64.
+      ! per-element payload bounded by lelem_mx
       if (ifcrrs)
      $  call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_getv c')
       if (ifcrrs)
      $  call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_getv d')
 
-      ! nb bounds w2 to one batch; niter is GLOBAL so all ranks call the
-      ! collective crystal transfer the same #times (see mfi_gets).
+      ! nb = read/send batch (bounds w2 to one batch)
       is_reader = (nid.eq.pid0r)
       local_nb  = 0
       nb        = 0
@@ -2246,9 +2236,9 @@ c     routes a whole batch. lbrst_max bounds the send batch lbrst (check 'd').
 
       ierr = 0
       if (ifcrrs.or.np.eq.1) then
-         ! Fused loop: read one file-order batch -> route by owner via the
-         ! crystal router -> assign vector elements (u,v,w at offsets 0,nw,
-         ! 2*nw). np==1 folds in (transfer skipped, columns stay file order).
+         ! Fused loop: read a file-order batch -> redist (CR) -> assign.
+         ! w2 holds one batch; vi holds recv side (u,v,w at 0,nw,2*nw).
+         ! np==1 folds in (transfer skipped, columns stay file order).
          k = 0
          do ibatch = 1,niter
             nb_this = 0
@@ -2268,8 +2258,8 @@ c     routes a whole batch. lbrst_max bounds the send batch lbrst (check 'd').
             endif
 
 #ifdef MPI
-            ! skipped field: keep the read (advances the fd) but skip the
-            ! redistribute + assign.
+            ! skipped fld: keep the read (advances the fd) but skip the
+            ! redist + assign.
             if (.not.iskip) then
               ! pack whole batch (key = owner rank; no dest-window)
               etime0 = dnekclock_sync()
@@ -2285,7 +2275,7 @@ c     routes a whole batch. lbrst_max bounds the send batch lbrst (check 'd').
               n = iloc - 1
               rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
 
-              ! crystal route (collective over all np; skip only at np==1)
+              ! crystal router
               nrmax = lrst_mx
               if (np.gt.1) then
                 li = 2+lelem_mx ! tuple item width
@@ -2298,7 +2288,6 @@ c     routes a whole batch. lbrst_max bounds the send batch lbrst (check 'd').
 
               ! assign received elements. np>1: slot = ie_map_r2o(gllel(er));
               ! np==1: no route, columns stay file order -> ei=er(k+iloc)
-              ! (fixes np==1 h-refine, cf. PR #908).
               etime0 = dnekclock_sync()
               if (n.gt.nrmax) then
                 ierr = 1
