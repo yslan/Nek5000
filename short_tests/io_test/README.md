@@ -41,7 +41,7 @@ passive scalars — analytic reference cached by `fields_init`, compared by
 
 Shared helpers (post-cleanup): `report` (pass/fail tail), `chk_restart_hdr`
 (restart-header verification via a 14-char flag spec), `run_write` (the write
-prologue), and `io_test_cmp.inc` (the `/COMPDATA/` reference cache).
+prologue), and `REFDATA` (the `/REFDATA/` reference-field cache header).
 
 ## Fixtures (committed checkpoint inputs)
 

@@ -397,7 +397,7 @@ c     routine to initilise arrays for future comparison
 
 c     local variables
       integer il, jl, kl, ll, nn
-      include 'io_test_cmp.inc' ! /COMPDATA/ reference-field cache
+      include 'REFDATA'         ! /REFDATA/ reference-field cache
 
 !     start from setting value for pressure
       do il=1,nelv
@@ -472,7 +472,7 @@ c     routine to restore fields in SOLN arrays
 
 c     local variables
       integer il, nn
-      include 'io_test_cmp.inc' ! /COMPDATA/ reference-field cache
+      include 'REFDATA'         ! /REFDATA/ reference-field cache
       
       nn =nx1*ny1*nz1*nelt
       call copy(xm1,cmp_x(1,1),nn)
@@ -566,7 +566,7 @@ c     local variables
 
       logical test_pass
       
-      include 'io_test_cmp.inc' ! /COMPDATA/ reference-field cache
+      include 'REFDATA'         ! /REFDATA/ reference-field cache
 
 c     functions
       real gl2norm, gl2norm2
