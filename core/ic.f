@@ -1925,26 +1925,21 @@ c-----------------------------------------------------------------------
 
       real*4 wk(2*lwk) ! message buffer (also RMA window)
 
-c     Read buffer w2 (common /vrthov/, shared with mfi_getv): sized to hold
-c     lread_mx elements' worth of file-order payload. lread_mx is the read-block
-c     memory knob -- default lelt keeps w2 at the OLD size (lrbs_loc*lelt) so no
-c     memory regression; reduce it for large lelt to bound w2 to a read block
-c     (nread then auto-grows to cover nelr).  lrbs_loc must match mfi_getv.
+c     Read buffer w2 (common /vrthov/, shared with mfi_getv), sized lrbs.
+c     lread_mx bounds it: default lelt = old size, smaller = less memory.
+c     lrbs_loc must match mfi_getv.
       parameter(lrbs_loc=20*lx1*ly1*lz1)
       parameter(lread_mx=lelt)
       parameter(lrbs=lrbs_loc*lread_mx)
       common /vrthov/ w2(lrbs) ! read buffer
       real*4 w2
 
-c     CR tuple item must hold ONE whole (scalar) element's real*4 payload.
-c     Max is set by mapab's interpolation bound nxr<=lx1+6, and x2 for FP64:
-c       lelem_mx = 2*(lx1+6)*(ly1+6)*(lz1+6)
-c     lrst_mx = # tuple columns = CR receive capacity per transfer. The fused
-c     single loop routes a whole read batch at once (no dest-window), so one
-c     rank can receive up to its full local field -> size to lelt. Default lelt
-c     is hard-safe; the n>nrmax guard errors if lowered below a partition's max
-c     local count. For lelt<=1024 this equals the old lbrst_max footprint.
-c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
+c     CR tuple item holds one whole (scalar) element's real*4 payload; the
+c     mapab interp bound nxr<=lx1+6 (x2 for FP64) sets lelem_mx. lrst_mx =
+c     tuple columns = CR receive capacity: the fused loop routes a whole
+c     batch (no dest-window), so a rank may receive its full local field ->
+c     size lelt (=old lbrst_max for lelt<=1024). lbrst_max bounds the send
+c     batch lbrst (check 'd').
       parameter(lelem_mx=2*(lx1+6)*(ly1+6)*(lz1+6))
       parameter(lbrst_max=min(1024,lelt))
       parameter(lrst_mx=lelt)
@@ -1964,16 +1959,13 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
 
       nelt_hr0 = nelt / nhrefblkrs
 
-      ! check message buffer wk -- only the RMA path (.not.ifcrrs) uses wk (as
-      ! the one-sided window). RMA uses a FULL-FIELD window (nbatch=1) so the
-      ! window must hold all nelt_hr0 destination slots. The CR path never
-      ! touches wk (uses vi + w2), so no check is needed there.
+      ! wk is the RMA one-sided window (full field, nbatch=1), used only when
+      ! .not.ifcrrs. The CR path uses vi+w2 and never touches wk.
       if (.not.ifcrrs) then
         num_recv  = nxyzr*nelt_hr0
         num_avail = size(wk)
-        ! D2: RMA cannot batch its window below the full field (unlike CR), so a
-        ! high-order/large file can overflow wk. Give an actionable message
-        ! (default CR path handles this) instead of the opaque lim_chk abort.
+        ! RMA window is full-field, so a large/high-order file can overflow
+        ! wk; steer the user to the default CR path before the abort.
         if (num_recv.gt.num_avail .and. nio.eq.0) write(6,*)
      $   'mfi_gets: RMA restart window too small for this file; use',
      $   ' crystal router (ifcrrs=.true., default) or enlarge wk.',
@@ -1991,17 +1983,16 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_gets b')
-      ! W2: per-element payload now bounded by lelem_mx (mapab nxr<=lx1+6),
-      ! not lrbs_loc -- lifts the PR#900 'c' limit for high-order FP64.
+      ! per-element payload bounded by lelem_mx (mapab nxr<=lx1+6), lifting
+      ! the old per-element cap for high-order FP64.
       if (ifcrrs)
      $  call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_gets c')
       if (ifcrrs)
      $  call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_gets d')
 
-      ! CR fused-loop batch sizing: nb = read/send batch, bounds w2 to ONE
-      ! batch (nxyzr*nb<=lrbs by construction). niter = GLOBAL iteration count
-      ! so every rank calls the collective crystal transfer the same number of
-      ! times (crystal_router is a butterfly over all np; n=0 is legal).
+      ! nb = read/send batch (bounds w2 to one batch). niter is GLOBAL so
+      ! every rank calls the collective crystal transfer the same #times
+      ! (crystal_router is a butterfly over all np; n=0 is legal).
       is_reader = (nid.eq.pid0r)
       local_nb  = 0
       nb        = 0
@@ -2016,13 +2007,9 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
 
       ierr = 0
       if (ifcrrs.or.np.eq.1) then
-         ! ===== Fused single loop: read batch -> CR redistribute -> assign =====
-         ! Each iteration reads ONE file-order batch into w2, routes the whole
-         ! batch by owner (gllnid) via the crystal router, and assigns received
-         ! elements. w2 holds only one batch; the tuple vi holds the receive
-         ! side (sized lrst_mx). No dest-window (jeln) sub-scan. np==1 folds in
-         ! here (any ifcrrs): transfer skipped, assign straight from the packed
-         ! (file-order) columns. See reports/report_F.md.
+         ! Fused loop: read one file-order batch -> route by owner via the
+         ! crystal router -> assign. w2 holds one batch; vi holds the receive
+         ! side. np==1 folds in (transfer skipped, columns stay file order).
          k = 0
          do ibatch = 1,niter
             nb_this = 0
@@ -2042,8 +2029,8 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
             endif
 
 #ifdef MPI
-            ! D1b: on a skipped field, keep the byte_read above (advances the
-            ! non-MPIIO fd; harmless for MPIIO) but skip redistribute + assign.
+            ! skipped field: keep the read (advances the fd) but skip the
+            ! redistribute + assign.
             if (.not.iskip) then
               ! pack whole batch (key = owner rank; no dest-window)
               etime0 = dnekclock_sync()
@@ -2062,7 +2049,7 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
               ! crystal route (collective over all np; skip only at np==1)
               nrmax = lrst_mx
               if (np.gt.1) then
-                li = 2+lelem_mx ! tuple item width (W2)
+                li = 2+lelem_mx ! tuple item width
                 key = 1
                 etime0 = dnekclock_sync()
                 call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
@@ -2070,10 +2057,9 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
                 rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
               endif
 
-              ! unpack + fused assign (W1: CR path skips wkg). At np>1 the
-              ! target slot is ie_map_r2o(gllel(er)); at np==1 no route
-              ! happened so columns are still file order -> ei=er(k+iloc)
-              ! (NOT ie_map_r2o -- fixes np==1 h-refine, PR #908).
+              ! assign received elements. np>1: slot = ie_map_r2o(gllel(er));
+              ! np==1: no route, columns stay file order -> ei=er(k+iloc)
+              ! (fixes np==1 h-refine, cf. PR #908).
               etime0 = dnekclock_sync()
               if (n.gt.nrmax) then
                 ierr = 1
@@ -2091,7 +2077,7 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
               enddo
               call nekgsync()
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
-            endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
+            endif ! .not.iskip
 #endif
             k = k + nb_this
          enddo
@@ -2117,9 +2103,8 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
 
 #ifdef MPI
             if (.not.iskip) then
-            ! RMA cannot batch both the read block and the destination window
-            ! under a sequential read, so it uses a single full-field window
-            ! (nbatch=1); it batch-scales only w2 (via lread_mx). report_C.md.
+            ! RMA uses a single full-field window (nbatch=1): read block and
+            ! window cannot both be bounded under a sequential read.
               jeln1 = 1
               jeln2 = nelt_hr0
 
@@ -2141,10 +2126,8 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
               call nekgsync()
               rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
-              ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
-              ! The full-field window accumulates Puts across ALL read blocks,
-              ! so assign only on the LAST read block (i.eq.nread), once every
-              ! destination slot has been filled. wk slot = global slot e.
+              ! assign after unlock. The full-field window accumulates Puts
+              ! across all read blocks, so assign only on the last block.
               if (i.eq.nread) then
               etime0 = dnekclock_sync()
               npts = nxr*nyr*nzr
@@ -2157,7 +2140,7 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
               enddo
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
               endif
-            endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
+            endif ! .not.iskip
 #endif
             k  = k + nelrr
          enddo
@@ -2187,24 +2170,17 @@ c-----------------------------------------------------------------------
       real*4 wk(2*lwk) ! message buffer (also RMA window)
 
 c     Read buffer w2 (common /vrthov/, shared with mfi_gets): lread_mx and
-c     lrbs_loc MUST match mfi_gets so the common block is sized consistently.
-c     lread_mx defaults to lelt (w2 == old size, no regression); reduce for
-c     large lelt to bound w2 to a read block (nread auto-grows).
+c     lrbs_loc must match mfi_gets so the common is sized consistently.
       parameter(lrbs_loc=20*lx1*ly1*lz1)
       parameter(lread_mx=lelt)
       parameter(lrbs=lrbs_loc*lread_mx)
       common /vrthov/ w2(lrbs) ! read buffer
       real*4 w2
 
-c     CR tuple item must hold ONE whole VECTOR element (ldim components),
-c     bounded by mapab's nxr<=lx1+6 and x2 for FP64:
-c       lelem_mx = 2*ldim*(lx1+6)*(ly1+6)*(lz1+6)
-c     lrst_mx = # tuple columns = CR receive capacity per transfer. The fused
-c     single loop routes a whole read batch at once (no dest-window), so one
-c     rank can receive up to its full local field -> size to lelt. Default lelt
-c     is hard-safe; the n>nrmax guard errors if lowered below a partition's max
-c     local count. For lelt<=1024 this equals the old lbrst_max footprint.
-c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
+c     CR tuple item holds one whole VECTOR element (ldim components); the
+c     mapab interp bound nxr<=lx1+6 (x2 for FP64) sets lelem_mx. lrst_mx =
+c     CR receive capacity (see mfi_gets): sized lelt since the fused loop
+c     routes a whole batch. lbrst_max bounds the send batch lbrst (check 'd').
       parameter(lelem_mx=2*ldim*(lx1+6)*(ly1+6)*(lz1+6))
       parameter(lbrst_max=min(1024,lelt))
       parameter(lrst_mx=lelt)
@@ -2223,16 +2199,13 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
 
       nelt_hr0 = nelt / nhrefblkrs
 
-      ! check message buffer wk -- only the RMA path (.not.ifcrrs) uses wk (as
-      ! the one-sided window). RMA uses a FULL-FIELD window (nbatch=1) so the
-      ! window must hold all nelt_hr0 destination slots. The CR path never
-      ! touches wk (uses vi + w2), so no check is needed there.
+      ! wk is the RMA one-sided window (full field, nbatch=1), used only when
+      ! .not.ifcrrs. The CR path uses vi+w2 and never touches wk.
       if (.not.ifcrrs) then
         num_recv  = nxyzr*nelt_hr0
         num_avail = size(wk)
-        ! D2: RMA cannot batch its window below the full field (unlike CR), so a
-        ! high-order/large file can overflow wk. Give an actionable message
-        ! (default CR path handles this) instead of the opaque lim_chk abort.
+        ! RMA window is full-field, so a large/high-order file can overflow
+        ! wk; steer the user to the default CR path before the abort.
         if (num_recv.gt.num_avail .and. nio.eq.0) write(6,*)
      $   'mfi_getv: RMA restart window too small for this file; use',
      $   ' crystal router (ifcrrs=.true., default) or enlarge wk.',
@@ -2250,16 +2223,15 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_getv b')
-      ! W2: per-element payload now bounded by lelem_mx (mapab nxr<=lx1+6),
-      ! not lrbs_loc -- lifts the PR#900 'c' limit for high-order FP64.
+      ! per-element payload bounded by lelem_mx (mapab nxr<=lx1+6), lifting
+      ! the old per-element cap for high-order FP64.
       if (ifcrrs)
      $  call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_getv c')
       if (ifcrrs)
      $  call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_getv d')
 
-      ! CR fused-loop batch sizing (see mfi_gets): nb bounds w2 to ONE batch;
-      ! niter is the GLOBAL iteration count so all ranks call the collective
-      ! crystal transfer the same number of times.
+      ! nb bounds w2 to one batch; niter is GLOBAL so all ranks call the
+      ! collective crystal transfer the same #times (see mfi_gets).
       is_reader = (nid.eq.pid0r)
       local_nb  = 0
       nb        = 0
@@ -2274,12 +2246,9 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
 
       ierr = 0
       if (ifcrrs.or.np.eq.1) then
-         ! ===== Fused single loop: read batch -> CR redistribute -> assign =====
-         ! One iteration reads ONE file-order batch into w2, routes the whole
-         ! batch by owner via the crystal router, and assigns received vector
-         ! elements (components u,v,w at real*4 offsets 0,nw,2*nw). np==1 folds
-         ! in here (any ifcrrs): transfer skipped, assign from file-order
-         ! columns with ei=er(k+iloc). See reports/report_F.md.
+         ! Fused loop: read one file-order batch -> route by owner via the
+         ! crystal router -> assign vector elements (u,v,w at offsets 0,nw,
+         ! 2*nw). np==1 folds in (transfer skipped, columns stay file order).
          k = 0
          do ibatch = 1,niter
             nb_this = 0
@@ -2299,8 +2268,8 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
             endif
 
 #ifdef MPI
-            ! D1b: on a skipped field, keep the byte_read above but skip the
-            ! whole redistribute + assign. See report_D.md.
+            ! skipped field: keep the read (advances the fd) but skip the
+            ! redistribute + assign.
             if (.not.iskip) then
               ! pack whole batch (key = owner rank; no dest-window)
               etime0 = dnekclock_sync()
@@ -2319,7 +2288,7 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
               ! crystal route (collective over all np; skip only at np==1)
               nrmax = lrst_mx
               if (np.gt.1) then
-                li = 2+lelem_mx ! tuple item width (W2)
+                li = 2+lelem_mx ! tuple item width
                 key = 1
                 etime0 = dnekclock_sync()
                 call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
@@ -2327,9 +2296,9 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
                 rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
               endif
 
-              ! unpack + fused assign (W1: CR path skips wkg). np>1 target slot
-              ! is ie_map_r2o(gllel(er)); np==1 has no route so columns are
-              ! file order -> ei=er(k+iloc) (fixes np==1 h-refine, PR #908).
+              ! assign received elements. np>1: slot = ie_map_r2o(gllel(er));
+              ! np==1: no route, columns stay file order -> ei=er(k+iloc)
+              ! (fixes np==1 h-refine, cf. PR #908).
               etime0 = dnekclock_sync()
               if (n.gt.nrmax) then
                 ierr = 1
@@ -2354,7 +2323,7 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
               enddo
               call nekgsync()
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
-            endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
+            endif ! .not.iskip
 #endif
             k = k + nb_this
          enddo
@@ -2379,9 +2348,8 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
 
 #ifdef MPI
             if (.not.iskip) then
-            ! RMA uses a single full-field window (nbatch=1) since read block
-            ! and window cannot both be bounded under a sequential read; RMA
-            ! batch-scales only w2 (lread_mx). See report_C.md.
+            ! RMA uses a single full-field window (nbatch=1): read block and
+            ! window cannot both be bounded under a sequential read.
               jeln1 = 1
               jeln2 = nelt_hr0
 
@@ -2402,10 +2370,9 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
               call nekgsync()
               rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
-              ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
-              ! The full-field window accumulates Puts across ALL read blocks,
-              ! so assign only on the LAST read block (i.eq.nread). wk slot =
-              ! global slot e; components u,v,w at real*4 offsets 0,nw,2nw.
+              ! assign after unlock. The full-field window accumulates Puts
+              ! across all read blocks, so assign only on the last block
+              ! (u,v,w at offsets 0,nw,2*nw).
               if (i.eq.nread) then
               etime0 = dnekclock_sync()
               npts = nxr*nyr*nzr
@@ -2426,7 +2393,7 @@ c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
               enddo
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
               endif
-            endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
+            endif ! .not.iskip
 #endif
             k  = k + nelrr
          enddo
@@ -2447,15 +2414,12 @@ c-----------------------------------------------------------------------
      $                           wdsizr,if_byte_sw,ierr)
 c
 c     Assign ONE scalar field/component from the real*4 payload 'src' into the
-c     destination field slot 'u': optional in-place endian byte-swap, then a
-c     straight copy (matching order) or spectral interpolation (nxr->lx1).
-c     Stateless per element; shared by mfi_gets (1 call) and mfi_getv (ldim
-c     calls, one per component). Byte-identical to the previously-inlined
-c     assign blocks in both routines.
+c     destination slot 'u': optional in-place endian byte-swap, then a straight
+c     copy (matching order) or spectral interpolation (nxr->lx1). Stateless per
+c     element; shared by mfi_gets (1 call) and mfi_getv (ldim calls).
 c
 c     wdsizr=8: 'src' is real*4 but copy/mapab reinterpret its address as
-c     real*8 (two real*4 slots per value); byte_reverse8 swaps npts doubles
-c     = npts*2 real*4 words -- matches the original inlined semantics.
+c     real*8 (two real*4 slots per value); byte_reverse8 swaps npts doubles.
 c
       include 'SIZE'
       real    u(1)              ! default-precision destination (one elem/comp)
