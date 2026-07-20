@@ -2068,6 +2068,52 @@ class IO_Test(NekTestCase):
         self.assertDelayedFailures()
 
     @pn_pn_2_parallel
+    def test_PnPn2_Parallel_RMA_MultiRound(self):
+        # Same as test_PnPn2_Parallel_MultiRound but on the MPI-RMA path
+        # (userparam02=1): batched read (lbrst=3) + bounded compact window
+        # with >1 round/batch (lrcv=2). Exercises the Plan I batched RMA
+        # (mfi_redist_round_rma / MPI_Put into the compact window). The RMA
+        # verbose line uses the same 'rounds/batch min/max/avg=' format, so
+        # the col-6 max-rounds check works here too.
+        self.__class__.case_name = "io_test"
+        self._clean_generated_flds()
+        self.size_params = dict(
+            ldim="3",
+            lx1="6",
+            lxd="9",
+            lx2="lx1-2",
+            lelg="36*64",
+            ldimt="3",
+            lelr="lelg",
+            lx1m="lx1",
+        )
+        self.config_size()
+
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile(
+            {"GENERAL": {"userparam02": "1", "userparam03": "0",
+                         "userparam06": "3", "userparam07": "2",
+                         "loglevel": "3"}}
+        )
+        for href in ("1", "2;2"):
+            self.config_parfile({"MESH": {"hrefine": href}})
+            self.run_nek(step_limit=None)
+            phrase = self.get_phrase_from_log("All I/O tests PASSED")
+            self.assertIsNotNullDelayed(
+                phrase,
+                label="All I/O tests PASSED (RMA multi-round, hrefine=%s)"
+                % href,
+            )
+            maxr = self.get_value_from_log(
+                "rounds/batch min/max/avg=", column=6
+            )
+            self.assertAlmostEqualDelayed(
+                maxr, target_val=2.0, delta=0.0,
+                label="max rounds/batch RMA (hrefine=%s)" % href
+            )
+        self.assertDelayedFailures()
+
+    @pn_pn_2_parallel
     def test_PnPn2_Parallel_RMA(self):
         # Same read/write + h-refine restart matrix as test_PnPn2_Parallel,
         # but forces the MPI-RMA one-sided redistribution path (ifcrrs=.false.)
@@ -2170,6 +2216,44 @@ class IO_Test(NekTestCase):
         self.run_nek(step_limit=None)
         phrase = self.get_phrase_from_log("All I/O tests PASSED")
         self.assertIsNotNullDelayed(phrase, label="hio read (lx1=6, nxyzr>lrbs_loc)")
+        self.assertDelayedFailures()
+
+    @pn_pn_2_parallel
+    def test_PnPn2_Parallel_RMA_HighOrderFP64(self):
+        # D2 under RMA: read the high-order (lx1=10) FP64 checkpoint into an
+        # lx1=6 build via the MPI-RMA path (userparam02=1). The OLD full-field
+        # RMA window overflowed here (nxyzr*nelt_hr0 > size(wk)); Plan I's
+        # bounded compact window (lrwin=(2+lelem_mv)*lrcv_mx) fits a column and
+        # the read succeeds.
+        self.__class__.case_name = "io_test"
+        self._clean_generated_flds()
+
+        # 1) build at high order, write FP64 checkpoint (CR write, uparam03=1)
+        self.size_params = dict(
+            ldim="3", lx1="10", lxd="15", lx2="lx1-2",
+            lelg="36*64", ldimt="3", lelr="lelg", lx1m="lx1",
+        )
+        self.config_size()
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile({"MESH": {"hrefine": "1"}})
+        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "1"}})
+        self.run_nek(step_limit=None)
+        phrase = self.get_phrase_from_log("All I/O tests PASSED")
+        self.assertIsNotNullDelayed(phrase, label="hio write (lx1=10 FP64)")
+        self.assertDelayedFailures()
+
+        # 2) rebuild at lx1=6, read via RMA (uparam02=1, uparam03=2)
+        self.size_params["lx1"] = "6"
+        self.size_params["lxd"] = "9"
+        self.config_size()
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile({"MESH": {"hrefine": "1"}})
+        self.config_parfile({"GENERAL": {"userparam02": "1", "userparam03": "2"}})
+        self.run_nek(step_limit=None)
+        phrase = self.get_phrase_from_log("All I/O tests PASSED")
+        self.assertIsNotNullDelayed(
+            phrase, label="hio read RMA (lx1=6, bounded window)"
+        )
         self.assertDelayedFailures()
 
 
