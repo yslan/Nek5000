@@ -89,6 +89,133 @@ c     and this ierr drives that. Keep the output text byte-identical.
       return
       end
 c-----------------------------------------------------------------------
+c     Verify the restart-header state after a load (rank 0 only). Replaces the
+c     17 near-identical "check reading options" blocks. Sets test_pass=.false.
+c     and prints an 'ERROR: param ...' line on each mismatch (byte-identical to
+c     the old inline checks). All checks are individually skippable.
+c
+c     spec   : character*14, one char per restart flag, in this order:
+c              1 ifgtim   2 ifgetx   3 ifgetxr  4 ifgetu   5 ifgetur
+c              6 ifgetp   7 ifgetpr  8 ifgett   9 ifgettr 10 ifgtps(1)
+c             11 ifgtpsr(1) 12 ifgtps(2) 13 ifgtpsr(2) 14 if_full_pres
+c              'T' expect .true., 'F' expect .false., '.' skip.
+c     wdexp  : expected wdsizr (4 or 8); 0 = skip.
+c     nfmode : 0 skip; 1 expect nfiler==np; 2 expect nfiler==2.
+c     bswexp : -1 skip; 0 expect if_byte_sw .false.; 1 expect .true.
+c     nelchk : .true. -> check nelgr==nelgt.
+c     texp,teps : if teps>0 check abs(time-texp)<=teps; teps<0 skip.
+      subroutine chk_restart_hdr(spec,wdexp,nfmode,bswexp,nelchk,
+     $                           texp,teps,test_pass)
+      include 'SIZE'
+      include 'INPUT'           ! if_full_pres is in TSTEP; ifget* in RESTART
+      include 'TSTEP'           ! if_full_pres, time
+      include 'RESTART'         ! ifget*, ifgtps*, wdsizr, nfiler, nelgr, ..
+      include 'PARALLEL'        ! nid, np, nelgt
+      character*14 spec
+      integer wdexp,nfmode,bswexp
+      logical nelchk,test_pass
+      real texp,teps
+
+      logical fval(14)
+      character*12 lbl(14)
+      integer i
+      save lbl
+      data lbl /'ifgtim    : ','ifgetx    : ','ifgetxr   : ',
+     $          'ifgetu    : ','ifgetur   : ','ifgetp    : ',
+     $          'ifgetpr   : ','ifgett    : ','ifgettr   : ',
+     $          'ifgtps1   : ','ifgtpsr1  : ','ifgtps2   : ',
+     $          'ifgtpsr2  : ','if_full_pres'/
+
+      if (nid.ne.0) return
+
+      if (teps.gt.0.0) then
+         if (abs(time-texp).gt.teps) then
+            test_pass = .false.
+            write(*,10) 'time      : ',time
+         endif
+      endif
+      if (nfmode.eq.1 .and. nfiler.ne.np) then
+         test_pass = .false.
+         write(*,11) 'nfiler    : ',nfiler
+      endif
+      if (nfmode.eq.2 .and. nfiler.ne.2) then
+         test_pass = .false.
+         write(*,11) 'nfiler    : ',nfiler
+      endif
+      if (nelchk .and. nelgr.ne.nelgt) then
+         test_pass = .false.
+         write(*,11) 'nelgr     : ',nelgt
+      endif
+      if (wdexp.ne.0 .and. wdsizr.ne.wdexp) then
+         test_pass = .false.
+         write(*,11) 'wdsizr    : ',wdsizr
+      endif
+      if (bswexp.eq.0 .and. if_byte_sw) then
+         test_pass = .false.
+         write(*,12) 'if_byte_sw: ',if_byte_sw
+      endif
+      if (bswexp.eq.1 .and. .not.if_byte_sw) then
+         test_pass = .false.
+         write(*,12) 'if_byte_sw: ',if_byte_sw
+      endif
+
+      fval(1)  = ifgtim
+      fval(2)  = ifgetx
+      fval(3)  = ifgetxr
+      fval(4)  = ifgetu
+      fval(5)  = ifgetur
+      fval(6)  = ifgetp
+      fval(7)  = ifgetpr
+      fval(8)  = ifgett
+      fval(9)  = ifgettr
+      fval(10) = ifgtps(1)
+      fval(11) = ifgtpsr(1)
+      fval(12) = ifgtps(2)
+      fval(13) = ifgtpsr(2)
+      fval(14) = if_full_pres
+      do i = 1,14
+         if (spec(i:i).eq.'T' .and. .not.fval(i)) then
+            test_pass = .false.
+            write(*,12) lbl(i),fval(i)
+         elseif (spec(i:i).eq.'F' .and. fval(i)) then
+            test_pass = .false.
+            write(*,12) lbl(i),fval(i)
+         endif
+      enddo
+
+   10 format ('ERROR: param ',a12,E15.7)
+   11 format ('ERROR: param ',a12,I10)
+   12 format ('ERROR: param ',a12,L1)
+      return
+      end
+c-----------------------------------------------------------------------
+c     Restore the reference fields and write a checkpoint (the common write
+c     prologue used by every write/read sub-test). Sets the write params, the
+c     full-pressure flag, and the solution time, then calls prepost.
+c       iprec  : 0 single precision (wdsize 4), 1 double (wdsize 8)  -> param(63)
+c       nfiles : number of output files                             -> param(65)
+c       ifmt   : file format code (6=.f mpiio, 4=bin .fld, -4=ascii) -> param(66)
+c       ffp    : if_full_pres (PnPn full-pressure write)
+c       prefix : 3-char output-file prefix ('   ' for none)
+      subroutine run_write(iprec,nfiles,ifmt,ffp,prefix)
+      include 'SIZE'
+      include 'INPUT'           ! param
+      include 'TSTEP'           ! pi, if_full_pres, time
+      integer iprec,nfiles,ifmt
+      logical ffp
+      character*3 prefix
+
+      if_full_pres = ffp
+      param(63) = float(iprec)
+      param(65) = float(nfiles)
+      param(66) = float(ifmt)
+      time = pi
+      call fields_restore
+      call prepost(.true.,prefix)
+
+      return
+      end
+c-----------------------------------------------------------------------
       subroutine userchk
       include 'SIZE'
       include 'INPUT'           ! PARAM, NPSCAL
@@ -398,13 +525,7 @@ c     lrbs_loc = 20*lx1^3, which the W2 refactor lifts to lelem_mx.
       if (mode.eq.1) then
 c        WRITE FP64 checkpoint at this build's (high) order
          if (NIO.eq.0) write(*,*) 'hio: write FP64 hi-order'
-         if_full_pres = .false.
-         param(63) = 1.0          ! double precision (wdsizr=8)
-         param(65) = 1.0          ! single file (mpiio)
-         param(66) = 6.0          ! file format
-         time = pi
-         call fields_restore
-         call prepost (.true.,'hio')
+         call run_write(1,1,6,.false.,'hio') ! double prec, 1 file, .f
 
       else
 c        READ it back into this (lx1=6) build; interp from high order
@@ -602,88 +723,10 @@ c     local variables
       fstring='m12io_test0.f00001 '
       call load_fld(fstring)
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-c     for mpiio number of files is equal number of processes
-         if (nfiler.ne.np) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgt
-         endif
-         if (wdsizr.ne.4) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TTTTTTTTTTTTTF',4,1,0,.true.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
 
 c     multiple files
       test_pass = .true.
@@ -700,87 +743,10 @@ c     multiple files
       fstring='m22io_test?.f00001 '
       call load_fld(fstring)
       call fields_compare(eps_map,eps_map,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-         if (nfiler.ne.2) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgt
-         endif
-         if (wdsizr.ne.4) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TTTTTTTTTTTTTF',4,2,0,.true.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
 
 c     multiple file single precision with byte swap
       test_pass = .true.
@@ -797,87 +763,10 @@ c     multiple file single precision with byte swap
       fstring ='m22io_test?.f00002'
       call load_fld(fstring)
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-         if (nfiler.ne.2) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgt
-         endif
-         if (wdsizr.ne.4) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (.not.if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TTTTTTTTTTTTTF',4,2,1,.true.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
 
 c     multiple files double precision with byte swap
       test_pass = .true.
@@ -894,87 +783,10 @@ c     multiple files double precision with byte swap
       fstring ='m22io_test?.f00003'
       call load_fld(fstring)
       call fields_compare(eps8,eps8,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-         if (nfiler.ne.2) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgt
-         endif
-         if (wdsizr.ne.8) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (.not.if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TTTTTTTTTTTTTF',8,2,1,.true.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
       endif
       
 c     fld binary
@@ -990,47 +802,10 @@ c     fld binary
       fstring='fb2io_test.fld01 '
       call load_fld(fstring)
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps4) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TT.T.T.T.T.T.F',0,0,-1,.false.,
+     $                     time_test,eps4,test_pass)
+      call report(test_pass,ierr)
 
 c     fld ASCII
       test_pass = .true.
@@ -1045,47 +820,10 @@ c     fld ASCII
       fstring='fa2io_test.fld01 '
       call load_fld(fstring)
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps4) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TT.T.T.T.T.T.F',0,0,-1,.false.,
+     $                     time_test,eps4,test_pass)
+      call report(test_pass,ierr)
 
  10   format ('ERROR: param ',a12,E15.7)
  11   format ('ERROR: param ',a12,I10)
@@ -1123,13 +861,7 @@ c     mpiio single precision
          write(*,*) 'Testing single precision'
          write(*,*) ' '
       endif
-      if_full_pres = .false.    ! pressure writing format
-      param(63) = 0.0           ! single precision
-      param(65) = 1.0           ! number of files
-      param(66) = 6.0           ! file format
-      time = time_test
-      call fields_restore
-      call prepost (.true.,prefix)
+      call run_write(0,1,6,.false.,prefix)   ! single prec, 1 file, .f
       ifile = ifile +1
 
       if_full_pres = .false.    ! pressure writing format
@@ -1139,88 +871,10 @@ c     mpiio single precision
       fstring=prefix//'io_test0.f'//nstring
       call load_fld(fstring)
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-c     for mpiio number of files is equal number of processes
-         if (nfiler.ne.np) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgt
-         endif
-         if (wdsizr.ne.4) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TTTTTTTTTTTTTF',4,1,0,.true.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
 
 c     check string restart options
       test_pass = .true.
@@ -1242,88 +896,10 @@ c     check string restart options
       endif
       call setics
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-5.0).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-c     for mpiio number of files is equal number of processes
-         if (nfiler.ne.np) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgt
-         endif
-         if (wdsizr.ne.4) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('FFTTTFTFTTTFTF',4,1,0,.true.,
+     $                     5.0,eps8,test_pass)
+      call report(test_pass,ierr)
       
 c     mpiio double precision
       test_pass = .true.
@@ -1333,13 +909,7 @@ c     mpiio double precision
          write(*,*) 'Testing double precision'
          write(*,*) ' '
       endif
-      if_full_pres = .true.     ! pressure writing format
-      param(63) = 1.0           ! double precision
-      param(65) = 1.0           ! number of files
-      param(66) = 6.0           ! file format
-      time = time_test
-      call fields_restore
-      call prepost (.true.,prefix)
+      call run_write(1,1,6,.true.,prefix)    ! double prec, 1 file, .f, ffp
       ifile = ifile +1
 
       if_full_pres = .false.    ! pressure writing format
@@ -1354,88 +924,10 @@ c     mpiio double precision
       endif
       call load_fld(fstring)
       call fields_compare(eps8,eps8,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-c     for mpiio number of files is equal number of processes
-         if (nfiler.ne.np) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgt
-         endif
-         if (wdsizr.ne.8) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (.not.if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TTTTTTTTTTTTTT',8,1,0,.true.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
       
  10   format ('ERROR: param ',a12,E15.7)
  11   format ('ERROR: param ',a12,I10)
@@ -1472,13 +964,7 @@ c     multiple file single precision
          write(*,*) 'Testing single precision'
          write(*,*) ' '
       endif
-      if_full_pres = .false.    ! pressure writing format
-      param(63) = 0.0           ! single precision
-      param(65) = 2.0           ! number of files
-      param(66) = 6.0           ! file format
-      time = time_test
-      call fields_restore
-      call prepost (.true.,'   ')
+      call run_write(0,2,6,.false.,'   ')    ! single prec, 2 files, .f
       ifile = ifile +1
 
       if_full_pres = .false.    ! pressure writing format
@@ -1488,87 +974,10 @@ c     multiple file single precision
       fstring='io_test?.f'//nstring
       call load_fld(fstring)
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-         if (nfiler.ne.2) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgt
-         endif
-         if (wdsizr.ne.4) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TTTTTTTTTTTTTF',4,2,0,.true.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
       
 c     multiple files double precision
       test_pass = .true.
@@ -1578,13 +987,7 @@ c     multiple files double precision
          write(*,*) 'Testing double precision'
          write(*,*) ' '
       endif
-      if_full_pres = .true.     ! pressure writing format
-      param(63) = 1.0           ! double precision
-      param(65) = 2.0           ! number of files
-      param(66) = 6.0           ! file format
-      time = time_test
-      call fields_restore
-      call prepost (.true.,'   ')
+      call run_write(1,2,6,.true.,'   ')     ! double prec, 2 files, .f, ffp
       ifile = ifile +1
 
       if_full_pres = .false.    ! pressure writing format
@@ -1594,87 +997,10 @@ c     multiple files double precision
       fstring='io_test?.f'//nstring
       call load_fld(fstring)
       call fields_compare(eps8,eps8,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-         if (nfiler.ne.2) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgt
-         endif
-         if (wdsizr.ne.8) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (.not.if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TTTTTTTTTTTTTT',8,2,0,.true.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
       
  10   format ('ERROR: param ',a12,E15.7)
  11   format ('ERROR: param ',a12,I10)
@@ -1710,13 +1036,7 @@ c     fld binary
          write(*,*) 'Testing writing/reading of binary .fld file'
          write(*,*) ' '
       endif
-      if_full_pres = .false.    ! pressure writing format
-      param(63) = 0.0           ! single precision
-      param(65) = 1.0           ! number of files
-      param(66) = 4.0           ! file format
-      time = time_test
-      call fields_restore
-      call prepost (.true.,'   ')
+      call run_write(0,1,4,.false.,'   ')    ! single prec, binary .fld
       ifile = ifile +1
 
       if_full_pres = .false.    ! pressure writing format
@@ -1726,47 +1046,10 @@ c     fld binary
       fstring='io_test.fld'//nstring
       call load_fld(fstring)
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps4) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TT.T.T.T.T.T.F',0,0,-1,.false.,
+     $                     time_test,eps4,test_pass)
+      call report(test_pass,ierr)
       
 c     fld ascii
       test_pass = .true.
@@ -1775,13 +1058,7 @@ c     fld ascii
          write(*,*) 'Testing writing/reading of ASCII .fld file'
          write(*,*) ' '
       endif
-      if_full_pres = .false.    ! pressure writing format
-      param(63) = 0.0           ! single precision
-      param(65) = 1.0           ! number of files
-      param(66) = -4.0          ! file format
-      time = time_test
-      call fields_restore
-      call prepost (.true.,'   ')
+      call run_write(0,1,-4,.false.,'   ')   ! single prec, ascii .fld
       ifile = ifile +1
 
       if_full_pres = .false.    ! pressure writing format
@@ -1791,47 +1068,10 @@ c     fld ascii
       fstring='io_test.fld'//nstring
       call load_fld(fstring)
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps4) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TT.T.T.T.T.T.F',0,0,-1,.false.,
+     $                     time_test,eps4,test_pass)
+      call report(test_pass,ierr)
       
  10   format ('ERROR: param ',a12,E15.7)
  11   format ('ERROR: param ',a12,I10)
@@ -1871,61 +1111,10 @@ c     mpiio
       fstring='m12io_test0.f00001 '
       call gfldr(fstring)
       call fields_compare(eps4,eps4,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-c     for mpiio number of files is equal number of processes
-         if (nelgr.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgr     : ',nelgr
-         endif
-         if (wdsizr.ne.4) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('T.T.T.T.T.T.TF',4,0,0,.true.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
 
  10   format ('ERROR: param ',a12,E15.7)
  11   format ('ERROR: param ',a12,I10)
@@ -1954,6 +1143,7 @@ c     local variables
       character*5 nstring
       character*10 refstring
       character*3 prefix
+      character*14 spec
 
       eps_intp = 2e-3
       time_test = pi
@@ -1996,96 +1186,10 @@ c     mpiio single precision
       call load_fld(fstring)
       call fields_compare(eps4,eps_intp,test_pass)
 
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-c     for mpiio number of files is equal number of processes
-         if (nfiler.ne.np) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-
-         ncut = 1
-         do i=1,nhrefrs
-            ncut = ncut * hrefcutsrs(i)
-         enddo
-         nblk = ncut**ldim
-         if (nelgr*nblk.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgt     : ',nelgt
-            write(*,11) 'nelgr     : ',nelgr
-            write(*,11) 'nblk      : ',nblk
-         endif
-         if (wdsizr.ne.4) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (.not.ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres : ',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('TTTTTTTTTTTTTF',4,1,0,.false.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
 
 c     check string restart options
       test_pass = .true.
@@ -2111,95 +1215,10 @@ c     check string restart options
       call fields_clean
       call setics
       call fields_compare(eps4,eps_intp,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-5.0).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-c     for mpiio number of files is equal number of processes
-         if (nfiler.ne.np) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         ncut = 1
-         do i=1,nhrefrs
-            ncut = ncut * hrefcutsrs(i)
-         enddo
-         nblk = ncut**ldim
-         if (nelgr*nblk.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgt     : ',nelgt
-            write(*,11) 'nelgr     : ',nelgr
-            write(*,11) 'nblk      : ',nblk
-         endif
-         if (wdsizr.ne.4) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (ifgetp) then
-            test_pass = .false.
-            write(*,12) 'ifgetp    : ',ifgetp
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (if_full_pres) then
-            test_pass = .false.
-            write(*,12) 'if_full_pres',if_full_pres
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr)
+      call chk_restart_hdr('FFTTTFTFTTTFTF',4,1,0,.false.,
+     $                     5.0,eps8,test_pass)
+      call report(test_pass,ierr)
 
 c     mpiio double precision
       test_pass = .true.
@@ -2225,109 +1244,14 @@ c     mpiio double precision
       call fields_clean
       call load_fld(fstring)
       call fields_compare(eps8,eps_intp,test_pass)
-c     check reading options (only master)
-      if (NID.eq.0) then
-         if (abs(time-time_test).gt.eps8) then
-            test_pass = .false.
-            write(*,10) 'time      : ',time
-         endif
-c     for mpiio number of files is equal number of processes
-         if (nfiler.ne.np) then
-            test_pass = .false.
-            write(*,11) 'nfiler    : ',nfiler
-         endif
-         ncut = 1
-         do i=1,nhrefrs
-            ncut = ncut * hrefcutsrs(i)
-         enddo
-         nblk = ncut**ldim
-         if (nelgr*nblk.ne.nelgt) then
-            test_pass = .false.
-            write(*,11) 'nelgt     : ',nelgt
-            write(*,11) 'nelgr     : ',nelgr
-            write(*,11) 'nblk      : ',nblk
-         endif
-         if (wdsizr.ne.8) then
-            test_pass = .false.
-            write(*,11) 'wdsizr    : ',wdsizr
-         endif
-         if (if_byte_sw) then
-            test_pass = .false.
-            write(*,12) 'if_byte_sw: ',if_byte_sw
-         endif
-         if (.not.ifgtim) then
-            test_pass = .false.
-            write(*,12) 'ifgtim    : ',ifgtim
-         endif
-         if (.not.ifgetx) then
-            test_pass = .false.
-            write(*,12) 'ifgetx    : ',ifgetx
-         endif
-         if (.not.ifgetxr) then
-            test_pass = .false.
-            write(*,12) 'ifgetxr   : ',ifgetxr
-         endif
-         if (.not.ifgetu) then
-            test_pass = .false.
-            write(*,12) 'ifgetu    : ',ifgetu
-         endif
-         if (.not.ifgetur) then
-            test_pass = .false.
-            write(*,12) 'ifgetur   : ',ifgetur
-         endif
-         if (ifsplit) then
-            if (.not.ifgetp) then
-               test_pass = .false.
-               write(*,12) 'ifgetp    : ',ifgetp
-            endif
-         else
-            if (ifgetp) then ! don't read pr when PnPn-2 + href + if_full_pres
-               test_pass = .false.
-               write(*,12) 'ifgetp    : ',ifgetp
-            endif
-         endif
-         if (.not.ifgetpr) then
-            test_pass = .false.
-            write(*,12) 'ifgetpr   : ',ifgetpr
-         endif
-         if (.not.ifgett) then
-            test_pass = .false.
-            write(*,12) 'ifgett    : ',ifgett
-         endif
-         if (.not.ifgettr) then
-            test_pass = .false.
-            write(*,12) 'ifgettr   : ',ifgettr
-         endif
-         if (.not.ifgtps(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps1   : ',ifgtps(1)
-         endif
-         if (.not.ifgtpsr(1)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr1  : ',ifgtpsr(1)
-         endif
-         if (.not.ifgtps(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtps2   : ',ifgtps(2)
-         endif
-         if (.not.ifgtpsr(2)) then
-            test_pass = .false.
-            write(*,12) 'ifgtpsr2  : ',ifgtpsr(2)
-         endif
-         if (ifsplit) then
-            if (if_full_pres) then
-               test_pass = .false.
-               write(*,12) 'if_full_pres : ',if_full_pres
-            endif
-         else
-            if (.not.if_full_pres) then
-               test_pass = .false.
-               write(*,12) 'if_full_pres : ',if_full_pres
-            endif
-         endif
-
-         call report(test_pass,ierr)
-      endif
+c     check restart header (see chk_restart_hdr). hrefine+double: pressure
+c     handling depends on PnPn vs PnPn-2 (do not read pr when PnPn-2 + href +
+c     if_full_pres). pos6=ifgetp, pos14=if_full_pres.
+      spec = 'TTTTTFTTTTTTTT'          ! PnPn-2: ifgetp=F, if_full_pres=T
+      if (ifsplit) spec = 'TTTTTTTTTTTTTF' ! PnPn: ifgetp=T, if_full_pres=F
+      call chk_restart_hdr(spec,8,1,0,.false.,
+     $                     time_test,eps8,test_pass)
+      call report(test_pass,ierr)
 
  10   format ('ERROR: param ',a12,E15.7)
  11   format ('ERROR: param ',a12,I10)
