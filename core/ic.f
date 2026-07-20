@@ -1939,17 +1939,21 @@ c     (nread then auto-grows to cover nelr).  lrbs_loc must match mfi_getv.
 c     CR tuple item must hold ONE whole (scalar) element's real*4 payload.
 c     Max is set by mapab's interpolation bound nxr<=lx1+6, and x2 for FP64:
 c       lelem_mx = 2*(lx1+6)*(ly1+6)*(lz1+6)
-c     lbrst_max = # tuple columns (batch capacity). Runtime lbrst<=lbrst_max is
-c     asserted (check 'd'). lbrst_max defaults to min(1024,lelt) (same as
-c     lbrst's default) so vi is batch-scaled and stays under the old wkg+vi
-c     footprint; raise it (up to lelt) if a larger batch is wanted.
+c     lrst_mx = # tuple columns = CR receive capacity per transfer. The fused
+c     single loop routes a whole read batch at once (no dest-window), so one
+c     rank can receive up to its full local field -> size to lelt. Default lelt
+c     is hard-safe; the n>nrmax guard errors if lowered below a partition's max
+c     local count. For lelt<=1024 this equals the old lbrst_max footprint.
+c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
       parameter(lelem_mx=2*(lx1+6)*(ly1+6)*(lz1+6))
       parameter(lbrst_max=min(1024,lelt))
-      integer vi(2+lelem_mx,lbrst_max) ! [nid,iel,(data real*8)] x lbrst_max
+      parameter(lrst_mx=lelt)
+      common /mfi_vis/ vi
+      integer vi(2+lelem_mx,lrst_mx) ! [nid,iel,(data real*8)] x lrst_mx
       real*8 etime0,dnekclock_sync
 
       integer e,ei
-      logical iskip
+      logical iskip,is_reader
       integer*8 i8tmp
 
       integer*8 disp
@@ -1994,18 +1998,113 @@ c     footprint; raise it (up to lelt) if a larger batch is wanted.
       if (ifcrrs)
      $  call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_gets d')
 
+      ! CR fused-loop batch sizing: nb = read/send batch, bounds w2 to ONE
+      ! batch (nxyzr*nb<=lrbs by construction). niter = GLOBAL iteration count
+      ! so every rank calls the collective crystal transfer the same number of
+      ! times (crystal_router is a butterfly over all np; n=0 is legal).
+      is_reader = (nid.eq.pid0r)
+      local_nb  = 0
+      nb        = 0
+      if (is_reader) then
+        nb = min(lbrst,lrbs/nxyzr)
+        if (nb.lt.1) nb = 1
+        local_nb = (nelr + nb - 1)/nb
+      endif
+      niter = iglmax(local_nb,1)
+
       call nekgsync()
 
       ierr = 0
-      if (nid.eq.pid0r.and.np.gt.1) then ! only i/o nodes will read
+      if (ifcrrs.or.np.eq.1) then
+         ! ===== Fused single loop: read batch -> CR redistribute -> assign =====
+         ! Each iteration reads ONE file-order batch into w2, routes the whole
+         ! batch by owner (gllnid) via the crystal router, and assigns received
+         ! elements. w2 holds only one batch; the tuple vi holds the receive
+         ! side (sized lrst_mx). No dest-window (jeln) sub-scan. np==1 folds in
+         ! here (any ifcrrs): transfer skipped, assign straight from the packed
+         ! (file-order) columns. See reports/report_F.md.
+         k = 0
+         do ibatch = 1,niter
+            nb_this = 0
+            if (is_reader.and.ibatch.le.local_nb)
+     $        nb_this = min(nb,nelr-(ibatch-1)*nb)
+            if (nb_this.lt.0) nb_this = 0
+
+            ! read one file-order batch (MPIIO collective: count may be 0)
+            if (ierr.eq.0) then
+              etime0 = dnekclock_sync()
+              if (ifmpiio) then
+                call byte_read_mpi(w2,nxyzr*nb_this,-1,ifh_mbyte,ierr)
+              else if (is_reader.and.nb_this.gt.0) then
+                call byte_read(w2,nxyzr*nb_this,ierr)
+              endif
+              rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
+            endif
+
+#ifdef MPI
+            ! D1b: on a skipped field, keep the byte_read above (advances the
+            ! non-MPIIO fd; harmless for MPIIO) but skip redistribute + assign.
+            if (.not.iskip) then
+              ! pack whole batch (key = owner rank; no dest-window)
+              etime0 = dnekclock_sync()
+              l = 1
+              iloc = 1
+              do e = k+1,k+nb_this
+                vi(1,iloc) = gllnid(er(e))
+                vi(2,iloc) = er(e)
+                call icopy(vi(3,iloc),w2(l),nxyzr)
+                iloc = iloc+1
+                l = l+nxyzr
+              enddo
+              n = iloc - 1
+              rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
+
+              ! crystal route (collective over all np; skip only at np==1)
+              nrmax = lrst_mx
+              if (np.gt.1) then
+                li = 2+lelem_mx ! tuple item width (W2)
+                key = 1
+                etime0 = dnekclock_sync()
+                call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
+     &                   vl,0,vr,0,key)
+                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
+              endif
+
+              ! unpack + fused assign (W1: CR path skips wkg). At np>1 the
+              ! target slot is ie_map_r2o(gllel(er)); at np==1 no route
+              ! happened so columns are still file order -> ei=er(k+iloc)
+              ! (NOT ie_map_r2o -- fixes np==1 h-refine, PR #908).
+              etime0 = dnekclock_sync()
+              if (n.gt.nrmax) then
+                ierr = 1
+                goto 100
+              endif
+              npts = nxr*nyr*nzr
+              do iloc = 1,n
+                if (np.gt.1) then
+                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
+                else
+                  iel = er(k+iloc)
+                endif
+                call mfi_assign_elem(u(1,iel),vi(3,iloc),npts,
+     $                             nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+              enddo
+              call nekgsync()
+              rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+            endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
+#endif
+            k = k + nb_this
+         enddo
+
+      else if (nid.eq.pid0r.and.np.gt.1) then ! RMA path (only i/o nodes read)
          ! read blocks of size nelrr
          k = 0
          do i = 1,nread
-            if(i.eq.nread) then ! clean-up 
+            if(i.eq.nread) then ! clean-up
               nelrr = nelr - (nread-1)*nelrr
               if(nelrr.lt.0) nelrr = 0
             endif
-            
+
             if(ierr.eq.0) then
               etime0 = dnekclock_sync()
               if(ifmpiio) then
@@ -2017,158 +2116,57 @@ c     footprint; raise it (up to lelt) if a larger batch is wanted.
             endif
 
 #ifdef MPI
-            ! D1b: on a skipped field, keep the byte_read above (advances the
-            ! non-MPIIO fd; harmless for MPIIO) but skip the whole redistribute
-            ! + assign -- it only feeds the assign, which is discarded. Removes
-            ! the per-skipped-field all-to-all. See report_D.md.
             if (.not.iskip) then
-            ! CR batches the redistribute over destination-local windows of
-            ! width lbrst (bounds the tuple vi). RMA cannot batch both the
-            ! read block and the window under a sequential read, so it uses a
-            ! single full-field window (nbatch=1); it batch-scales only w2
-            ! (via lread_mx). See report_C.md.
-            if (ifcrrs) then
-              nbatch = (nelt_hr0 - 1) / lbrst + 1
-              nbatch = iglmax(nbatch, 1)
-            else
-              nbatch = 1
-            endif
+            ! RMA cannot batch both the read block and the destination window
+            ! under a sequential read, so it uses a single full-field window
+            ! (nbatch=1); it batch-scales only w2 (via lread_mx). report_C.md.
+              jeln1 = 1
+              jeln2 = nelt_hr0
 
-            do ibatch = 1,nbatch
+              etime0 = dnekclock_sync()
+              l = 1
+              call MPI_Win_lock_all(0,rsH,ierr)
+              do e = k+1,k+nelrr
+                jnid = gllnid(er(e))                ! where is er(e) now?
+                jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
 
-              ! range for jeln in this batch (CR: width lbrst; RMA: full field)
-              if (ifcrrs) then
-                jeln1 = (ibatch-1)*lbrst+1
-                jeln2 = ibatch*lbrst
-              else
-                jeln1 = 1
-                jeln2 = nelt_hr0
-              endif
-
-              ! redistribute data based on the current el-proc map
-              if (ifcrrs) then
-                etime0 = dnekclock_sync()
-                ! pack buffer
-                l = 1
-                iloc = 1
-                do e = k+1,k+nelrr
-                  jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
-                  if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
-                    vi(1,iloc) = gllnid(er(e))
-                    vi(2,iloc) = er(e)
-                    call icopy(vi(3,iloc),w2(l),nxyzr)
-                    iloc = iloc+1
-                  endif
-                  l = l+nxyzr
-                enddo
-                rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
-
-                ! crystal route nr real items of size lrs to rank vi(key,1:nr)
-                nrmax = lbrst
-                n = iloc - 1
-                li = 2+lelem_mx ! tuple item width (W2)
-                key = 1
-                etime0 = dnekclock_sync()
-                call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
-     &                   vl,0,vr,0,key)
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-
-                ! unpack buffer + fused assign (W1: CR path skips wkg)
-                ! Assign each received element vi(3,iloc) directly into its
-                ! target slot iel: byte_reverse + copy/interp, one element.
-                ! npts = point count (nxyzr is real*4 words here, x2 if FP64).
-                etime0 = dnekclock_sync()
-                ierr = 0
-                if (n.gt.nrmax) then
-                  ierr = 1
-                  goto 100
+                if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
+                  disp = (jeln-jeln1) * int(nxyzr,8)
+                  call MPI_Put(w2(l),nxyzr,MPI_REAL4,jnid,
+     $                         disp,nxyzr,MPI_REAL4,rsH,ierr)
                 endif
-                npts = nxr*nyr*nzr
-                do iloc = 1,n
-                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                  call mfi_assign_elem(u(1,iel),vi(3,iloc),npts,
-     $                             nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                enddo
-                call nekgsync()
-                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+                l = l+nxyzr
+              enddo
+              call MPI_Win_unlock_all(rsH,ierr)
+              call nekgsync()
+              rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
-              else
-
-                etime0 = dnekclock_sync()
-                l = 1
-                call MPI_Win_lock_all(0,rsH,ierr)
-                do e = k+1,k+nelrr
-                  jnid = gllnid(er(e))                ! where is er(e) now?
-                  jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
-
-                  if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
-                    disp = (jeln-jeln1) * int(nxyzr,8)
-                    call MPI_Put(w2(l),nxyzr,MPI_REAL4,jnid,
-     $                           disp,nxyzr,MPI_REAL4,rsH,ierr)
-                  endif
-                  l = l+nxyzr
-                enddo
-                call MPI_Win_unlock_all(rsH,ierr)
-                call nekgsync()
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-
-                ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
-                ! The full-field window accumulates Puts across ALL read blocks,
-                ! so assign only on the LAST read block (i.eq.nread), once every
-                ! destination slot has been filled. wk slot = global slot e.
-                if (i.eq.nread) then
-                etime0 = dnekclock_sync()
-                npts = nxr*nyr*nzr
-                l = 1
-                do e = jeln1,jeln2
-                  if (e.le.nelt_hr0)
-     $              call mfi_assign_elem(u(1,e),wk(l),npts,
-     $                             nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                  l = l+nxyzr
-                enddo
-                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
-                endif
-
+              ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
+              ! The full-field window accumulates Puts across ALL read blocks,
+              ! so assign only on the LAST read block (i.eq.nread), once every
+              ! destination slot has been filled. wk slot = global slot e.
+              if (i.eq.nread) then
+              etime0 = dnekclock_sync()
+              npts = nxr*nyr*nzr
+              l = 1
+              do e = jeln1,jeln2
+                if (e.le.nelt_hr0)
+     $            call mfi_assign_elem(u(1,e),wk(l),npts,
+     $                           nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                l = l+nxyzr
+              enddo
+              rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
               endif
-
-            enddo ! batches
             endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
 #endif
             k  = k + nelrr
          enddo
-      elseif (np.eq.1) then
-         ! W3: np==1 direct read into w2 (file order == er() order); assign
-         ! per element below from w2 using ei=er(e). No wkg.
-         etime0 = dnekclock_sync()
-         if(ifmpiio) then
-           call byte_read_mpi(w2,nxyzr*nelr,-1,ifh_mbyte,ierr)
-         else
-           call byte_read(w2,nxyzr*nelr,ierr)
-         endif
-         rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
       endif
 
-      call nekgsync() ! completed both at the origin and at the target when the call returns 
+      call nekgsync() ! completed both at the origin and at the target when the call returns
 
       if (iskip) then
          goto 100     ! don't use the data
-      endif
-
-      ! Final assign for the np==1 direct-read bypass, straight from w2
-      ! (file order == er() order). The parallel CR and RMA paths already
-      ! assigned inline above (W1/W3); wkg is no longer used.
-      if (np.eq.1) then
-      nxyzw = nxr*nyr*nzr
-      if (wdsizr.eq.8) nxyzw = 2*nxyzw
-      npts = nxr*nyr*nzr
-
-      l = 1
-      do e=1,nelt_hr0
-         ei = er(e)
-         call mfi_assign_elem(u(1,ei),w2(l),npts,
-     $                        nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-         l = l+nxyzw
-      enddo
       endif
 
  100  call err_chk(ierr,'Error reading restart data,in gets.$')
@@ -2201,16 +2199,21 @@ c     large lelt to bound w2 to a read block (nread auto-grows).
 c     CR tuple item must hold ONE whole VECTOR element (ldim components),
 c     bounded by mapab's nxr<=lx1+6 and x2 for FP64:
 c       lelem_mx = 2*ldim*(lx1+6)*(ly1+6)*(lz1+6)
-c     lbrst_max = # tuple columns (batch capacity); runtime lbrst<=lbrst_max
-c     asserted (check 'd'). Default min(1024,lelt) (same as lbrst) keeps the
-c     getv vi under the old wkg+vi footprint; raise (up to lelt) for a larger
-c     batch if memory allows. See reports/report_B.md and report_C.md.
+c     lrst_mx = # tuple columns = CR receive capacity per transfer. The fused
+c     single loop routes a whole read batch at once (no dest-window), so one
+c     rank can receive up to its full local field -> size to lelt. Default lelt
+c     is hard-safe; the n>nrmax guard errors if lowered below a partition's max
+c     local count. For lelt<=1024 this equals the old lbrst_max footprint.
+c     lbrst_max still bounds the read/send batch knob lbrst (check 'd').
       parameter(lelem_mx=2*ldim*(lx1+6)*(ly1+6)*(lz1+6))
       parameter(lbrst_max=min(1024,lelt))
-      integer vi(2+lelem_mx,lbrst_max) ! [nid,iel,(data real*8)] x lbrst_max
+      parameter(lrst_mx=lelt)
+      common /mfi_viv/ vi
+      integer vi(2+lelem_mx,lrst_mx) ! [nid,iel,(data real*8)] x lrst_mx
       real*8 etime0,dnekclock_sync
 
       integer e,ei
+      logical is_reader
       integer*8 i8tmp
 
       integer*8 disp
@@ -2254,20 +2257,119 @@ c     batch if memory allows. See reports/report_B.md and report_C.md.
       if (ifcrrs)
      $  call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_getv d')
 
+      ! CR fused-loop batch sizing (see mfi_gets): nb bounds w2 to ONE batch;
+      ! niter is the GLOBAL iteration count so all ranks call the collective
+      ! crystal transfer the same number of times.
+      is_reader = (nid.eq.pid0r)
+      local_nb  = 0
+      nb        = 0
+      if (is_reader) then
+        nb = min(lbrst,lrbs/nxyzr)
+        if (nb.lt.1) nb = 1
+        local_nb = (nelr + nb - 1)/nb
+      endif
+      niter = iglmax(local_nb,1)
+
       call nekgsync()
 
       ierr = 0
-      if (nid.eq.pid0r .and. np.gt.1) then ! only i/o nodes
+      if (ifcrrs.or.np.eq.1) then
+         ! ===== Fused single loop: read batch -> CR redistribute -> assign =====
+         ! One iteration reads ONE file-order batch into w2, routes the whole
+         ! batch by owner via the crystal router, and assigns received vector
+         ! elements (components u,v,w at real*4 offsets 0,nw,2*nw). np==1 folds
+         ! in here (any ifcrrs): transfer skipped, assign from file-order
+         ! columns with ei=er(k+iloc). See reports/report_F.md.
+         k = 0
+         do ibatch = 1,niter
+            nb_this = 0
+            if (is_reader.and.ibatch.le.local_nb)
+     $        nb_this = min(nb,nelr-(ibatch-1)*nb)
+            if (nb_this.lt.0) nb_this = 0
+
+            ! read one file-order batch (MPIIO collective: count may be 0)
+            if (ierr.eq.0) then
+              etime0 = dnekclock_sync()
+              if (ifmpiio) then
+                call byte_read_mpi(w2,nxyzr*nb_this,-1,ifh_mbyte,ierr)
+              else if (is_reader.and.nb_this.gt.0) then
+                call byte_read(w2,nxyzr*nb_this,ierr)
+              endif
+              rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
+            endif
+
+#ifdef MPI
+            ! D1b: on a skipped field, keep the byte_read above but skip the
+            ! whole redistribute + assign. See report_D.md.
+            if (.not.iskip) then
+              ! pack whole batch (key = owner rank; no dest-window)
+              etime0 = dnekclock_sync()
+              l = 1
+              iloc = 1
+              do e = k+1,k+nb_this
+                vi(1,iloc) = gllnid(er(e))
+                vi(2,iloc) = er(e)
+                call icopy(vi(3,iloc),w2(l),nxyzr)
+                iloc = iloc+1
+                l = l+nxyzr
+              enddo
+              n = iloc - 1
+              rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
+
+              ! crystal route (collective over all np; skip only at np==1)
+              nrmax = lrst_mx
+              if (np.gt.1) then
+                li = 2+lelem_mx ! tuple item width (W2)
+                key = 1
+                etime0 = dnekclock_sync()
+                call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
+     &                   vl,0,vr,0,key)
+                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
+              endif
+
+              ! unpack + fused assign (W1: CR path skips wkg). np>1 target slot
+              ! is ie_map_r2o(gllel(er)); np==1 has no route so columns are
+              ! file order -> ei=er(k+iloc) (fixes np==1 h-refine, PR #908).
+              etime0 = dnekclock_sync()
+              if (n.gt.nrmax) then
+                ierr = 1
+                goto 100
+              endif
+              npts = nxr*nyr*nzr
+              nw   = npts
+              if (wdsizr.eq.8) nw = 2*npts
+              do iloc = 1,n
+                if (np.gt.1) then
+                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
+                else
+                  iel = er(k+iloc)
+                endif
+                call mfi_assign_elem(u(1,iel),vi(3     ,iloc),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                call mfi_assign_elem(v(1,iel),vi(3+nw  ,iloc),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                if (if3d)
+     $          call mfi_assign_elem(w(1,iel),vi(3+2*nw,iloc),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+              enddo
+              call nekgsync()
+              rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+            endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
+#endif
+            k = k + nb_this
+         enddo
+
+      else if (nid.eq.pid0r.and.np.gt.1) then ! RMA path (only i/o nodes read)
          k = 0
          do i = 1,nread
-            if(i.eq.nread) then ! clean-up 
+            if(i.eq.nread) then ! clean-up
               nelrr = nelr - (nread-1)*nelrr
               if(nelrr.lt.0) nelrr = 0
             endif
 
             if(ierr.eq.0) then
               etime0 = dnekclock_sync()
-              if(ifmpiio) then 
+              if(ifmpiio) then
                 call byte_read_mpi(w2,nxyzr*nelrr,-1,ifh_mbyte,ierr)
               else
                 call byte_read (w2,nxyzr*nelrr,ierr)
@@ -2276,174 +2378,64 @@ c     batch if memory allows. See reports/report_B.md and report_C.md.
             endif
 
 #ifdef MPI
-            ! D1b: on a skipped field, keep the byte_read above but skip the
-            ! whole redistribute + assign (it only feeds the discarded assign).
-            ! Removes the per-skipped-field all-to-all. See report_D.md.
             if (.not.iskip) then
-            ! CR batches the redistribute over destination windows of width
-            ! lbrst (bounds vi). RMA uses a single full-field window (nbatch=1)
-            ! since read block and window cannot both be bounded under a
-            ! sequential read; RMA batch-scales only w2 (lread_mx). report_C.md.
-            if (ifcrrs) then
-              nbatch = (nelt_hr0 - 1) / lbrst + 1
-              nbatch = iglmax(nbatch, 1)
-            else
-              nbatch = 1
-            endif
+            ! RMA uses a single full-field window (nbatch=1) since read block
+            ! and window cannot both be bounded under a sequential read; RMA
+            ! batch-scales only w2 (lread_mx). See report_C.md.
+              jeln1 = 1
+              jeln2 = nelt_hr0
 
-            do ibatch = 1,nbatch
-
-              ! range for jeln in this batch (CR: width lbrst; RMA: full field)
-              if (ifcrrs) then
-                jeln1 = (ibatch-1)*lbrst+1
-                jeln2 = ibatch*lbrst
-              else
-                jeln1 = 1
-                jeln2 = nelt_hr0
-              endif
-              ! redistribute data based on the current el-proc map
-              if (ifcrrs) then
-                etime0 = dnekclock_sync()
-                ! pack buffer
-                l = 1
-                iloc = 1
-                do e = k+1,k+nelrr
-                  jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
-                  if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
-                    vi(1,iloc) = gllnid(er(e))
-                    vi(2,iloc) = er(e)
-                    call icopy(vi(3,iloc),w2(l),nxyzr)
-                    iloc = iloc+1
-                  endif
-                  l = l+nxyzr
-                enddo
-                rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
-
-                ! crystal route nr real items of size lrs to rank vi(key,1:nr)
-                nrmax = lbrst
-                n = iloc - 1
-                li = 2+lelem_mx ! tuple item width (W2)
-                key = 1
-                etime0 = dnekclock_sync()
-                call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
-     &                   vl,0,vr,0,key)
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-
-                ! unpack buffer + fused assign (W1: CR path skips wkg)
-                ! Assign each received vector element vi(3,iloc) directly into
-                ! its target slot iel. Components u,v,w sit at real*4 offsets
-                ! 0, nw, 2*nw within the tuple payload; npts = point count.
-                etime0 = dnekclock_sync()
-                ierr = 0
-                if (n.gt.nrmax) then
-                  ierr = 1
-                  goto 100
+              etime0 = dnekclock_sync()
+              l = 1
+              call MPI_Win_lock_all(0,rsH,ierr)
+              do e = k+1,k+nelrr
+                jnid = gllnid(er(e))                ! where is er(e) now?
+                jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
+                if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
+                  disp = (jeln-jeln1) * int(nxyzr,8)
+                  call MPI_Put(w2(l),nxyzr,MPI_REAL4,jnid,
+     $                         disp,nxyzr,MPI_REAL4,rsH,ierr)
                 endif
-                npts = nxr*nyr*nzr
-                nw   = npts
-                if (wdsizr.eq.8) nw = 2*npts
-                do iloc = 1,n
-                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                    call mfi_assign_elem(u(1,iel),vi(3     ,iloc),
-     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                    call mfi_assign_elem(v(1,iel),vi(3+nw  ,iloc),
-     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                    if (if3d)
-     $              call mfi_assign_elem(w(1,iel),vi(3+2*nw,iloc),
-     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                enddo
-                call nekgsync()
-                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+                l = l+nxyzr
+              enddo
+              call MPI_Win_unlock_all(rsH,ierr)
+              call nekgsync()
+              rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 
-              else
-
-                etime0 = dnekclock_sync()
-                l = 1
-                call MPI_Win_lock_all(0,rsH,ierr)
-                do e = k+1,k+nelrr
-                  jnid = gllnid(er(e))                ! where is er(e) now?
-                  jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
-                  if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
-                    disp = (jeln-jeln1) * int(nxyzr,8)
-                    call MPI_Put(w2(l),nxyzr,MPI_REAL4,jnid,
-     $                           disp,nxyzr,MPI_REAL4,rsH,ierr)
-                  endif
-                  l = l+nxyzr
-                enddo
-                call MPI_Win_unlock_all(rsH,ierr)
-                call nekgsync()
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-
-                ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
-                ! The full-field window accumulates Puts across ALL read blocks,
-                ! so assign only on the LAST read block (i.eq.nread). wk slot =
-                ! global slot e; components u,v,w at real*4 offsets 0,nw,2nw.
-                if (i.eq.nread) then
-                etime0 = dnekclock_sync()
-                npts = nxr*nyr*nzr
-                nw   = npts
-                if (wdsizr.eq.8) nw = 2*npts
-                l = 1
-                do e = jeln1,jeln2
-                  if (e.le.nelt_hr0) then
-                    call mfi_assign_elem(u(1,e),wk(l     ),
+              ! fused assign (W3: RMA path skips wkg). Assign AFTER unlock.
+              ! The full-field window accumulates Puts across ALL read blocks,
+              ! so assign only on the LAST read block (i.eq.nread). wk slot =
+              ! global slot e; components u,v,w at real*4 offsets 0,nw,2nw.
+              if (i.eq.nread) then
+              etime0 = dnekclock_sync()
+              npts = nxr*nyr*nzr
+              nw   = npts
+              if (wdsizr.eq.8) nw = 2*npts
+              l = 1
+              do e = jeln1,jeln2
+                if (e.le.nelt_hr0) then
+                  call mfi_assign_elem(u(1,e),wk(l     ),
      $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                    call mfi_assign_elem(v(1,e),wk(l+nw  ),
+                  call mfi_assign_elem(v(1,e),wk(l+nw  ),
      $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                    if (if3d)
-     $              call mfi_assign_elem(w(1,e),wk(l+2*nw),
+                  if (if3d)
+     $            call mfi_assign_elem(w(1,e),wk(l+2*nw),
      $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                  endif
-                  l = l+nxyzr
-                enddo
-                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
                 endif
-
+                l = l+nxyzr
+              enddo
+              rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
               endif
-
-            enddo ! batches
             endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
 #endif
             k  = k + nelrr
          enddo
-      elseif (np.eq.1) then
-         ! W3: np==1 direct read into w2 (file order); assign from w2 below.
-         etime0 = dnekclock_sync()
-         if(ifmpiio) then
-           call byte_read_mpi(w2,nxyzr*nelr,-1,ifh_mbyte,ierr)
-         else
-           call byte_read(w2,nxyzr*nelr,ierr)
-         endif
-         rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
       endif
 
-      call nekgsync() ! completed both at the origin and at the target when the call returns 
+      call nekgsync() ! completed both at the origin and at the target when the call returns
 
       if (iskip) then
          goto 100     ! don't assign the data we just read
-      endif
-
-      ! Final assign for the np==1 direct-read bypass, straight from w2
-      ! (file order). Parallel CR and RMA paths already assigned inline
-      ! above (W1/W3); wkg is no longer used. Components at 0,nw,2nw.
-      if (np.eq.1) then
-      nxyzw = nxr*nyr*nzr
-      if (wdsizr.eq.8) nxyzw = 2*nxyzw
-      npts = nxr*nyr*nzr
-      nw   = nxyzw
-
-      l = 1
-      do e=1,nelt_hr0
-         ei = er(e)   ! not ie_map_r2o(er(e),...): fixes np==1 h-refine (PR #908)
-         call mfi_assign_elem(u(1,ei),w2(l     ),
-     $                     npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-         call mfi_assign_elem(v(1,ei),w2(l+nw  ),
-     $                     npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-         if (if3d)
-     $   call mfi_assign_elem(w(1,ei),w2(l+2*nw),
-     $                     npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-         l = l+ldim*nxyzw
-      enddo
       endif
 
  100  call err_chk(ierr,'Error reading restart data, in getv.$')
