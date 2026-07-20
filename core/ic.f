@@ -2081,7 +2081,7 @@ c     bounded redistribution rounds keep recv <= cap=lrcv_mx (see Plan H).
            write(6,*) 'mfi_gets: nbatch=',nbtot,
      $                ' rounds/batch min/max/avg=',nrmn,nrmx,
      $                real(nrsum)/real(nbtot),' recvmax=',rcvmx
-           write(6,*) 'mfi_gets: cap=',lrcv_mx,' nb=',nb,
+           write(6,*) 'mfi_gets: cap=',cap,' nb=',nb,
      $                ' lbrst=',lbrst,' w2w=',lrbs,
      $                ' viw=',(2+lelem_mx)*lrcv_mx,' hsw=',10*lbrst_max
          endif
@@ -2341,7 +2341,7 @@ c     field); bounded rounds keep recv <= cap=lrcv_mx (see Plan H).
            write(6,*) 'mfi_getv: nbatch=',nbtot,
      $                ' rounds/batch min/max/avg=',nrmn,nrmx,
      $                real(nrsum)/real(nbtot),' recvmax=',rcvmx
-           write(6,*) 'mfi_getv: cap=',lrcv_mx,' nb=',nb,
+           write(6,*) 'mfi_getv: cap=',cap,' nb=',nb,
      $                ' lbrst=',lbrst,' w2w=',lrbs,
      $                ' viw=',(2+lelem_mx)*lrcv_mx,' hsw=',10*lbrst_max
          endif
