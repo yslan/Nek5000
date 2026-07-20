@@ -1947,6 +1947,7 @@ c     bounded redistribution rounds keep recv <= cap=lrcv_mx (see Plan H).
 
       integer e,ei
       integer r,cap,recvcnt,nrounds   ! Plan H bounded rounds
+      integer nbtot,nrmn,nrmx,nrsum,rcvmx  ! verbose round stats (loglevel>2)
       logical iskip,is_reader
       integer*8 i8tmp
 
@@ -2007,6 +2008,11 @@ c     bounded redistribution rounds keep recv <= cap=lrcv_mx (see Plan H).
          ! w2 holds one batch; vi holds the receive side.
          ! np==1 folds in (transfer skipped, columns stay file order).
          k = 0
+         nbtot=0                      ! verbose round stats (loglevel>2)
+         nrmn=999999
+         nrmx=0
+         nrsum=0
+         rcvmx=0
          do ibatch = 1,niter
             nb_this = 0
             if (is_reader.and.ibatch.le.local_nb)
@@ -2045,8 +2051,11 @@ c     bounded redistribution rounds keep recv <= cap=lrcv_mx (see Plan H).
               cap = lrcv_mx
               call mfi_redist_plan(k,nb_this,cap,nrounds,recvcnt,ierr)
               if (ierr.ne.0) goto 100
-              if (nio.eq.0) write(6,*) 'mfi_gets redist b',ibatch,     ! FIXME (dbg)
-     $           ' recv',recvcnt,' cap',cap,' nrounds',nrounds
+              nbtot=nbtot+1                ! verbose round stats
+              if (nrounds.lt.nrmn) nrmn=nrounds
+              if (nrounds.gt.nrmx) nrmx=nrounds
+              nrsum=nrsum+nrounds
+              if (recvcnt.gt.rcvmx) rcvmx=recvcnt
               do r = 0,nrounds-1
                 call mfi_redist_round(r,cap,vi,2+lelem_mx,
      $                                w2,nxyzr,k,n,ierr)
@@ -2066,6 +2075,15 @@ c     bounded redistribution rounds keep recv <= cap=lrcv_mx (see Plan H).
 #endif
             k = k + nb_this
          enddo
+         ! verbose CR redist summary (set loglevel>2 in the .par to enable)
+         if (nio.eq.0 .and. loglevel.gt.2 .and. nbtot.gt.0) then
+           write(6,*) 'mfi_gets: nbatch=',nbtot,
+     $                ' rounds/batch min/max/avg=',nrmn,nrmx,
+     $                real(nrsum)/real(nbtot),' recvmax=',rcvmx
+           write(6,*) 'mfi_gets: cap=',lrcv_mx,' nb=',nb,
+     $                ' lbrst=',lbrst,' w2w=',lrbs,
+     $                ' viw=',(2+lelem_mx)*lrcv_mx,' hsw=',10*lbrst_max
+         endif
 
       else if (nid.eq.pid0r.and.np.gt.1) then ! RMA path (only i/o nodes read)
          ! read blocks of size nelrr
@@ -2175,6 +2193,7 @@ c     field); bounded rounds keep recv <= cap=lrcv_mx (see Plan H).
 
       integer e,ei
       integer r,cap,recvcnt,nrounds   ! Plan H bounded rounds
+      integer nbtot,nrmn,nrmx,nrsum,rcvmx  ! verbose round stats (loglevel>2)
       logical is_reader
       integer*8 i8tmp
 
@@ -2234,6 +2253,11 @@ c     field); bounded rounds keep recv <= cap=lrcv_mx (see Plan H).
          ! w2 holds one batch; vi holds recv side (u,v,w at 0,nw,2*nw).
          ! np==1 folds in (transfer skipped, columns stay file order).
          k = 0
+         nbtot=0                      ! verbose round stats (loglevel>2)
+         nrmn=999999
+         nrmx=0
+         nrsum=0
+         rcvmx=0
          do ibatch = 1,niter
             nb_this = 0
             if (is_reader.and.ibatch.le.local_nb)
@@ -2279,8 +2303,11 @@ c     field); bounded rounds keep recv <= cap=lrcv_mx (see Plan H).
               cap = lrcv_mx
               call mfi_redist_plan(k,nb_this,cap,nrounds,recvcnt,ierr)
               if (ierr.ne.0) goto 100
-              if (nio.eq.0) write(6,*) 'mfi_getv redist b',ibatch,     ! FIXME (dbg)
-     $           ' recv',recvcnt,' cap',cap,' nrounds',nrounds
+              nbtot=nbtot+1                ! verbose round stats
+              if (nrounds.lt.nrmn) nrmn=nrounds
+              if (nrounds.gt.nrmx) nrmx=nrounds
+              nrsum=nrsum+nrounds
+              if (recvcnt.gt.rcvmx) rcvmx=recvcnt
               do r = 0,nrounds-1
                 call mfi_redist_round(r,cap,vi,2+lelem_mx,
      $                                w2,nxyzr,k,n,ierr)
@@ -2307,6 +2334,15 @@ c     field); bounded rounds keep recv <= cap=lrcv_mx (see Plan H).
 #endif
             k = k + nb_this
          enddo
+         ! verbose CR redist summary (set loglevel>2 in the .par to enable)
+         if (nio.eq.0 .and. loglevel.gt.2 .and. nbtot.gt.0) then
+           write(6,*) 'mfi_getv: nbatch=',nbtot,
+     $                ' rounds/batch min/max/avg=',nrmn,nrmx,
+     $                real(nrsum)/real(nbtot),' recvmax=',rcvmx
+           write(6,*) 'mfi_getv: cap=',lrcv_mx,' nb=',nb,
+     $                ' lbrst=',lbrst,' w2w=',lrbs,
+     $                ' viw=',(2+lelem_mx)*lrcv_mx,' hsw=',10*lbrst_max
+         endif
 
       else if (nid.eq.pid0r.and.np.gt.1) then ! RMA path (only i/o nodes read)
          k = 0
