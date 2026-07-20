@@ -2026,38 +2026,14 @@ c     cols = recv capacity (a rank may receive its whole field).
             ! skipped fld: keep the read (advances the fd) but skip the
             ! redist + assign.
             if (.not.iskip) then
-              ! pack whole batch (key = owner rank; no dest-window)
-              etime0 = dnekclock_sync()
-              l = 1
-              iloc = 1
-              do e = k+1,k+nb_this
-                vi(1,iloc) = gllnid(er(e))
-                vi(2,iloc) = er(e)
-                call icopy(vi(3,iloc),w2(l),nxyzr)
-                iloc = iloc+1
-                l = l+nxyzr
-              enddo
-              n = iloc - 1
-              rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
-
-              ! crystal router
-              nrmax = lrst_mx
-              if (np.gt.1) then
-                li = 2+lelem_mx ! tuple item width
-                key = 1
-                etime0 = dnekclock_sync()
-                call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
-     &                   vl,0,vr,0,key)
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-              endif
+              ! redist: pack this batch + crystal-route (CR path)
+              call mfi_redist_cr(vi,2+lelem_mx,lrst_mx,n,
+     $                           w2,nxyzr,k,nb_this,ierr)
+              if (ierr.ne.0) goto 100
 
               ! assign received elements. np>1: slot = ie_map_r2o(gllel(er));
               ! np==1: no route, columns stay file order -> ei=er(k+iloc)
               etime0 = dnekclock_sync()
-              if (n.gt.nrmax) then
-                ierr = 1
-                goto 100
-              endif
               npts = nxr*nyr*nzr
               do iloc = 1,n
                 if (np.gt.1) then
@@ -2261,38 +2237,14 @@ c     lrst_mx cols = recv capacity (a rank may receive its whole field).
             ! skipped fld: keep the read (advances the fd) but skip the
             ! redist + assign.
             if (.not.iskip) then
-              ! pack whole batch (key = owner rank; no dest-window)
-              etime0 = dnekclock_sync()
-              l = 1
-              iloc = 1
-              do e = k+1,k+nb_this
-                vi(1,iloc) = gllnid(er(e))
-                vi(2,iloc) = er(e)
-                call icopy(vi(3,iloc),w2(l),nxyzr)
-                iloc = iloc+1
-                l = l+nxyzr
-              enddo
-              n = iloc - 1
-              rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
-
-              ! crystal router
-              nrmax = lrst_mx
-              if (np.gt.1) then
-                li = 2+lelem_mx ! tuple item width
-                key = 1
-                etime0 = dnekclock_sync()
-                call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
-     &                   vl,0,vr,0,key)
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-              endif
+              ! redist: pack this batch + crystal-route (CR path)
+              call mfi_redist_cr(vi,2+lelem_mx,lrst_mx,n,
+     $                           w2,nxyzr,k,nb_this,ierr)
+              if (ierr.ne.0) goto 100
 
               ! assign received elements. np>1: slot = ie_map_r2o(gllel(er));
               ! np==1: no route, columns stay file order -> ei=er(k+iloc)
               etime0 = dnekclock_sync()
-              if (n.gt.nrmax) then
-                ierr = 1
-                goto 100
-              endif
               npts = nxr*nyr*nzr
               nw   = npts
               if (wdsizr.eq.8) nw = 2*npts
@@ -2395,6 +2347,54 @@ c     lrst_mx cols = recv capacity (a rank may receive its whole field).
       endif
 
  100  call err_chk(ierr,'Error reading restart data, in getv.$')
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine mfi_redist_cr(vi,li,nmax,n,w2,nxyzr,ke,nb,ierr)
+c
+c     Crystal-router redistribution for ONE restart read batch (CR path).
+c     Pack nb file-order elements er(ke+1..ke+nb) from the read buffer w2
+c     into the tuple vi = [nid, iel, payload], keyed by owner rank, then
+c     route to owners. Returns the received tuples in vi and n = received
+c     count. The payload is an opaque nxyzr-word real*4 blob, so this serves
+c     both mfi_gets (scalar) and mfi_getv (vector). np==1: pack only (no
+c     route), vi stays in file order. n>nmax (recv overflow) sets ierr=1.
+c     Timing: pack -> rst_etime(2), route -> rst_etime(3).
+c
+      include 'SIZE'
+      include 'PARALLEL'        ! gllnid (in /hcglb/), np
+      include 'RESTART'         ! er, cr_mfi, rst_etime
+      integer vi(li,nmax)
+      real*4  w2(1)
+      real*8  etime0,dnekclock_sync
+      integer e
+
+      ! pack whole batch (key = owner rank; no dest-window)
+      etime0 = dnekclock_sync()
+      l = 1
+      do iloc = 1,nb
+        e = ke+iloc
+        vi(1,iloc) = gllnid(er(e))
+        vi(2,iloc) = er(e)
+        call icopy(vi(3,iloc),w2(l),nxyzr)
+        l = l+nxyzr
+      enddo
+      n = nb
+      rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
+
+      ! crystal router (collective over all np; skip only at np==1)
+#ifdef MPI
+      if (np.gt.1) then
+        key = 1
+        etime0 = dnekclock_sync()
+        call fgslib_crystal_tuple_transfer(cr_mfi,n,nmax,vi,li,
+     &           vl,0,vr,0,key)
+        rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
+      endif
+#endif
+
+      if (n.gt.nmax) ierr = 1
 
       return
       end
@@ -2654,22 +2654,18 @@ c
 
 #ifdef MPI
       lbrst = min(lbrst, lelt)
-      nelt_hr0 = nelt ! upper bound; true nelt_hr0=nelt/nhrefblkrs, but href not set yet
+      nelt_hr0 = nelt ! upper bound. later reset by href: nelt_hr0=nelt/nhrefblkrs
       if (lbrst.lt.nelt_hr0.AND.nio.eq.0)
      $  write(*,*)'Batched restart with lbrst',lbrst,nelt_hr0
 
       call rzero(rst_etime,4) ! mpiio / pack / transfer / unpack
 
-      ! np==1 uses the direct-read bypass (no redistribution), so skip both
-      ! the crystal-router setup and the RMA window creation in that case.
+      ! np==1 skip redist
       if (np.gt.1) then
       if (ifcrrs) then
         call fgslib_crystal_setup(cr_mfi,nekcomm,np)
       else
-        ! RMA uses a FULL-FIELD window (Plan C: nbatch=1 for RMA), so the
-        ! window must span size(wk); it is NOT batch-sized to lbrst. The read
-        ! order nxr is unknown here (before mfi_prepare), so size(wk) is the
-        ! safe bound; the per-field 'a' check verifies nxyzr*nelt_hr0 fits.
+        ! RMA uses a FULL-FIELD window of size(wk)
         disp_unit = 4
         win_size = int(disp_unit,8)*size(wk)
 
