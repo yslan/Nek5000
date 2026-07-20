@@ -2018,6 +2018,56 @@ class IO_Test(NekTestCase):
         self.assertDelayedFailures()
 
     @pn_pn_2_parallel
+    def test_PnPn2_Parallel_MultiRound(self):
+        # Bounded-round CR redistribution (Plan H) with a small read batch and
+        # a small receive cap, on the hrefine 2;2 case, so the restart read is
+        # split across MANY batches (small lbrst) and MULTIPLE rounds/batch
+        # (small lrcv). uparam06->lbrst, uparam07->lrcv (io_test.usr:usrdat);
+        # loglevel=3 emits the "rounds/batch min/max/avg" verbose line. With
+        # lbrst=3, lrcv=2 the per-batch recv (=3) forces nrounds=2, and the
+        # fields must still match (byte-clean restart across rounds).
+        self.__class__.case_name = "io_test"
+        self._clean_generated_flds()
+        self.size_params = dict(
+            ldim="3",
+            lx1="6",
+            lxd="9",
+            lx2="lx1-2",
+            lelg="36*64",
+            ldimt="3",
+            lelr="lelg",
+            lx1m="lx1",
+        )
+        self.config_size()
+
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile(
+            {"GENERAL": {"userparam02": "0", "userparam03": "0",
+                         "userparam06": "3", "userparam07": "2",
+                         "loglevel": "3"}}
+        )
+        # hrefine=1 first writes io_test0.f* (and reads the committed fixtures);
+        # hrefine=2;2 then restarts from them. Both run with lbrst=3 (many
+        # batches) + lrcv=2 (>1 round/batch).
+        for href in ("1", "2;2"):
+            self.config_parfile({"MESH": {"hrefine": href}})
+            self.run_nek(step_limit=None)
+            phrase = self.get_phrase_from_log("All I/O tests PASSED")
+            self.assertIsNotNullDelayed(
+                phrase, label="All I/O tests PASSED (multi-round, hrefine=%s)"
+                % href
+            )
+            # confirm multi-round actually happened: max rounds/batch >= 2
+            maxr = self.get_value_from_log(
+                "rounds/batch min/max/avg=", column=6
+            )
+            self.assertAlmostEqualDelayed(
+                maxr, target_val=2.0, delta=0.0,
+                label="max rounds/batch (hrefine=%s)" % href
+            )
+        self.assertDelayedFailures()
+
+    @pn_pn_2_parallel
     def test_PnPn2_Parallel_RMA(self):
         # Same read/write + h-refine restart matrix as test_PnPn2_Parallel,
         # but forces the MPI-RMA one-sided redistribution path (ifcrrs=.false.)

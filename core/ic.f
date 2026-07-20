@@ -2048,7 +2048,8 @@ c     bounded redistribution rounds keep recv <= cap=lrcv_mx (see Plan H).
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
              else
               ! bounded-receive redistribution (Plan H): plan -> rounds
-              cap = lrcv_mx
+              cap = lrcv_mx                ! recv round cap (lrcv>0 overrides)
+              if (lrcv.gt.0) cap = min(lrcv,lrcv_mx)
               call mfi_redist_plan(k,nb_this,cap,nrounds,recvcnt,ierr)
               if (ierr.ne.0) goto 100
               nbtot=nbtot+1                ! verbose round stats
@@ -2057,7 +2058,7 @@ c     bounded redistribution rounds keep recv <= cap=lrcv_mx (see Plan H).
               nrsum=nrsum+nrounds
               if (recvcnt.gt.rcvmx) rcvmx=recvcnt
               do r = 0,nrounds-1
-                call mfi_redist_round(r,cap,vi,2+lelem_mx,
+                call mfi_redist_round(r,cap,lrcv_mx,vi,2+lelem_mx,
      $                                w2,nxyzr,k,n,ierr)
                 if (ierr.ne.0) goto 100
                 etime0 = dnekclock_sync()   ! assign this round's elems
@@ -2300,7 +2301,8 @@ c     field); bounded rounds keep recv <= cap=lrcv_mx (see Plan H).
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
              else
               ! bounded-receive redistribution (Plan H): plan -> rounds
-              cap = lrcv_mx
+              cap = lrcv_mx                ! recv round cap (lrcv>0 overrides)
+              if (lrcv.gt.0) cap = min(lrcv,lrcv_mx)
               call mfi_redist_plan(k,nb_this,cap,nrounds,recvcnt,ierr)
               if (ierr.ne.0) goto 100
               nbtot=nbtot+1                ! verbose round stats
@@ -2309,7 +2311,7 @@ c     field); bounded rounds keep recv <= cap=lrcv_mx (see Plan H).
               nrsum=nrsum+nrounds
               if (recvcnt.gt.rcvmx) rcvmx=recvcnt
               do r = 0,nrounds-1
-                call mfi_redist_round(r,cap,vi,2+lelem_mx,
+                call mfi_redist_round(r,cap,lrcv_mx,vi,2+lelem_mx,
      $                                w2,nxyzr,k,n,ierr)
                 if (ierr.ne.0) goto 100
                 etime0 = dnekclock_sync()   ! assign this round's elems
@@ -2528,13 +2530,15 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      subroutine mfi_redist_round(r,cap,vi,li,w2,nxyzr,ke,n,ierr)
+      subroutine mfi_redist_round(r,cap,nmx,vi,li,w2,nxyzr,ke,n,ierr)
 c
 c     One bounded redistribution round r (0-based) of the current batch
 c     (Plan H). Packs only this rank's elements whose global stream position
 c     lands in [r*cap,(r+1)*cap) -- read off the /mfi_hs/ ELL index + boff, so
 c     each dest's round-r elements are a CONTIGUOUS slice (no empty scan) --
 c     then crystal-routes. Returns n = received count (<= cap by construction).
+c     nmx = vi column capacity (>= this round's send nb and recv cap); the
+c     transfer/backstop use nmx, so cap (the round split) can be < nb safely.
 c     Collective over np. Timing: pack -> rst_etime(2), transfer -> (3).
 c
       include 'SIZE'
@@ -2547,7 +2551,7 @@ c
       integer vi(li,1)
       real*4  w2(1)
       real*8  etime0,dnekclock_sync
-      integer d,e,r,key,cap,ke,n
+      integer d,e,r,key,cap,nmx,ke,n
 
       ! ---- pack round r via the ELL index (contiguous per dest) ----
       etime0 = dnekclock_sync()
@@ -2571,11 +2575,11 @@ c
 #ifdef MPI
       key = 1
       etime0 = dnekclock_sync()
-      call fgslib_crystal_tuple_transfer(cr_mfi,n,cap,vi,li,
+      call fgslib_crystal_tuple_transfer(cr_mfi,n,nmx,vi,li,
      &         vl,0,vr,0,key)
       rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 #endif
-      if (n.gt.cap) ierr = 1
+      if (n.gt.nmx) ierr = 1
 
       return
       end

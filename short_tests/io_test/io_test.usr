@@ -366,12 +366,18 @@ c-----------------------------------------------------------------------
 c     This routine to modify element vertices
       subroutine usrdat
       include 'SIZE'
-      include 'INPUT'          ! ifcrrs, uparam
+      include 'INPUT'          ! ifcrrs, lbrst, lrcv, uparam
 
 c     Restart redistribution path toggle for I/O tests:
 c       uparam(2) = 0 (default) -> crystal router (ifcrrs=.true.)
 c       uparam(2) = 1           -> MPI-RMA one-sided (ifcrrs=.false.)
       if (int(uparam(2)).eq.1) ifcrrs = .false.
+
+c     Bounded-round CR stress (multi-batch + multi-round) for the CI:
+c       uparam(6) > 0 -> lbrst = uparam(6)  (small read batch -> many batches)
+c       uparam(7) > 0 -> lrcv  = uparam(7)  (small recv cap  -> >1 round/batch)
+      if (int(uparam(6)).gt.0) lbrst = int(uparam(6))
+      if (int(uparam(7)).gt.0) lrcv  = int(uparam(7))
 
       return
       end

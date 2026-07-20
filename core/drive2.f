@@ -56,6 +56,7 @@ c     Set default logicals
       if_full_pres = .false.
       ifcrrs = .true. ! crystal router restart
       lbrst = min(1024, lelt) ! batch size for restart
+      lrcv  = 0               ! CR recv round cap (0=auto=lrcv_mx); see mfi
 
       ifjac0_abort = .true. ! abort if initial mesh (rea/re2) is invalid
 
