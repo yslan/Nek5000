@@ -1935,16 +1935,18 @@ c     lrbs_loc must match mfi_getv.
       real*4 w2
 
 c     CR tuple buffer: one element's real*4 payload per column. lelem_mx
-c     bounds a payload (mapab bound nxr<=lx1+6, x2 FP64). vi has lrst_mx
-c     cols = recv capacity (a rank may receive its whole field).
+c     bounds a payload (mapab bound nxr<=lx1+6, x2 FP64). vi has lrcv_mx
+c     cols = recv capacity per round (~ one read batch, NOT the full field);
+c     bounded redistribution rounds keep recv <= cap=lrcv_mx (see Plan H).
       parameter(lelem_mx=2*(lx1+6)*(ly1+6)*(lz1+6))
       parameter(lbrst_max=1024)
-      parameter(lrst_mx=lelt)
+      parameter(lrcv_mx=lbrst_max)
       common /mfi_vis/ vi
-      integer vi(2+lelem_mx,lrst_mx) ! [nid,iel,(data real*8)] x lrst_mx
+      integer vi(2+lelem_mx,lrcv_mx) ! [nid,iel,(data real*8)] x lrcv_mx
       real*8 etime0,dnekclock_sync
 
       integer e,ei
+      integer r,cap,recvcnt,nrounds   ! Plan H bounded rounds
       logical iskip,is_reader
       integer*8 i8tmp
 
@@ -2000,7 +2002,7 @@ c     cols = recv capacity (a rank may receive its whole field).
       call nekgsync()
 
       ierr = 0
-      if (ifcrrs.or.np.eq.1) then
+      if (ifcrrs.or.np.eq.1) then ! CR path
          ! Fused loop: read a file-order batch -> redist (CR) -> assign.
          ! w2 holds one batch; vi holds the receive side.
          ! np==1 folds in (transfer skipped, columns stay file order).
@@ -2023,29 +2025,43 @@ c     cols = recv capacity (a rank may receive its whole field).
             endif
 
 #ifdef MPI
-            ! skipped fld: keep the read (advances the fd) but skip the
+            ! skipped fld: keep the read (advances the fd) but skip
             ! redist + assign.
             if (.not.iskip) then
-              ! redist: pack this batch + crystal-route (CR path)
-              call mfi_redist_cr(vi,2+lelem_mx,lrst_mx,n,
-     $                           w2,nxyzr,k,nb_this,ierr)
-              if (ierr.ne.0) goto 100
-
-              ! assign received elements. np>1: slot = ie_map_r2o(gllel(er));
-              ! np==1: no route, columns stay file order -> ei=er(k+iloc)
+             if (np.eq.1) then
+              ! np==1: no route; assign straight from w2 (file order, PR#908)
               etime0 = dnekclock_sync()
               npts = nxr*nyr*nzr
-              do iloc = 1,n
-                if (np.gt.1) then
-                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                else
-                  iel = er(k+iloc)
-                endif
-                call mfi_assign_elem(u(1,iel),vi(3,iloc),npts,
+              l = 1
+              do iloc = 1,nb_this
+                iel = er(k+iloc)
+                call mfi_assign_elem(u(1,iel),w2(l),npts,
      $                             nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                l = l + nxyzr
               enddo
-              call nekgsync()
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+             else
+              ! bounded-receive redistribution (Plan H): plan -> rounds
+              cap = lrcv_mx
+              call mfi_redist_plan(k,nb_this,cap,nrounds,recvcnt,ierr)
+              if (ierr.ne.0) goto 100
+              if (nio.eq.0) write(6,*) 'mfi_gets redist b',ibatch,     ! FIXME (dbg)
+     $           ' recv',recvcnt,' cap',cap,' nrounds',nrounds
+              do r = 0,nrounds-1
+                call mfi_redist_round(r,cap,vi,2+lelem_mx,
+     $                                w2,nxyzr,k,n,ierr)
+                if (ierr.ne.0) goto 100
+                etime0 = dnekclock_sync()   ! assign this round's elems
+                npts = nxr*nyr*nzr
+                do iloc = 1,n
+                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
+                  call mfi_assign_elem(u(1,iel),vi(3,iloc),npts,
+     $                             nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                enddo
+                call nekgsync()
+                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+              enddo
+             endif
             endif ! .not.iskip
 #endif
             k = k + nb_this
@@ -2148,15 +2164,17 @@ c     lrbs_loc must match mfi_gets so the common is sized consistently.
 
 c     CR tuple buffer: one VECTOR element's payload per col (ldim comps).
 c     lelem_mx bounds a payload (mapab bound nxr<=lx1+6, x2 FP64). vi has
-c     lrst_mx cols = recv capacity (a rank may receive its whole field).
+c     lrcv_mx cols = recv capacity per round (~ one read batch, not the full
+c     field); bounded rounds keep recv <= cap=lrcv_mx (see Plan H).
       parameter(lelem_mx=2*ldim*(lx1+6)*(ly1+6)*(lz1+6))
       parameter(lbrst_max=1024)
-      parameter(lrst_mx=lelt)
+      parameter(lrcv_mx=lbrst_max)
       common /mfi_viv/ vi
-      integer vi(2+lelem_mx,lrst_mx) ! [nid,iel,(data real*8)] x lrst_mx
+      integer vi(2+lelem_mx,lrcv_mx) ! [nid,iel,(data real*8)] x lrcv_mx
       real*8 etime0,dnekclock_sync
 
       integer e,ei
+      integer r,cap,recvcnt,nrounds   ! Plan H bounded rounds
       logical is_reader
       integer*8 i8tmp
 
@@ -2211,7 +2229,7 @@ c     lrst_mx cols = recv capacity (a rank may receive its whole field).
       call nekgsync()
 
       ierr = 0
-      if (ifcrrs.or.np.eq.1) then
+      if (ifcrrs.or.np.eq.1) then ! CR Path
          ! Fused loop: read a file-order batch -> redist (CR) -> assign.
          ! w2 holds one batch; vi holds recv side (u,v,w at 0,nw,2*nw).
          ! np==1 folds in (transfer skipped, columns stay file order).
@@ -2234,36 +2252,57 @@ c     lrst_mx cols = recv capacity (a rank may receive its whole field).
             endif
 
 #ifdef MPI
-            ! skipped fld: keep the read (advances the fd) but skip the
+            ! skipped fld: keep the read (advances the fd) but skip
             ! redist + assign.
             if (.not.iskip) then
-              ! redist: pack this batch + crystal-route (CR path)
-              call mfi_redist_cr(vi,2+lelem_mx,lrst_mx,n,
-     $                           w2,nxyzr,k,nb_this,ierr)
-              if (ierr.ne.0) goto 100
-
-              ! assign received elements. np>1: slot = ie_map_r2o(gllel(er));
-              ! np==1: no route, columns stay file order -> ei=er(k+iloc)
+             if (np.eq.1) then
+              ! np==1: no route; assign straight from w2 (file order, PR#908)
               etime0 = dnekclock_sync()
               npts = nxr*nyr*nzr
               nw   = npts
               if (wdsizr.eq.8) nw = 2*npts
-              do iloc = 1,n
-                if (np.gt.1) then
-                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                else
-                  iel = er(k+iloc)
-                endif
-                call mfi_assign_elem(u(1,iel),vi(3     ,iloc),
+              l = 1
+              do iloc = 1,nb_this
+                iel = er(k+iloc)
+                call mfi_assign_elem(u(1,iel),w2(l     ),
      $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                call mfi_assign_elem(v(1,iel),vi(3+nw  ,iloc),
+                call mfi_assign_elem(v(1,iel),w2(l+nw  ),
      $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
                 if (if3d)
-     $          call mfi_assign_elem(w(1,iel),vi(3+2*nw,iloc),
+     $          call mfi_assign_elem(w(1,iel),w2(l+2*nw),
      $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                l = l + nxyzr
               enddo
-              call nekgsync()
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+             else
+              ! bounded-receive redistribution (Plan H): plan -> rounds
+              cap = lrcv_mx
+              call mfi_redist_plan(k,nb_this,cap,nrounds,recvcnt,ierr)
+              if (ierr.ne.0) goto 100
+              if (nio.eq.0) write(6,*) 'mfi_getv redist b',ibatch,     ! FIXME (dbg)
+     $           ' recv',recvcnt,' cap',cap,' nrounds',nrounds
+              do r = 0,nrounds-1
+                call mfi_redist_round(r,cap,vi,2+lelem_mx,
+     $                                w2,nxyzr,k,n,ierr)
+                if (ierr.ne.0) goto 100
+                etime0 = dnekclock_sync()   ! assign this round's elems
+                npts = nxr*nyr*nzr
+                nw   = npts
+                if (wdsizr.eq.8) nw = 2*npts
+                do iloc = 1,n
+                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
+                  call mfi_assign_elem(u(1,iel),vi(3     ,iloc),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                  call mfi_assign_elem(v(1,iel),vi(3+nw  ,iloc),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                  if (if3d)
+     $            call mfi_assign_elem(w(1,iel),vi(3+2*nw,iloc),
+     $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+                enddo
+                call nekgsync()
+                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+              enddo
+             endif
             endif ! .not.iskip
 #endif
             k = k + nb_this
@@ -2351,50 +2390,156 @@ c     lrst_mx cols = recv capacity (a rank may receive its whole field).
       return
       end
 c-----------------------------------------------------------------------
-      subroutine mfi_redist_cr(vi,li,nmax,n,w2,nxyzr,ke,nb,ierr)
+      subroutine mfi_redist_plan(ke,nb,cap,nrounds,recvcnt,ierr)
 c
-c     Crystal-router redistribution for ONE restart read batch (CR path).
-c     Pack nb file-order elements er(ke+1..ke+nb) from the read buffer w2
-c     into the tuple vi = [nid, iel, payload], keyed by owner rank, then
-c     route to owners. Returns the received tuples in vi and n = received
-c     count. The payload is an opaque nxyzr-word real*4 blob, so this serves
-c     both mfi_gets (scalar) and mfi_getv (vector). np==1: pack only (no
-c     route), vi stays in file order. n>nmax (recv overflow) sets ierr=1.
-c     Timing: pack -> rst_etime(2), route -> rst_etime(3).
+c     Plan the bounded-receive CR redistribution for ONE read batch (Plan H).
+c     (1) ELL/CSR index: group the nb file-order elements er(ke+1..ke+nb) by
+c         destination rank via a LOCAL key-sort + one O(nb) scan ->
+c         ndest,dstlist,cnt,ioff,ord in /mfi_hs/ (no empty dest-window scans).
+c     (2) Crystal fan-in/fan-out handshake -> recvcnt (this rank's incoming
+c         count) and boff(d) (exclusive-prefix base of THIS sender's stream to
+c         each dest d). nrounds = global ceil(recvcnt/cap).
+c     Collective (all ranks call it, incl. non-readers with nb=0, which still
+c     receive their recvcnt). Assumes np>1 (caller handles np==1 separately).
+c     Timing: index+handshake -> rst_etime(3).
 c
       include 'SIZE'
-      include 'PARALLEL'        ! gllnid (in /hcglb/), np
+      include 'PARALLEL'        ! gllnid (/hcglb/), np, nid
       include 'RESTART'         ! er, cr_mfi, rst_etime
-      integer vi(li,nmax)
-      real*4  w2(1)
+      parameter(lbrst_max=1024)
+      common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
+     $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
+     $               it(3,lbrst_max),ndest
+      integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
       real*8  etime0,dnekclock_sync
-      integer e
+      integer d,e,base,b,key,nkey,cap,recvcnt,nrounds,ke,nb
 
-      ! pack whole batch (key = owner rank; no dest-window)
-      etime0 = dnekclock_sync()
-      l = 1
-      do iloc = 1,nb
-        e = ke+iloc
-        vi(1,iloc) = gllnid(er(e))
-        vi(2,iloc) = er(e)
-        call icopy(vi(3,iloc),w2(l),nxyzr)
-        l = l+nxyzr
+      etime0  = dnekclock_sync()
+      recvcnt = nb
+      nrounds = 1
+
+      ! ---- ELL/CSR index: group batch elements by destination rank ----
+      do i = 1,nb
+        kv(1,i) = gllnid(er(ke+i))   ! dest rank (sort key)
+        kv(2,i) = i                  ! original position in this batch
       enddo
-      n = nb
-      rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
-
-      ! crystal router (collective over all np; skip only at np==1)
+      ndest = 0
 #ifdef MPI
-      if (np.gt.1) then
-        key = 1
-        etime0 = dnekclock_sync()
-        call fgslib_crystal_tuple_transfer(cr_mfi,n,nmax,vi,li,
-     &           vl,0,vr,0,key)
-        rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-      endif
+      key = 1
+      nkey = 1
+      if (nb.gt.0)
+     $  call fgslib_crystal_ituple_sort(cr_mfi,kv,2,nb,key,nkey)
+      i = 1                          ! single scan of sorted kv -> CSR
+      do while (i.le.nb)
+        ndest = ndest+1
+        dstlist(ndest) = kv(1,i)
+        ioff(ndest) = i-1            ! 0-based offset into ord()
+        j = i
+        do while (j.le.nb .and. kv(1,j).eq.kv(1,i))
+          ord(j) = kv(2,j)
+          j = j+1
+        enddo
+        cnt(ndest) = j-i
+        i = j
+      enddo
+      ioff(ndest+1) = nb
+      call lim_chk(ndest,lbrst_max,'     ','     ','mfi hs d')
+
+      ! ---- fan-in: route (dest,srcproc,cnt); each dest gathers its counts ----
+      do d = 1,ndest
+        it(1,d) = dstlist(d)         ! proc_key col 1 -> route to dest
+        it(2,d) = nid                ! srcproc (carried)
+        it(3,d) = cnt(d)
+      enddo
+      n1 = ndest
+      key = 1
+      call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lbrst_max,key)
+      call lim_chk(n1,lbrst_max,'     ','     ','mfi hs r')
+      recvcnt = 0                    ! at dest: rows (?,srcproc,cnt)
+      do t = 1,n1
+        recvcnt = recvcnt+it(3,t)
+      enddo
+      nkey = 1                       ! exclusive prefix over senders (rank order)
+      key  = 2
+      if (n1.gt.0)
+     $  call fgslib_crystal_ituple_sort(cr_mfi,it,3,n1,key,nkey)
+      base = 0
+      do t = 1,n1
+        b = base
+        base = base+it(3,t)
+        it(1,t) = it(2,t)            ! reply dest <- srcproc (proc_key col 1)
+        it(2,t) = nid                ! carry X (=me) so sender maps offset->dest
+        it(3,t) = b                  ! base offset of (srcproc -> X)
+      enddo
+
+      ! ---- fan-out: route offsets back to the original senders ----
+      key = 1
+      call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lbrst_max,key)
+      if (n1.ne.ndest) ierr = 1      ! one reply per dest we sent to
+      nkey = 1                       ! sort by X (col 2) -> aligns with dstlist
+      key  = 2
+      if (n1.gt.0)
+     $  call fgslib_crystal_ituple_sort(cr_mfi,it,3,n1,key,nkey)
+      do d = 1,ndest
+        boff(d) = it(3,d)
+      enddo
+
+      nrounds = iglmax((recvcnt+cap-1)/cap,1)
 #endif
 
-      if (n.gt.nmax) ierr = 1
+      rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine mfi_redist_round(r,cap,vi,li,w2,nxyzr,ke,n,ierr)
+c
+c     One bounded redistribution round r (0-based) of the current batch
+c     (Plan H). Packs only this rank's elements whose global stream position
+c     lands in [r*cap,(r+1)*cap) -- read off the /mfi_hs/ ELL index + boff, so
+c     each dest's round-r elements are a CONTIGUOUS slice (no empty scan) --
+c     then crystal-routes. Returns n = received count (<= cap by construction).
+c     Collective over np. Timing: pack -> rst_etime(2), transfer -> (3).
+c
+      include 'SIZE'
+      include 'RESTART'         ! er, cr_mfi, rst_etime
+      parameter(lbrst_max=1024)
+      common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
+     $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
+     $               it(3,lbrst_max),ndest
+      integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
+      integer vi(li,1)
+      real*4  w2(1)
+      real*8  etime0,dnekclock_sync
+      integer d,e,r,key,cap,ke,n
+
+      ! ---- pack round r via the ELL index (contiguous per dest) ----
+      etime0 = dnekclock_sync()
+      n = 0
+      do d = 1,ndest
+        jlo = r*cap - boff(d)
+        if (jlo.lt.0) jlo = 0
+        jhi = (r+1)*cap - 1 - boff(d)
+        if (jhi.gt.cnt(d)-1) jhi = cnt(d)-1
+        do j = jlo,jhi
+          e = ord(ioff(d)+1+j)       ! original batch pos (1-based)
+          n = n+1
+          vi(1,n) = dstlist(d)
+          vi(2,n) = er(ke+e)
+          call icopy(vi(3,n),w2((e-1)*nxyzr+1),nxyzr)
+        enddo
+      enddo
+      rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
+
+      ! ---- crystal route this round (recv <= cap by construction) ----
+#ifdef MPI
+      key = 1
+      etime0 = dnekclock_sync()
+      call fgslib_crystal_tuple_transfer(cr_mfi,n,cap,vi,li,
+     &         vl,0,vr,0,key)
+      rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
+#endif
+      if (n.gt.cap) ierr = 1
 
       return
       end
