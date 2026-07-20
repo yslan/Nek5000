@@ -66,6 +66,29 @@ c     argument list
       return
       end
 c-----------------------------------------------------------------------
+c     Report one sub-test's pass/fail (rank 0 only) and accumulate ierr.
+c     The bare 'PASSED'/'FAILED' tokens are load-bearing: NekTests.py detects
+c     success by the presence of 'All I/O tests PASSED' (written by userchk),
+c     and this ierr drives that. Keep the output text byte-identical.
+      subroutine report(test_pass,ierr)
+      include 'SIZE'
+      include 'PARALLEL'        ! nid
+      logical test_pass
+      integer ierr
+
+      if (nid.ne.0) return
+      write(*,*) ' '
+      if (test_pass) then
+         write(*,*) 'PASSED'
+      else
+         write(*,*) 'FAILED'
+         ierr = ierr + 1
+      endif
+      write(*,*) ' '
+
+      return
+      end
+c-----------------------------------------------------------------------
       subroutine userchk
       include 'SIZE'
       include 'INPUT'           ! PARAM, NPSCAL
@@ -247,9 +270,7 @@ c     routine to initilise arrays for future comparison
 
 c     local variables
       integer il, jl, kl, ll, nn
-      real cmp_v(lx1*ly1*lz1*lelv,ldim),cmp_t(lx1*ly1*lz1*lelt,ldimt),
-     $     cmp_pr(lx2*ly2*lz2*lelv), cmp_x(lx1*ly1*lz1*lelv,ldim)
-      common /COMPDATA/ cmp_v, cmp_t, cmp_pr, cmp_x
+      include 'io_test_cmp.inc' ! /COMPDATA/ reference-field cache
 
 !     start from setting value for pressure
       do il=1,nelv
@@ -329,9 +350,7 @@ c     routine to restore fields in SOLN arrays
 
 c     local variables
       integer il, nn
-      real cmp_v(lx1*ly1*lz1*lelv,ldim),cmp_t(lx1*ly1*lz1*lelt,ldimt),
-     $     cmp_pr(lx2*ly2*lz2*lelv), cmp_x(lx1*ly1*lz1*lelv,ldim)
-      common /COMPDATA/ cmp_v, cmp_t, cmp_pr, cmp_x
+      include 'io_test_cmp.inc' ! /COMPDATA/ reference-field cache
       
       nn =nx1*ny1*nz1*nelt
       call copy(xm1,cmp_x(1,1),nn)
@@ -431,9 +450,7 @@ c     local variables
 
       logical test_pass
       
-      real cmp_v(lx1*ly1*lz1*lelv,ldim),cmp_t(lx1*ly1*lz1*lelt,ldimt),
-     $     cmp_pr(lx2*ly2*lz2*lelv), cmp_x(lx1*ly1*lz1*lelv,ldim)
-      common /COMPDATA/ cmp_v, cmp_t, cmp_pr, cmp_x
+      include 'io_test_cmp.inc' ! /COMPDATA/ reference-field cache
 
 c     functions
       real gl2norm, gl2norm2
@@ -665,14 +682,7 @@ c     for mpiio number of files is equal number of processes
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
 c     multiple files
@@ -769,14 +779,7 @@ c     check reading options (only master)
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
 c     multiple file single precision with byte swap
@@ -873,14 +876,7 @@ c     check reading options (only master)
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
 c     multiple files double precision with byte swap
@@ -977,14 +973,7 @@ c     check reading options (only master)
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
       endif
       
@@ -1040,14 +1029,7 @@ c     check reading options (only master)
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
 c     fld ASCII
@@ -1102,14 +1084,7 @@ c     check reading options (only master)
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
  10   format ('ERROR: param ',a12,E15.7)
@@ -1244,14 +1219,7 @@ c     for mpiio number of files is equal number of processes
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
 c     check string restart options
@@ -1354,14 +1322,7 @@ c     for mpiio number of files is equal number of processes
             write(*,12) 'if_full_pres',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
       
 c     mpiio double precision
@@ -1473,14 +1434,7 @@ c     for mpiio number of files is equal number of processes
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
       
  10   format ('ERROR: param ',a12,E15.7)
@@ -1613,14 +1567,7 @@ c     check reading options (only master)
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
       
 c     multiple files double precision
@@ -1726,14 +1673,7 @@ c     check reading options (only master)
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
       
  10   format ('ERROR: param ',a12,E15.7)
@@ -1825,14 +1765,7 @@ c     check reading options (only master)
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
       
 c     fld ascii
@@ -1897,14 +1830,7 @@ c     check reading options (only master)
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
       
  10   format ('ERROR: param ',a12,E15.7)
@@ -1998,14 +1924,7 @@ c     for mpiio number of files is equal number of processes
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
  10   format ('ERROR: param ',a12,E15.7)
@@ -2165,14 +2084,7 @@ c     for mpiio number of files is equal number of processes
             write(*,12) 'if_full_pres : ',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
 c     check string restart options
@@ -2286,14 +2198,7 @@ c     for mpiio number of files is equal number of processes
             write(*,12) 'if_full_pres',if_full_pres
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
 c     mpiio double precision
@@ -2421,14 +2326,7 @@ c     for mpiio number of files is equal number of processes
             endif
          endif
 
-         write(*,*) ' '
-         if (test_pass) then
-            write(*,*) 'PASSED'
-         else
-            write(*,*) 'FAILED'
-            ierr = ierr + 1
-         endif
-         write(*,*) ' '
+         call report(test_pass,ierr)
       endif
 
  10   format ('ERROR: param ',a12,E15.7)
