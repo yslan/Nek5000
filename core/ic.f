@@ -1967,6 +1967,13 @@ c     footprint; raise it (up to lelt) if a larger batch is wanted.
       if (.not.ifcrrs) then
         num_recv  = nxyzr*nelt_hr0
         num_avail = size(wk)
+        ! D2: RMA cannot batch its window below the full field (unlike CR), so a
+        ! high-order/large file can overflow wk. Give an actionable message
+        ! (default CR path handles this) instead of the opaque lim_chk abort.
+        if (num_recv.gt.num_avail .and. nio.eq.0) write(6,*)
+     $   'mfi_gets: RMA restart window too small for this file; use',
+     $   ' crystal router (ifcrrs=.true., default) or enlarge wk.',
+     $   ' need/have=',num_recv,num_avail
         call lim_chk(num_recv,num_avail,'     ','     ','mfi_gets a')
       endif
 
@@ -2010,6 +2017,11 @@ c     footprint; raise it (up to lelt) if a larger batch is wanted.
             endif
 
 #ifdef MPI
+            ! D1b: on a skipped field, keep the byte_read above (advances the
+            ! non-MPIIO fd; harmless for MPIIO) but skip the whole redistribute
+            ! + assign -- it only feeds the assign, which is discarded. Removes
+            ! the per-skipped-field all-to-all. See report_D.md.
+            if (.not.iskip) then
             ! CR batches the redistribute over destination-local windows of
             ! width lbrst (bounds the tuple vi). RMA cannot batch both the
             ! read block and the window under a sequential read, so it uses a
@@ -2074,8 +2086,7 @@ c     footprint; raise it (up to lelt) if a larger batch is wanted.
                 npts = nxr*nyr*nzr
                 do iloc = 1,n
                   iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                  if (.not.iskip)
-     $              call mfi_assign_elem(u(1,iel),vi(3,iloc),npts,
+                  call mfi_assign_elem(u(1,iel),vi(3,iloc),npts,
      $                             nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
                 enddo
                 call nekgsync()
@@ -2110,7 +2121,7 @@ c     footprint; raise it (up to lelt) if a larger batch is wanted.
                 npts = nxr*nyr*nzr
                 l = 1
                 do e = jeln1,jeln2
-                  if (e.le.nelt_hr0 .and. .not.iskip)
+                  if (e.le.nelt_hr0)
      $              call mfi_assign_elem(u(1,e),wk(l),npts,
      $                             nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
                   l = l+nxyzr
@@ -2121,6 +2132,7 @@ c     footprint; raise it (up to lelt) if a larger batch is wanted.
               endif
 
             enddo ! batches
+            endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
 #endif
             k  = k + nelrr
          enddo
@@ -2215,6 +2227,13 @@ c     batch if memory allows. See reports/report_B.md and report_C.md.
       if (.not.ifcrrs) then
         num_recv  = nxyzr*nelt_hr0
         num_avail = size(wk)
+        ! D2: RMA cannot batch its window below the full field (unlike CR), so a
+        ! high-order/large file can overflow wk. Give an actionable message
+        ! (default CR path handles this) instead of the opaque lim_chk abort.
+        if (num_recv.gt.num_avail .and. nio.eq.0) write(6,*)
+     $   'mfi_getv: RMA restart window too small for this file; use',
+     $   ' crystal router (ifcrrs=.true., default) or enlarge wk.',
+     $   ' need/have=',num_recv,num_avail
         call lim_chk(num_recv,num_avail,'     ','     ','mfi_getv a')
       endif
 
@@ -2257,6 +2276,10 @@ c     batch if memory allows. See reports/report_B.md and report_C.md.
             endif
 
 #ifdef MPI
+            ! D1b: on a skipped field, keep the byte_read above but skip the
+            ! whole redistribute + assign (it only feeds the discarded assign).
+            ! Removes the per-skipped-field all-to-all. See report_D.md.
+            if (.not.iskip) then
             ! CR batches the redistribute over destination windows of width
             ! lbrst (bounds vi). RMA uses a single full-field window (nbatch=1)
             ! since read block and window cannot both be bounded under a
@@ -2321,7 +2344,6 @@ c     batch if memory allows. See reports/report_B.md and report_C.md.
                 if (wdsizr.eq.8) nw = 2*npts
                 do iloc = 1,n
                   iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                  if (.not.iskip) then
                     call mfi_assign_elem(u(1,iel),vi(3     ,iloc),
      $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
                     call mfi_assign_elem(v(1,iel),vi(3+nw  ,iloc),
@@ -2329,7 +2351,6 @@ c     batch if memory allows. See reports/report_B.md and report_C.md.
                     if (if3d)
      $              call mfi_assign_elem(w(1,iel),vi(3+2*nw,iloc),
      $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
-                  endif
                 enddo
                 call nekgsync()
                 rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
@@ -2364,7 +2385,7 @@ c     batch if memory allows. See reports/report_B.md and report_C.md.
                 if (wdsizr.eq.8) nw = 2*npts
                 l = 1
                 do e = jeln1,jeln2
-                  if (e.le.nelt_hr0 .and. .not.iskip) then
+                  if (e.le.nelt_hr0) then
                     call mfi_assign_elem(u(1,e),wk(l     ),
      $                        npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
                     call mfi_assign_elem(v(1,e),wk(l+nw  ),
@@ -2381,6 +2402,7 @@ c     batch if memory allows. See reports/report_B.md and report_C.md.
               endif
 
             enddo ! batches
+            endif ! .not.iskip (D1b: skip redistribute+assign on skipped fld)
 #endif
             k  = k + nelrr
          enddo
