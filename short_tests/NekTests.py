@@ -1956,8 +1956,9 @@ class IO_Test(NekTestCase):
         self.assertIsNotNullDelayed(phrase, label="All I/O tests PASSED")
         self.assertDelayedFailures()
 
-        # h-refine restart, test 3
-        self.config_parfile({"MESH": {"hrefine": "2;2"}})
+        # h-refine restart, test 3 (2-level hierarchical; comma separator --
+        # "2;2" would be truncated to "2" by the .par parser, ';'=comment)
+        self.config_parfile({"MESH": {"hrefine": "2,2"}})
         self.run_nek(step_limit=None)
         phrase = self.get_phrase_from_log("All I/O tests PASSED")
         self.assertIsNotNullDelayed(phrase, label="All I/O tests PASSED")
@@ -2145,7 +2146,10 @@ class IO_Test(NekTestCase):
             {"GENERAL": {"userparam02": "1", "userparam03": "0"}}
         )
 
-        for href in ("1", "2", "3", "2;2"):
+        # "2,2" (comma) is the real 2-level hierarchical schedule; "2;2" would
+        # be truncated to "2" by the .par parser (';' = inline comment). "2"
+        # precedes it so the hr2 checkpoint it restarts from exists.
+        for href in ("1", "2", "3", "2,2"):
             self.config_parfile({"MESH": {"hrefine": href}})
             self.run_nek(step_limit=None)
             phrase = self.get_phrase_from_log("All I/O tests PASSED")
@@ -2179,7 +2183,10 @@ class IO_Test(NekTestCase):
         )
         # np==1 + h-refine (>=2) exercises the index fix ei=er(e) (PR #908);
         # the original code assigned via ie_map_r2o(er(e),...) and failed here.
-        for href in ("1", "2", "3", "2;2"):
+        # "2,2" (comma) is the real 2-level hierarchical schedule; "2;2" would
+        # be truncated to "2" by the .par parser (';' = inline comment). "2"
+        # precedes it so the hr2 checkpoint it restarts from exists.
+        for href in ("1", "2", "3", "2,2"):
             self.config_parfile({"MESH": {"hrefine": href}})
             self.run_nek(step_limit=None)
             phrase = self.get_phrase_from_log("All I/O tests PASSED")

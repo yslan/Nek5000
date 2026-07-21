@@ -1939,7 +1939,9 @@ c     [nid,iel,payload]. lelem_mx bounds a scalar payload (mapab needs
 c     nxr<=lx1+6, x2 for FP64); lrcv_mx cols = recv capacity per round.
       parameter(lelem_mx=2*(lx1+6)*(ly1+6)*(lz1+6))
       parameter(lbrst_max=1024)      ! max read/redist batch size
-      parameter(lrcv_mx=lbrst_max)   ! max tuples received per round
+c     max recv per round: <=lelt (a rank gets at most its local elements),
+c     so small-lelt runs don't reserve 1024 tuple cols in vi and /mfi_rwin/.
+      parameter(lrcv_mx=min(lbrst_max,lelt))
       common /mfi_vis/ vi
       integer vi(2+lelem_mx,lrcv_mx) ! [nid,iel,data(r*8)] x lrcv_mx
 
@@ -2127,7 +2129,9 @@ c     (payload = ldim components). lelem_mx bounds the vector payload;
 c     lrcv_mx cols = recv capacity per round.
       parameter(lelem_mx=2*ldim*(lx1+6)*(ly1+6)*(lz1+6))
       parameter(lbrst_max=1024)      ! max read/redist batch size
-      parameter(lrcv_mx=lbrst_max)   ! max tuples received per round
+c     max recv per round: <=lelt (a rank gets at most its local elements),
+c     so small-lelt runs don't reserve 1024 tuple cols in vi and /mfi_rwin/.
+      parameter(lrcv_mx=min(lbrst_max,lelt))
       common /mfi_viv/ vi
       integer vi(2+lelem_mx,lrcv_mx) ! [nid,iel,data(r*8)] x lrcv_mx
 
@@ -2481,7 +2485,7 @@ c
       include 'PARALLEL'        ! nid
       include 'RESTART'         ! er, rsH, rst_etime
       parameter(lbrst_max=1024)
-      parameter(lrcv_mx=lbrst_max)
+      parameter(lrcv_mx=min(lbrst_max,lelt)) ! <=lelt (see mfi_gets)
       parameter(lhs_mx=lelt)    ! handshake recv bound (see mfi_redist_plan)
       common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
      $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
@@ -2779,7 +2783,7 @@ c
 c     Bounded RMA window: lrcv_mx compact tuples, sized to the vector
 c     bound (lelem_mv) to serve both mfi_gets/getv (viewed as iwin there).
       parameter(lbrst_max=1024)
-      parameter(lrcv_mx=lbrst_max)
+      parameter(lrcv_mx=min(lbrst_max,lelt)) ! <=lelt (see mfi_gets)
       parameter(lelem_mv=2*ldim*(lx1+6)*(ly1+6)*(lz1+6))
       parameter(lrwin=(2+lelem_mv)*lrcv_mx)
       common /mfi_rwin/ rwin4(lrwin)
