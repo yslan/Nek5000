@@ -2103,8 +2103,19 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
      $             ' rounds/batch min/max/avg=',v_rmn,v_rmx,
      $             real(v_rsum)/real(v_nbat),' recvmax=',v_rcvmx,
      $             ' ifcrrs=',ifcrrs
-        write(6,*) 'mfi_gets: cap=',cap,' nbe=',nbe,' lbrst=',lbrst,
-     $            ' wkw=',2*lwk,' mtup=',mtup,' mwin=',mwin,' w2w=',lrbs
+        ! sizing review (words): available ceilings vs per-element need vs the
+        ! effective batch/round, and which limit binds -- so the default (whole
+        ! field in 1 round) can be confirmed vs a knob (lbrst/lrcv) taking over.
+        write(6,*) 'mfi_gets  avail: wk=',2*lwk,' w2=',lrbs,
+     $             '  need/elem: nxyzr=',nxyzr,' li=',li
+        write(6,*) 'mfi_gets  batch: nbe=',nbe,' (lbrst=',lbrst,
+     $             ' w2fit=',lrbs/nxyzr,' wkfit=',mtup,')'
+        if (lrcv.gt.0) then
+          write(6,*) 'mfi_gets  round: cap=',cap,' bound by lrcv=',lrcv
+        else
+          write(6,*) 'mfi_gets  round: cap=',cap,
+     $        ' bound by wk default (mtup=',mtup,' mwin=',mwin,')'
+        endif
       endif
 
       ! (no nekgsync: err_chk below does iglsum, which syncs)
@@ -2308,8 +2319,19 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
      $             ' rounds/batch min/max/avg=',v_rmn,v_rmx,
      $             real(v_rsum)/real(v_nbat),' recvmax=',v_rcvmx,
      $             ' ifcrrs=',ifcrrs
-        write(6,*) 'mfi_getv: cap=',cap,' nbe=',nbe,' lbrst=',lbrst,
-     $            ' wkw=',2*lwk,' mtup=',mtup,' mwin=',mwin,' w2w=',lrbs
+        ! sizing review (words): available ceilings vs per-element need vs the
+        ! effective batch/round, and which limit binds -- so the default (whole
+        ! field in 1 round) can be confirmed vs a knob (lbrst/lrcv) taking over.
+        write(6,*) 'mfi_getv  avail: wk=',2*lwk,' w2=',lrbs,
+     $             '  need/elem: nxyzr=',nxyzr,' li=',li
+        write(6,*) 'mfi_getv  batch: nbe=',nbe,' (lbrst=',lbrst,
+     $             ' w2fit=',lrbs/nxyzr,' wkfit=',mtup,')'
+        if (lrcv.gt.0) then
+          write(6,*) 'mfi_getv  round: cap=',cap,' bound by lrcv=',lrcv
+        else
+          write(6,*) 'mfi_getv  round: cap=',cap,
+     $        ' bound by wk default (mtup=',mtup,' mwin=',mwin,')'
+        endif
       endif
 
       ! (no nekgsync: err_chk below does iglsum, which syncs)
