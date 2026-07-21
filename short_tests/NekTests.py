@@ -2020,12 +2020,15 @@ class IO_Test(NekTestCase):
     @pn_pn_2_parallel
     def test_PnPn2_Parallel_MultiRound(self):
         # Bounded-round CR redistribution (Plan H) with a small read batch and
-        # a small receive cap, on the hrefine 2;2 case, so the restart read is
-        # split across MANY batches (small lbrst) and MULTIPLE rounds/batch
-        # (small lrcv). uparam06->lbrst, uparam07->lrcv (io_test.usr:usrdat);
-        # loglevel=3 emits the "rounds/batch min/max/avg" verbose line. With
-        # lbrst=3, lrcv=2 the per-batch recv (=3) forces nrounds=2, and the
-        # fields must still match (byte-clean restart across rounds).
+        # a small receive cap, on the hierarchical hrefine 2,2 case, so the
+        # restart read is split across MANY batches (small lbrst) and MULTIPLE
+        # rounds/batch (small lrcv). uparam06->lbrst, uparam07->lrcv
+        # (io_test.usr:usrdat); loglevel=3 emits the "rounds/batch min/max/avg"
+        # verbose line. With lbrst=3, lrcv=2 the per-batch recv (=3) forces
+        # nrounds=2, and the fields must still match (byte-clean across rounds).
+        # NOTE: the h-refine schedule separator is a COMMA; "2;2" would be
+        # silently truncated to "2" by the .par parser (';' = inline comment),
+        # so use "2,2" to actually exercise the 2-level hierarchical restart.
         self.__class__.case_name = "io_test"
         self._clean_generated_flds()
         self.size_params = dict(
@@ -2046,10 +2049,11 @@ class IO_Test(NekTestCase):
                          "userparam06": "3", "userparam07": "2",
                          "loglevel": "3"}}
         )
-        # hrefine=1 first writes io_test0.f* (and reads the committed fixtures);
-        # hrefine=2;2 then restarts from them. Both run with lbrst=3 (many
-        # batches) + lrcv=2 (>1 round/batch).
-        for href in ("1", "2;2"):
+        # hrefine=1 writes io_test0.f*; hrefine=2 writes hr2io_test0.f*;
+        # hrefine=2,2 (hierarchical) then restarts from BOTH. So "2" must
+        # precede "2,2" (it writes the hr2 checkpoint the 2,2 read needs).
+        # All run with lbrst=3 (many batches) + lrcv=2 (>1 round/batch).
+        for href in ("1", "2", "2,2"):
             self.config_parfile({"MESH": {"hrefine": href}})
             self.run_nek(step_limit=None)
             phrase = self.get_phrase_from_log("All I/O tests PASSED")
@@ -2074,7 +2078,9 @@ class IO_Test(NekTestCase):
         # with >1 round/batch (lrcv=2). Exercises the Plan I batched RMA
         # (mfi_redist_round_rma / MPI_Put into the compact window). The RMA
         # verbose line uses the same 'rounds/batch min/max/avg=' format, so
-        # the col-6 max-rounds check works here too.
+        # the col-6 max-rounds check works here too. Uses the hierarchical
+        # "2,2" schedule (comma separator; see CR multi-round note), so "2"
+        # precedes "2,2" to write the hr2 checkpoint the 2,2 read needs.
         self.__class__.case_name = "io_test"
         self._clean_generated_flds()
         self.size_params = dict(
@@ -2095,7 +2101,7 @@ class IO_Test(NekTestCase):
                          "userparam06": "3", "userparam07": "2",
                          "loglevel": "3"}}
         )
-        for href in ("1", "2;2"):
+        for href in ("1", "2", "2,2"):
             self.config_parfile({"MESH": {"hrefine": href}})
             self.run_nek(step_limit=None)
             phrase = self.get_phrase_from_log("All I/O tests PASSED")
