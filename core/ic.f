@@ -2014,9 +2014,9 @@ c     rwin4 in mfi). Sized to the VECTOR bound so gets & getv share it.
           rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
         endif
 
-#ifdef MPI
         if (.not.iskip) then
           if (np.eq.1) then ! np==1: no redist; assign straight from w2
+                            ! (serial path: NOT under #ifdef MPI)
             etime0 = dnekclock_sync()
             npts = nxr*nyr*nzr
             l = 1                      ! word offset into w2 (per element)
@@ -2027,6 +2027,7 @@ c     rwin4 in mfi). Sized to the VECTOR bound so gets & getv share it.
               l = l + nxyzr
             enddo
             rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+#ifdef MPI
           else
 
             ! plan the batch: how many bounded rounds to deliver it, and
@@ -2074,9 +2075,9 @@ c     rwin4 in mfi). Sized to the VECTOR bound so gets & getv share it.
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
             enddo ! r round
 
+#endif
           endif
         endif ! .not.iskip
-#endif
         k = k + nbe_cur
       enddo ! ibatch
 
@@ -2198,9 +2199,9 @@ c     lelem_mx is already the vector bound, so lrwin matches mfi's.
           rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
         endif
 
-#ifdef MPI
         if (.not.iskip) then
           if (np.eq.1) then ! np==1: no redist; assign straight from w2
+                            ! (serial path: NOT under #ifdef MPI)
             etime0 = dnekclock_sync()
             npts = nxr*nyr*nzr
             nw   = npts                ! word stride between u,v,w in a tuple
@@ -2218,6 +2219,7 @@ c     lelem_mx is already the vector bound, so lrwin matches mfi's.
               l = l + nxyzr
             enddo
             rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+#ifdef MPI
           else
 
             ! plan the batch: how many bounded rounds to deliver it, and
@@ -2277,9 +2279,9 @@ c     lelem_mx is already the vector bound, so lrwin matches mfi's.
               rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
             enddo ! r round
 
+#endif
           endif
         endif ! .not.iskip
-#endif
         k = k + nbe_cur
       enddo ! ibatch
 
@@ -2315,13 +2317,17 @@ c
       include 'SIZE'
       include 'PARALLEL'        ! gllnid (/hcglb/), np, nid
       include 'RESTART'         ! er, cr_mfi, rst_etime
-      parameter(lbrst_max=1024)
+      parameter(lbrst_max=1024) ! send-side bound: batch elems (nb<=lbrst)
+c     handshake recv bound: a dest gets <= its whole local field per batch,
+c     so #contributing sources <= recvcnt <= nelt_hr0 <= lelt (indep. of np).
+      parameter(lhs_mx=lelt)
       common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
      $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
-     $               it(3,lbrst_max),ndest
+     $               it(3,lhs_mx),ndest
       integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
       real*8  etime0,dnekclock_sync
       integer d,e,base,b,key,nkey,cap,recvcnt,nrounds,ke,nb
+      integer i,j,t,n1       ! loop/index vars (t,n1 are o-z or would default)
 
       etime0  = dnekclock_sync()
       recvcnt = nb
@@ -2362,8 +2368,14 @@ c
       enddo
       n1 = ndest
       key = 1
-      call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lbrst_max,key)
-      call lim_chk(n1,lbrst_max,'     ','     ','mfi hs r')
+      call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lhs_mx,key)
+      ! n1 = #source ranks routing to this dest this batch; bounded by
+      ! recvcnt <= nelt_hr0 <= lhs_mx=lelt (NOT by lbrst_max), so a wide
+      ! fan-in at large np fits. Diagnostic if the bound is ever hit.
+      if (n1.gt.lhs_mx .and. nid.eq.0)
+     $  write(6,*) 'mfi hs r overflow: n1=',n1,' > lhs_mx=',lhs_mx,
+     $             ' (raise lelt)'
+      call lim_chk(n1,lhs_mx,'     ','     ','mfi hs r')
       recvcnt = 0                    ! at dest: rows (?,srcproc,cnt)
       do t = 1,n1
         recvcnt = recvcnt+it(3,t)
@@ -2383,7 +2395,7 @@ c
 
       ! ---- fan-out: route offsets back to the original senders ----
       key = 1
-      call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lbrst_max,key)
+      call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lhs_mx,key)
       if (n1.ne.ndest) ierr = 1      ! one reply per dest we sent to
       nkey = 1                       ! sort by X (col 2) -> aligns with dstlist
       key  = 2
@@ -2413,9 +2425,10 @@ c
       include 'SIZE'
       include 'RESTART'         ! er, cr_mfi, rst_etime
       parameter(lbrst_max=1024)
+      parameter(lhs_mx=lelt)    ! handshake recv bound (see mfi_redist_plan)
       common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
      $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
-     $               it(3,lbrst_max),ndest
+     $               it(3,lhs_mx),ndest
       integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
       integer vi(li,1)
       real*4  w2(1)
@@ -2469,9 +2482,10 @@ c
       include 'RESTART'         ! er, rsH, rst_etime
       parameter(lbrst_max=1024)
       parameter(lrcv_mx=lbrst_max)
+      parameter(lhs_mx=lelt)    ! handshake recv bound (see mfi_redist_plan)
       common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
      $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
-     $               it(3,lbrst_max),ndest
+     $               it(3,lhs_mx),ndest
       integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
       integer vi(li,1)
       real*4  w2(1)
