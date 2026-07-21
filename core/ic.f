@@ -2015,6 +2015,8 @@ c     rwin4 in mfi). Sized to the VECTOR bound so gets & getv share it.
           endif
           rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
         endif
+        ierr = iglsum(ierr,1)   ! collective: make read status uniform so a
+        if (ierr.ne.0) goto 100 ! per-rank I/O error can't diverge the loop
 
         if (.not.iskip) then
           if (np.eq.1) then ! np==1: no redist; assign straight from w2
@@ -2037,6 +2039,7 @@ c     rwin4 in mfi). Sized to the VECTOR bound so gets & getv share it.
             cap = lrcv_mx              ! max recv per round (lrcv>0 overrides)
             if (lrcv.gt.0) cap = min(lrcv,lrcv_mx)
             call mfi_redist_plan(k,nbe_cur,cap,nrounds,recvcnt,ierr)
+            ierr = iglsum(ierr,1)  ! collective: bail uniformly (loop below)
             if (ierr.ne.0) goto 100
 
             v_nbat=v_nbat+1            ! verbose stats
@@ -2054,6 +2057,7 @@ c     rwin4 in mfi). Sized to the VECTOR bound so gets & getv share it.
                 call mfi_redist_round_rma(r,cap,lrcv_mx,vi,2+lelem_mx,
      $                                w2,nxyzr,k,recvcnt,n,ierr)
               endif
+              ierr = iglsum(ierr,1)  ! collective: bail uniformly on overflow
               if (ierr.ne.0) goto 100
 
               ! assign the n received elements to their local slots
@@ -2202,6 +2206,8 @@ c     lelem_mx is already the vector bound, so lrwin matches mfi's.
           endif
           rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
         endif
+        ierr = iglsum(ierr,1)   ! collective: make read status uniform so a
+        if (ierr.ne.0) goto 100 ! per-rank I/O error can't diverge the loop
 
         if (.not.iskip) then
           if (np.eq.1) then ! np==1: no redist; assign straight from w2
@@ -2231,6 +2237,7 @@ c     lelem_mx is already the vector bound, so lrwin matches mfi's.
             cap = lrcv_mx              ! max recv per round (lrcv>0 overrides)
             if (lrcv.gt.0) cap = min(lrcv,lrcv_mx)
             call mfi_redist_plan(k,nbe_cur,cap,nrounds,recvcnt,ierr)
+            ierr = iglsum(ierr,1)  ! collective: bail uniformly (loop below)
             if (ierr.ne.0) goto 100
 
             v_nbat=v_nbat+1            ! verbose stats
@@ -2248,6 +2255,7 @@ c     lelem_mx is already the vector bound, so lrwin matches mfi's.
                 call mfi_redist_round_rma(r,cap,lrcv_mx,vi,2+lelem_mx,
      $                                w2,nxyzr,k,recvcnt,n,ierr)
               endif
+              ierr = iglsum(ierr,1)  ! collective: bail uniformly on overflow
               if (ierr.ne.0) goto 100
 
               ! assign the n received elements (u,v,w at offsets 0,nw,2*nw)
@@ -2331,7 +2339,7 @@ c     so #contributing sources <= recvcnt <= nelt_hr0 <= lelt (indep. of np).
       integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
       real*8  etime0,dnekclock_sync
       integer d,e,base,b,key,nkey,cap,recvcnt,nrounds,ke,nb
-      integer i,j,t,n1       ! loop/index vars (t,n1 are o-z or would default)
+      integer i,j,t,n1,n1max ! loop/index vars (t,n1 are o-z or would default)
 
       etime0  = dnekclock_sync()
       recvcnt = nb
@@ -2362,7 +2370,8 @@ c     so #contributing sources <= recvcnt <= nelt_hr0 <= lelt (indep. of np).
         i = j
       enddo
       ioff(ndest+1) = nb
-      call lim_chk(ndest,lbrst_max,'     ','     ','mfi hs d')
+      ! collective-safe: check the GLOBAL max so all ranks abort together
+      call lim_chk(iglmax(ndest,1),lbrst_max,'     ','     ','mfi hs d')
 
       ! ---- fan-in: route (dest,srcproc,cnt); each dest gathers its counts ----
       do d = 1,ndest
@@ -2375,11 +2384,12 @@ c     so #contributing sources <= recvcnt <= nelt_hr0 <= lelt (indep. of np).
       call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lhs_mx,key)
       ! n1 = #source ranks routing to this dest this batch; bounded by
       ! recvcnt <= nelt_hr0 <= lhs_mx=lelt (NOT by lbrst_max), so a wide
-      ! fan-in at large np fits. Diagnostic if the bound is ever hit.
-      if (n1.gt.lhs_mx .and. nid.eq.0)
-     $  write(6,*) 'mfi hs r overflow: n1=',n1,' > lhs_mx=',lhs_mx,
-     $             ' (raise lelt)'
-      call lim_chk(n1,lhs_mx,'     ','     ','mfi hs r')
+      ! fan-in at large np fits. Check the GLOBAL max (collective-safe: all
+      ! ranks abort together, and the diagnostic reports the true max).
+      n1max = iglmax(n1,1)
+      if (n1max.gt.lhs_mx .and. nid.eq.0)
+     $  write(6,*) 'mfi hs r overflow: n1max,lhs_mx=',n1max,lhs_mx
+      call lim_chk(n1max,lhs_mx,'     ','     ','mfi hs r')
       recvcnt = 0                    ! at dest: rows (?,srcproc,cnt)
       do t = 1,n1
         recvcnt = recvcnt+it(3,t)
