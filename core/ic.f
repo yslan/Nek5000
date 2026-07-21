@@ -1971,6 +1971,11 @@ c     rwin4 in mfi). Sized to the VECTOR bound so gets & getv share it.
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_gets b')
+c     one element's payload must fit the read buffer w2, else the batched
+c     byte_read below overflows it (nbe would be forced to 1 with nxyzr>lrbs;
+c     the 'b' check misses this because nelrr truncates to 0). nxyzr is
+c     broadcast-consistent, so this aborts on all ranks together.
+      call lim_chk(nxyzr,lrbs,'     ','     ','mfi_gets e')
       if (np.gt.1) then
         call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_gets c') ! payload/elem
         call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_gets d') ! batch
@@ -2164,6 +2169,10 @@ c     lelem_mx is already the vector bound, so lrwin matches mfi's.
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_getv b')
+c     one element's payload must fit the read buffer w2, else the batched
+c     byte_read below overflows it (see mfi_gets: nelrr can truncate to 0,
+c     hiding this from the 'b' check). nxyzr is broadcast-consistent.
+      call lim_chk(nxyzr,lrbs,'     ','     ','mfi_getv e')
       if (np.gt.1) then
         call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_getv c') ! payload/elem
         call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_getv d') ! batch
