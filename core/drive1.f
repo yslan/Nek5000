@@ -357,11 +357,9 @@ c      endif
 #endif
 #endif 
  
-#ifdef MPI
-      if (commrs .ne. MPI_COMM_NULL) then
-        call MPI_Win_free(rsH, ierr)
-      endif
-#endif
+c     rsH (the restart RMA window) is now created+freed per restart inside mfi,
+c     so there is nothing to free here. commrs (the communicator dup) is kept
+c     for possible reuse; MPI_Finalize releases it.
 
       call in_situ_end()
       call exitt0()

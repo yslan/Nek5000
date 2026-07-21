@@ -1,0 +1,9 @@
+c-----------------------------------------------------------------------
+c     io_test shared reference-field cache.
+c     Snapshot of the analytic solution (see fields_init) used to compare
+c     against fields read back from checkpoints (see fields_compare).
+c     Include AFTER 'SIZE' (depends on lx1,ly1,lz1,lx2,..,ldim,ldimt,lelv,lelt).
+c-----------------------------------------------------------------------
+      real cmp_v(lx1*ly1*lz1*lelv,ldim),cmp_t(lx1*ly1*lz1*lelt,ldimt),
+     $     cmp_pr(lx2*ly2*lz2*lelv), cmp_x(lx1*ly1*lz1*lelv,ldim)
+      common /REFDATA/ cmp_v, cmp_t, cmp_pr, cmp_x

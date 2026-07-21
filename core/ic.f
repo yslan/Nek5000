@@ -1923,207 +1923,205 @@ c-----------------------------------------------------------------------
 
       real u(lx1*ly1*lz1,1)
 
-      real*4 wk(2*lwk) ! message buffer
-      real*4 wkg(2*lwk) ! storage buffer
+c     wk (/scrns/, free during mfi): for CR the whole 2*lwk is the in-place
+c     send+recv buffer; for RMA the 1st half is the send-pack buffer and the 2nd
+c     half (wk(lwk+1..)) is the MPI window (created in mfi). Carved at RUNTIME
+c     tuple width li=2+nxyzr so the common case holds the whole field in one
+c     round. No dedicated /mfi_vis/ or /mfi_rwin/ any more. It is an integer
+c     tuple buffer viewed through the real*4 dummy (byte-copy punning); the
+c     redist/assign routines declare it integer via their adjustable (li,1) dummy.
+      real*4 wk(2*lwk)
 
+c     w2: file-order read buffer (/vrthov/ = GFLDR bufr; reused, not new mem).
       parameter(lrbs_loc=20*lx1*ly1*lz1)
-      parameter(lrbs=lrbs_loc*lelt)
-      common /vrthov/ w2(lrbs) ! read buffer
+      parameter(lread_mx=lelt)
+      parameter(lrbs=lrbs_loc*lread_mx)
+      common /vrthov/ w2(lrbs) ! read buffer (one batch, file order)
       real*4 w2
 
-      integer vi(2+lrbs_loc,lelt) ! [nid,iel,(data real*8)] x nelt
+c     lelem_mx bounds a scalar payload (mapab nxr<=lx1+6, x2 FP64) -> 'c' check;
+c     lbrst_max caps a read batch -> 'd' check.
+      parameter(lelem_mx=2*(lx1+6)*(ly1+6)*(lz1+6))
+      parameter(lbrst_max=1024)
+
       real*8 etime0,dnekclock_sync
 
-      integer e,ei
-      logical iskip
+      integer r,cap,recvcnt,nrounds,li,mtup,mwin ! redist state + wk sizing
+      integer v_nbat,v_rmn,v_rmx,v_rsum,v_rcvmx ! verbose only (loglevel>2)
+      logical iskip,is_reader
       integer*8 i8tmp
 
-      integer*8 disp
-
-      nxyzr  = nxr*nyr*nzr  
-      dnxyzr = nxyzr 
+      nxyzr = nxr*nyr*nzr            ! words per element (x2 if FP64)
       if (wdsizr.eq.8) nxyzr = 2*nxyzr
 
-      nelt_hr0 = nelt / nhrefblkrs
+      li = 2 + nxyzr                 ! runtime tuple width [nid,iel,payload]
+c     wk capacity in tuples. CR routes IN PLACE, so the whole wk (2*lwk) is the
+c     send+recv buffer. RMA needs a send-pack buffer AND the window at once, so
+c     wk is split: 1st half = send (mtup), 2nd half = window (mwin, over wk(lwk+1)
+c     in mfi). One tuple must fit each region (guards 'f'/'g').
+      if (ifcrrs) then
+        mtup = (2*lwk)/li
+        mwin = 0
+      else
+        mtup = lwk/li
+        mwin = lwk/li
+      endif
 
-      ! check message buffer wk
-      num_recv  = nxyzr*nelt_hr0
-      num_avail = size(wk)
-      call lim_chk(num_recv,num_avail,'     ','     ','mfi_gets a')
-
-      ! setup read buffer
+      ! check w2 fits (nelrr = elements per read pass; legacy sizing check)
       if (nid.eq.pid0r) then
          i8tmp = int(nxyzr,8)*int(nelr,8)
          nread = i8tmp/int(lrbs,8)
          if (mod(i8tmp,int(lrbs,8)).ne.0) nread = nread + 1
-         if(ifmpiio) nread = iglmax(nread,1) ! needed because of collective read
+         if(ifmpiio) nread = iglmax(nread,1) ! collective read: same on all
          nelrr = nelr/nread
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_gets b')
-      if (ifcrrs)
-     $  call lim_chk(nxyzr,lrbs_loc,'     ','     ','mfi_gets c')
-
-      call nekgsync()
-
-      ierr = 0
-      if (nid.eq.pid0r.and.np.gt.1) then ! only i/o nodes will read
-         ! read blocks of size nelrr
-         k = 0
-         do i = 1,nread
-            if(i.eq.nread) then ! clean-up 
-              nelrr = nelr - (nread-1)*nelrr
-              if(nelrr.lt.0) nelrr = 0
-            endif
-            
-            if(ierr.eq.0) then
-              etime0 = dnekclock_sync()
-              if(ifmpiio) then
-                call byte_read_mpi(w2,nxyzr*nelrr,-1,ifh_mbyte,ierr)
-              else
-                call byte_read (w2,nxyzr*nelrr,ierr)
-              endif
-              rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
-            endif
-
-#ifdef MPI
-            nbatch = (nelt_hr0 - 1) / lbrst + 1
-            nbatch = iglmax(nbatch, 1)
-
-            do ibatch = 1,nbatch
-
-              ! range for jeln in this batch
-              jeln1 = (ibatch-1)*lbrst+1
-              jeln2 = ibatch*lbrst
-
-              ! redistribute data based on the current el-proc map
-              if (ifcrrs) then
-                etime0 = dnekclock_sync()
-                ! pack buffer
-                l = 1
-                iloc = 1
-                do e = k+1,k+nelrr
-                  jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
-                  if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
-                    vi(1,iloc) = gllnid(er(e))
-                    vi(2,iloc) = er(e)
-                    call icopy(vi(3,iloc),w2(l),nxyzr)
-                    iloc = iloc+1
-                  endif
-                  l = l+nxyzr
-                enddo
-                rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
-
-                ! crystal route nr real items of size lrs to rank vi(key,1:nr)
-                nrmax = lbrst
-                n = iloc - 1
-                li = 2+lrbs_loc ! offset
-                key = 1
-                etime0 = dnekclock_sync()
-                call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
-     &                   vl,0,vr,0,key)
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-
-                ! unpack buffer
-                etime0 = dnekclock_sync()
-                ierr = 0
-                if (n.gt.nrmax) then
-                  ierr = 1
-                  goto 100
-                endif
-                do iloc = 1,n
-                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                  l = (iel-1) * nxyzr + 1
-                  call icopy (wkg(l),vi(3,iloc),nxyzr)
-                enddo
-                call nekgsync()
-                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
-
-              else
-
-                etime0 = dnekclock_sync()
-                l = 1
-                call MPI_Win_lock_all(0,rsH,ierr)
-                do e = k+1,k+nelrr
-                  jnid = gllnid(er(e))                ! where is er(e) now?
-                  jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
-
-                  if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
-                    disp = (jeln-jeln1) * int(nxyzr,8)
-                    call MPI_Put(w2(l),nxyzr,MPI_REAL4,jnid,
-     $                           disp,nxyzr,MPI_REAL4,rsH,ierr)
-                  endif
-                  l = l+nxyzr
-                enddo
-                call MPI_Win_unlock_all(rsH,ierr)
-                call nekgsync()
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-
-                etime0 = dnekclock_sync()
-                l = 1
-                do e = jeln1,jeln2
-                  lg = (e-1) * nxyzr + 1
-                  call icopy (wkg(lg),wk(l),nxyzr)
-                  l = l+nxyzr
-                enddo
-                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
-
-              endif
-
-            enddo ! batches
-#endif
-            k  = k + nelrr
-         enddo
-      elseif (np.eq.1) then
-         etime0 = dnekclock_sync()
-         if(ifmpiio) then
-           call byte_read_mpi(wkg,nxyzr*nelr,-1,ifh_mbyte,ierr)
-         else
-           call byte_read(wkg,nxyzr*nelr,ierr)
-         endif
-         rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
+c     one element must fit the read buffer w2 ('e') and one tuple must fit the
+c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
+      call lim_chk(nxyzr,lrbs,'     ','     ','mfi_gets e')
+      if (np.gt.1) then
+        call lim_chk(li,2*lwk,'     ','     ','mfi_gets f') ! tuple fits wk
+        call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_gets c') ! payload/elem
+        call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_gets d') ! batch
+        if (.not.ifcrrs)
+     $  call lim_chk(li,lwk,'     ','     ','mfi_gets g') ! tuple fits window
       endif
 
-      call nekgsync() ! completed both at the origin and at the target when the call returns 
+      ! read batching: this reader owns nelr file elements; it reads them nbe
+      ! at a time (nbe bounded by lbrst, by what fits w2, and -- for np>1 -- by
+      ! what fits the wk send buffer mtup), doing nbatch local batches.
+      ! nbatch_g = global loop count (all ranks iterate together).
+      is_reader = (nid.eq.pid0r)     ! only readers touch the file
+      nbatch    = 0                  ! # read batches on this rank
+      nbe       = 0                  ! # elements per read batch
+      if (is_reader) then
+        nbe = min(lbrst,lrbs/nxyzr)
+        if (np.gt.1) nbe = min(nbe,mtup) ! wk send buffer holds the batch
+        if (nbe.lt.1) nbe = 1
+        nbatch = (nelr + nbe - 1)/nbe
+      endif
+      nbatch_g = iglmax(nbatch,1)    ! (iglmax syncs; no nekgsync needed)
 
+      ierr = 0
+
+      k = 0                          ! # file elements already consumed
+      v_nbat=0                       ! verbose stats (loglevel>2)
+      v_rmn=999999
+      v_rmx=0
+      v_rsum=0
+      v_rcvmx=0
+      do ibatch = 1,nbatch_g
+        nbe_cur = 0                  ! # elements in this batch (last partial)
+        if (is_reader.and.ibatch.le.nbatch)
+     $    nbe_cur = min(nbe,nelr-(ibatch-1)*nbe)
+        if (nbe_cur.lt.0) nbe_cur = 0
+
+        ! read one file-order batch (readers only; MPIIO is collective so all
+        ! ranks call it even when skipping the field)
+        if (ierr.eq.0) then
+          etime0 = dnekclock_sync()
+          if (ifmpiio) then
+            call byte_read_mpi(w2,nxyzr*nbe_cur,-1,ifh_mbyte,ierr)
+          else if (is_reader.and.nbe_cur.gt.0) then
+            call byte_read(w2,nxyzr*nbe_cur,ierr)
+          endif
+          rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
+        endif
+        ierr = iglsum(ierr,1)   ! collective: make read status uniform so a
+        if (ierr.ne.0) goto 100 ! per-rank I/O error can't diverge the loop
+
+        if (.not.iskip) then
+          if (np.eq.1) then ! np==1: no redist; assign straight from w2
+                            ! (serial path: NOT under #ifdef MPI)
+            etime0 = dnekclock_sync()
+            npts = nxr*nyr*nzr
+            l = 1                      ! word offset into w2 (per element)
+            do iloc = 1,nbe_cur
+              iel = er(k+iloc)         ! file order == local order at np==1
+              call mfi_assign_elem(u(1,iel),w2(l),npts,
+     $                           nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+              l = l + nxyzr
+            enddo
+            rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+#ifdef MPI
+          else
+
+            ! plan the batch: bounded rounds to deliver it. cap = recv per
+            ! round; default = as many as fit (whole field in 1 round when it
+            ! fits): mtup for the wk send/recv buffer, also mwin for the RMA
+            ! window. lrcv>0 lowers it.
+            if (ifcrrs) then
+              cap = mtup
+            else
+              cap = min(mtup,mwin)
+            endif
+            if (lrcv.gt.0) cap = min(lrcv,cap)
+            call mfi_redist_plan(k,nbe_cur,cap,nrounds,recvcnt,ierr)
+            ierr = iglsum(ierr,1)  ! collective: bail uniformly (loop below)
+            if (ierr.ne.0) goto 100
+
+            v_nbat=v_nbat+1            ! verbose stats
+            if (nrounds.lt.v_rmn) v_rmn=nrounds
+            if (nrounds.gt.v_rmx) v_rmx=nrounds
+            v_rsum=v_rsum+nrounds
+            if (recvcnt.gt.v_rcvmx) v_rcvmx=recvcnt
+
+            do r = 0,nrounds-1
+              ! redistribute round r into the wk recv buffer (runtime li)
+              if (ifcrrs) then         ! crystal router: wk = send+recv
+                call mfi_redist_round(r,cap,mtup,wk,li,
+     $                                w2,nxyzr,k,n,ierr)
+              else                     ! MPI_Put; send=wk 1st half,win=2nd
+                call mfi_redist_round_rma(r,cap,mtup,wk,li,
+     $                                w2,nxyzr,k,recvcnt,n,ierr)
+              endif
+              ierr = iglsum(ierr,1)  ! collective: bail uniformly on overflow
+              if (ierr.ne.0) goto 100
+
+              ! assign the n received elements (runtime-li adjustable view)
+              etime0 = dnekclock_sync()
+              if (ifcrrs) then         ! from wk (crystal recv)
+                call mfi_assign_recv(wk  ,li,n,1,u,u,u,
+     $                    nxr,nyr,nzr,wdsizr,if_byte_sw,nhrefblkrs,ierr)
+              else                     ! from the window (2nd half of wk)
+                call mfi_assign_recv(wk(lwk+1),li,n,1,u,u,u,
+     $                    nxr,nyr,nzr,wdsizr,if_byte_sw,nhrefblkrs,ierr)
+              endif
+              ! (no nekgsync: next round's crystal transfer / Win_fence syncs)
+              rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+            enddo ! r round
+
+#endif
+          endif
+        endif ! .not.iskip
+        k = k + nbe_cur
+      enddo ! ibatch
+
+      if (nio.eq.0 .and. loglevel.gt.2 .and. v_nbat.gt.0) then
+        write(6,*) 'mfi_gets: nbatch=',v_nbat,
+     $             ' rounds/batch min/max/avg=',v_rmn,v_rmx,
+     $             real(v_rsum)/real(v_nbat),' recvmax=',v_rcvmx,
+     $             ' ifcrrs=',ifcrrs
+        ! sizing review (words): available ceilings vs per-element need vs the
+        ! effective batch/round, and which limit binds -- so the default (whole
+        ! field in 1 round) can be confirmed vs a knob (lbrst/lrcv) taking over.
+        write(6,*) 'mfi_gets  avail: wk=',2*lwk,' w2=',lrbs,
+     $             '  need/elem: nxyzr=',nxyzr,' li=',li
+        write(6,*) 'mfi_gets  batch: nbe=',nbe,' (lbrst=',lbrst,
+     $             ' w2fit=',lrbs/nxyzr,' wkfit=',mtup,')'
+        if (lrcv.gt.0) then
+          write(6,*) 'mfi_gets  round: cap=',cap,' bound by lrcv=',lrcv
+        else
+          write(6,*) 'mfi_gets  round: cap=',cap,
+     $        ' bound by wk default (mtup=',mtup,' mwin=',mwin,')'
+        endif
+      endif
+
+      ! (no nekgsync: err_chk below does iglsum, which syncs)
       if (iskip) then
          goto 100     ! don't use the data
       endif
-
-      nxyzr = nxr*nyr*nzr
-      nxyzv = nxr*nyr*nzr
-      nxyzw = nxr*nyr*nzr
-      if (wdsizr.eq.8) nxyzw = 2*nxyzw
-
-      l = 1
-      do e=1,nelt_hr0
-         if (np.gt.1) then
-            ei = e
-         elseif(np.eq.1) then
-            ei = er(e)
-         endif
-         if (if_byte_sw) then
-            if(wdsizr.eq.8) then
-              call byte_reverse8(wkg(l),nxyzv*2,ierr)
-            else
-              call byte_reverse(wkg(l),nxyzv,ierr)
-            endif
-         endif
-         if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
-            if (wdsizr.eq.4) then         ! COPY
-               call copy4r(u(1,ei),wkg(l        ),nxyzr)
-            else
-               call copy  (u(1,ei),wkg(l        ),nxyzr)
-            endif
-         else                             ! INTERPOLATE
-            if (wdsizr.eq.4) then
-               call mapab4r(u(1,ei),wkg(l        ),nxr,1)
-            else
-               call mapab  (u(1,ei),wkg(l        ),nxr,1)
-            endif
-         endif
-         l = l+nxyzw
-      enddo
 
  100  call err_chk(ierr,'Error reading restart data,in gets.$')
       return
@@ -2140,217 +2138,520 @@ c-----------------------------------------------------------------------
       real u(lx1*ly1*lz1,1),v(lx1*ly1*lz1,1),w(lx1*ly1*lz1,1)
       logical iskip
 
-      real*4 wk(2*lwk) ! message buffer
-      real*4 wkg(2*lwk) ! storage buffer
+c     wk (/scrns/): CR uses the whole 2*lwk in place; RMA splits it (1st half
+c     send-pack, 2nd half wk(lwk+1..) = the MPI window). Runtime tuple width
+c     li=2+nxyzr. No dedicated /mfi_viv/ or /mfi_rwin/. (See mfi_gets for punning.)
+      real*4 wk(2*lwk)
+
+c     w2: file-order read buffer (/vrthov/ = GFLDR bufr; reused, not new mem).
       parameter(lrbs_loc=20*lx1*ly1*lz1)
-      parameter(lrbs=lrbs_loc*lelt)
-      common /vrthov/ w2(lrbs) ! read buffer
+      parameter(lread_mx=lelt)
+      parameter(lrbs=lrbs_loc*lread_mx)
+      common /vrthov/ w2(lrbs) ! read buffer (one batch, file order)
       real*4 w2
 
-      integer vi(2+lrbs_loc,lelt) ! [nid,iel,(data real*8)] x nelt
+c     lelem_mx = vector payload bound (mapab nxr<=lx1+6, x2 FP64) -> 'c' check.
+      parameter(lelem_mx=2*ldim*(lx1+6)*(ly1+6)*(lz1+6))
+      parameter(lbrst_max=1024)
+
       real*8 etime0,dnekclock_sync
 
-      integer e,ei
+      integer r,cap,recvcnt,nrounds,li,mtup,mwin ! redist state + wk sizing
+      integer v_nbat,v_rmn,v_rmx,v_rsum,v_rcvmx ! verbose only (loglevel>2)
+      logical is_reader
       integer*8 i8tmp
 
-      integer*8 disp
-
-      nxyzr  = ldim*nxr*nyr*nzr
+      nxyzr = ldim*nxr*nyr*nzr       ! words per element (all comps, x2 FP64)
       if (wdsizr.eq.8) nxyzr = 2*nxyzr
 
-      nelt_hr0 = nelt / nhrefblkrs
+      li = 2 + nxyzr                 ! runtime tuple width [nid,iel,payload]
+c     wk capacity in tuples. CR routes IN PLACE, so the whole wk (2*lwk) is the
+c     send+recv buffer. RMA needs a send-pack buffer AND the window at once, so
+c     wk is split: 1st half = send (mtup), 2nd half = window (mwin, over wk(lwk+1)
+c     in mfi). One tuple must fit each region (guards 'f'/'g').
+      if (ifcrrs) then
+        mtup = (2*lwk)/li
+        mwin = 0
+      else
+        mtup = lwk/li
+        mwin = lwk/li
+      endif
 
-      ! check message buffer wk
-      num_recv  = nxyzr*nelt_hr0
-      num_avail = size(wk)
-      call lim_chk(num_recv,num_avail,'     ','     ','mfi_getv a')
-
-      ! setup read buffer
-      if(nid.eq.pid0r) then
+      ! check w2 fits (nelrr = elements per read pass; legacy sizing check)
+      if (nid.eq.pid0r) then
          i8tmp = int(nxyzr,8)*int(nelr,8)
          nread = i8tmp/int(lrbs,8)
          if (mod(i8tmp,int(lrbs,8)).ne.0) nread = nread + 1
-         if(ifmpiio) nread = iglmax(nread,1) ! needed because of collective read
+         if(ifmpiio) nread = iglmax(nread,1) ! collective read: same on all
          nelrr = nelr/nread
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_getv b')
-      if (ifcrrs)
-     $  call lim_chk(nxyzr,lrbs_loc,'     ','     ','mfi_getv c')
+c     one element must fit the read buffer w2 ('e') and one tuple must fit the
+c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
+      call lim_chk(nxyzr,lrbs,'     ','     ','mfi_getv e')
+      if (np.gt.1) then
+        call lim_chk(li,2*lwk,'     ','     ','mfi_getv f') ! tuple fits wk
+        call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_getv c') ! payload/elem
+        call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_getv d') ! batch
+        if (.not.ifcrrs)
+     $  call lim_chk(li,lwk,'     ','     ','mfi_getv g') ! tuple fits window
+      endif
 
-      call nekgsync()
+      ! read batching: see mfi_gets. nbe elems/batch (bounded by lbrst, w2, and
+      ! -- for np>1 -- the wk send buffer mtup), nbatch local batches, nbatch_g
+      ! = global loop count (collective MPIIO read).
+      is_reader = (nid.eq.pid0r)     ! only readers touch the file
+      nbatch    = 0                  ! # read batches on this rank
+      nbe       = 0                  ! # elements per read batch
+      if (is_reader) then
+        nbe = min(lbrst,lrbs/nxyzr)
+        if (np.gt.1) nbe = min(nbe,mtup) ! wk send buffer holds the batch
+        if (nbe.lt.1) nbe = 1
+        nbatch = (nelr + nbe - 1)/nbe
+      endif
+      nbatch_g = iglmax(nbatch,1)    ! (iglmax syncs; no nekgsync needed)
 
       ierr = 0
-      if (nid.eq.pid0r .and. np.gt.1) then ! only i/o nodes
-         k = 0
-         do i = 1,nread
-            if(i.eq.nread) then ! clean-up 
-              nelrr = nelr - (nread-1)*nelrr
-              if(nelrr.lt.0) nelrr = 0
-            endif
 
-            if(ierr.eq.0) then
-              etime0 = dnekclock_sync()
-              if(ifmpiio) then 
-                call byte_read_mpi(w2,nxyzr*nelrr,-1,ifh_mbyte,ierr)
-              else
-                call byte_read (w2,nxyzr*nelrr,ierr)
-              endif
-              rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
-            endif
+      k = 0                          ! # file elements already consumed
+      v_nbat=0                       ! verbose stats (loglevel>2)
+      v_rmn=999999
+      v_rmx=0
+      v_rsum=0
+      v_rcvmx=0
+      do ibatch = 1,nbatch_g
+        nbe_cur = 0                  ! # elements in this batch (last partial)
+        if (is_reader.and.ibatch.le.nbatch)
+     $    nbe_cur = min(nbe,nelr-(ibatch-1)*nbe)
+        if (nbe_cur.lt.0) nbe_cur = 0
 
+        ! read one file-order batch (readers only; MPIIO is collective so all
+        ! ranks call it even when skipping the field)
+        if (ierr.eq.0) then
+          etime0 = dnekclock_sync()
+          if (ifmpiio) then
+            call byte_read_mpi(w2,nxyzr*nbe_cur,-1,ifh_mbyte,ierr)
+          else if (is_reader.and.nbe_cur.gt.0) then
+            call byte_read(w2,nxyzr*nbe_cur,ierr)
+          endif
+          rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
+        endif
+        ierr = iglsum(ierr,1)   ! collective: make read status uniform so a
+        if (ierr.ne.0) goto 100 ! per-rank I/O error can't diverge the loop
+
+        if (.not.iskip) then
+          if (np.eq.1) then ! np==1: no redist; assign straight from w2
+                            ! (serial path: NOT under #ifdef MPI)
+            etime0 = dnekclock_sync()
+            npts = nxr*nyr*nzr
+            nw   = npts                ! word stride between u,v,w in a tuple
+            if (wdsizr.eq.8) nw = 2*npts
+            l = 1                      ! word offset into w2 (per element)
+            do iloc = 1,nbe_cur
+              iel = er(k+iloc)         ! file order == local order at np==1
+              call mfi_assign_elem(u(1,iel),w2(l     ),
+     $                      npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+              call mfi_assign_elem(v(1,iel),w2(l+nw  ),
+     $                      npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+              if (if3d)
+     $        call mfi_assign_elem(w(1,iel),w2(l+2*nw),
+     $                      npts,nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+              l = l + nxyzr
+            enddo
+            rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
 #ifdef MPI
-            nbatch = (nelt_hr0 - 1) / lbrst + 1
-            nbatch = iglmax(nbatch, 1)
+          else
 
-            do ibatch = 1,nbatch
+            ! plan the batch: bounded rounds. cap = recv per round; default =
+            ! as many as fit (whole field in 1 round when it fits): mtup for
+            ! the wk send/recv buffer, also mwin for the RMA window. lrcv>0
+            ! lowers it.
+            if (ifcrrs) then
+              cap = mtup
+            else
+              cap = min(mtup,mwin)
+            endif
+            if (lrcv.gt.0) cap = min(lrcv,cap)
+            call mfi_redist_plan(k,nbe_cur,cap,nrounds,recvcnt,ierr)
+            ierr = iglsum(ierr,1)  ! collective: bail uniformly (loop below)
+            if (ierr.ne.0) goto 100
 
-              ! range for jeln in this batch, it's ok if it's out of nelrr
-              jeln1 = (ibatch-1)*lbrst+1
-              jeln2 = ibatch*lbrst
-              ! redistribute data based on the current el-proc map
-              if (ifcrrs) then
-                etime0 = dnekclock_sync()
-                ! pack buffer
-                l = 1
-                iloc = 1
-                do e = k+1,k+nelrr
-                  jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
-                  if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
-                    vi(1,iloc) = gllnid(er(e))
-                    vi(2,iloc) = er(e)
-                    call icopy(vi(3,iloc),w2(l),nxyzr)
-                    iloc = iloc+1
-                  endif
-                  l = l+nxyzr
-                enddo
-                rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
+            v_nbat=v_nbat+1            ! verbose stats
+            if (nrounds.lt.v_rmn) v_rmn=nrounds
+            if (nrounds.gt.v_rmx) v_rmx=nrounds
+            v_rsum=v_rsum+nrounds
+            if (recvcnt.gt.v_rcvmx) v_rcvmx=recvcnt
 
-                ! crystal route nr real items of size lrs to rank vi(key,1:nr)
-                nrmax = lbrst
-                n = iloc - 1
-                li = 2+lrbs_loc ! offset
-                key = 1
-                etime0 = dnekclock_sync()
-                call fgslib_crystal_tuple_transfer(cr_mfi,n,nrmax,vi,li,
-     &                   vl,0,vr,0,key)
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-
-                ! unpack buffer
-                etime0 = dnekclock_sync()
-                ierr = 0
-                if (n.gt.nrmax) then
-                  ierr = 1
-                  goto 100
-                endif
-                do iloc = 1,n
-                  iel = ie_map_r2o(gllel(vi(2,iloc)),nhrefblkrs)
-                  l = (iel-1) * nxyzr + 1
-                  call icopy (wkg(l),vi(3,iloc),nxyzr)
-                enddo
-                call nekgsync()
-                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
-
-              else
-
-                etime0 = dnekclock_sync()
-                l = 1
-                call MPI_Win_lock_all(0,rsH,ierr)
-                do e = k+1,k+nelrr
-                  jnid = gllnid(er(e))                ! where is er(e) now?
-                  jeln = ie_map_r2o(gllel(er(e)),nhrefblkrs)
-                  if (jeln.ge.jeln1.AND.jeln.le.jeln2) then
-                    disp = (jeln-jeln1) * int(nxyzr,8)
-                    call MPI_Put(w2(l),nxyzr,MPI_REAL4,jnid,
-     $                           disp,nxyzr,MPI_REAL4,rsH,ierr)
-                  endif
-                  l = l+nxyzr
-                enddo
-                call MPI_Win_unlock_all(rsH,ierr)
-                call nekgsync()
-                rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
-
-                etime0 = dnekclock_sync()
-                l = 1
-                do e = jeln1,jeln2
-                  lg = (e-1) * nxyzr + 1
-                  call icopy (wkg(lg),wk(l),nxyzr)
-                  l = l+nxyzr
-                enddo
-                rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
-
+            do r = 0,nrounds-1
+              ! redistribute round r into the wk recv buffer (runtime li)
+              if (ifcrrs) then         ! crystal router: wk = send+recv
+                call mfi_redist_round(r,cap,mtup,wk,li,
+     $                                w2,nxyzr,k,n,ierr)
+              else                     ! MPI_Put; send=wk 1st half,win=2nd
+                call mfi_redist_round_rma(r,cap,mtup,wk,li,
+     $                                w2,nxyzr,k,recvcnt,n,ierr)
               endif
+              ierr = iglsum(ierr,1)  ! collective: bail uniformly on overflow
+              if (ierr.ne.0) goto 100
 
-            enddo ! batches
+              ! assign the n received elements (u,v,w; runtime-li view)
+              etime0 = dnekclock_sync()
+              if (ifcrrs) then         ! from wk (crystal recv)
+                call mfi_assign_recv(wk  ,li,n,ldim,u,v,w,
+     $                    nxr,nyr,nzr,wdsizr,if_byte_sw,nhrefblkrs,ierr)
+              else                     ! from the window (2nd half of wk)
+                call mfi_assign_recv(wk(lwk+1),li,n,ldim,u,v,w,
+     $                    nxr,nyr,nzr,wdsizr,if_byte_sw,nhrefblkrs,ierr)
+              endif
+              ! (no nekgsync: next round's crystal transfer / Win_fence syncs)
+              rst_etime(4) = rst_etime(4) + dnekclock_sync() - etime0
+            enddo ! r round
+
 #endif
-            k  = k + nelrr
-         enddo
-      elseif (np.eq.1) then
-         etime0 = dnekclock_sync()
-         if(ifmpiio) then 
-           call byte_read_mpi(wkg,nxyzr*nelr,-1,ifh_mbyte,ierr)
-         else
-           call byte_read(wkg,nxyzr*nelr,ierr)
-         endif
-         rst_etime(1) = rst_etime(1) + dnekclock_sync() - etime0
+          endif
+        endif ! .not.iskip
+        k = k + nbe_cur
+      enddo ! ibatch
+
+      if (nio.eq.0 .and. loglevel.gt.2 .and. v_nbat.gt.0) then
+        write(6,*) 'mfi_getv: nbatch=',v_nbat,
+     $             ' rounds/batch min/max/avg=',v_rmn,v_rmx,
+     $             real(v_rsum)/real(v_nbat),' recvmax=',v_rcvmx,
+     $             ' ifcrrs=',ifcrrs
+        ! sizing review (words): available ceilings vs per-element need vs the
+        ! effective batch/round, and which limit binds -- so the default (whole
+        ! field in 1 round) can be confirmed vs a knob (lbrst/lrcv) taking over.
+        write(6,*) 'mfi_getv  avail: wk=',2*lwk,' w2=',lrbs,
+     $             '  need/elem: nxyzr=',nxyzr,' li=',li
+        write(6,*) 'mfi_getv  batch: nbe=',nbe,' (lbrst=',lbrst,
+     $             ' w2fit=',lrbs/nxyzr,' wkfit=',mtup,')'
+        if (lrcv.gt.0) then
+          write(6,*) 'mfi_getv  round: cap=',cap,' bound by lrcv=',lrcv
+        else
+          write(6,*) 'mfi_getv  round: cap=',cap,
+     $        ' bound by wk default (mtup=',mtup,' mwin=',mwin,')'
+        endif
       endif
 
-      call nekgsync() ! completed both at the origin and at the target when the call returns 
-
+      ! (no nekgsync: err_chk below does iglsum, which syncs)
       if (iskip) then
-         goto 100     ! don't assign the data we just read
+         goto 100     ! don't use the data
       endif
 
-      nxyzr = nxr*nyr*nzr
-      nxyzv = ldim*nxr*nyr*nzr
-      nxyzw = nxr*nyr*nzr
-      if (wdsizr.eq.8) nxyzw = 2*nxyzw
+ 100  call err_chk(ierr,'Error reading restart data,in getv.$')
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine mfi_redist_plan(ke,nb,cap,nrounds,recvcnt,ierr)
+c
+c     Plan the bounded-receive redistribution for ONE read batch:
+c     (1) CSR index: group the nb file-order elements er(ke+1..ke+nb)
+c         by dest rank -> ndest,dstlist,cnt,ioff,ord in /mfi_hs/.
+c     (2) Crystal fan-in/fan-out handshake -> recvcnt (incoming count)
+c         and boff(d) (base offset of this sender's stream to dest d).
+c         nrounds = global ceil(recvcnt/cap).
+c     Collective over all ranks (non-readers have nb=0). np>1 only.
+c
+      include 'SIZE'
+      include 'PARALLEL'        ! gllnid (/hcglb/), np, nid
+      include 'RESTART'         ! er, cr_mfi, rst_etime
+      parameter(lbrst_max=1024) ! send-side bound: batch elems (nb<=lbrst)
+c     handshake recv bound: a dest gets <= its whole local field per batch,
+c     so #contributing sources <= recvcnt <= nelt_hr0 <= lelt (indep. of np).
+      parameter(lhs_mx=lelt)
+      common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
+     $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
+     $               it(3,lhs_mx),ndest
+      integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
+      real*8  etime0,dnekclock_sync
+      integer d,e,base,b,key,nkey,cap,recvcnt,nrounds,ke,nb
+      integer i,j,t,n1,n1max ! loop/index vars (t,n1 are o-z or would default)
 
-      l = 1
-      do e=1,nelt_hr0
-         if (np.gt.1) then
-            ei = e
-         else if(np.eq.1) then
-            ei = ie_map_r2o(er(e),nhrefblkrs)
-         endif
+      etime0  = dnekclock_sync()
+      recvcnt = nb
+      nrounds = 1
 
-         if (if_byte_sw) then
-            if(wdsizr.eq.8) then
-               call byte_reverse8(wkg(l),nxyzv*2,ierr)
-            else
-               call byte_reverse(wkg(l),nxyzv,ierr)
-            endif
-         endif
+      ! ---- CSR index: group batch elements by destination rank ----
+      do i = 1,nb
+        kv(1,i) = gllnid(er(ke+i))   ! dest rank (sort key)
+        kv(2,i) = i                  ! original position in this batch
+      enddo
+      ndest = 0
+#ifdef MPI
+      key = 1
+      nkey = 1
+      if (nb.gt.0)
+     $  call fgslib_crystal_ituple_sort(cr_mfi,kv,2,nb,key,nkey)
+      i = 1                          ! single scan of sorted kv -> CSR
+      do while (i.le.nb)
+        ndest = ndest+1
+        dstlist(ndest) = kv(1,i)
+        ioff(ndest) = i-1            ! 0-based offset into ord()
+        j = i
+        do while (j.le.nb .and. kv(1,j).eq.kv(1,i))
+          ord(j) = kv(2,j)
+          j = j+1
+        enddo
+        cnt(ndest) = j-i
+        i = j
+      enddo
+      ioff(ndest+1) = nb
+      ! collective-safe: check the GLOBAL max so all ranks abort together
+      call lim_chk(iglmax(ndest,1),lbrst_max,'     ','     ','mfi hs d')
 
-         if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then
-            if (wdsizr.eq.4) then         ! COPY
-               call copy4r(u(1,ei),wkg(l        ),nxyzr)
-               call copy4r(v(1,ei),wkg(l+  nxyzw),nxyzr)
-               if (if3d) 
-     $         call copy4r(w(1,ei),wkg(l+2*nxyzw),nxyzr)
-            else
-               call copy  (u(1,ei),wkg(l        ),nxyzr)
-               call copy  (v(1,ei),wkg(l+  nxyzw),nxyzr)
-               if (if3d) 
-     $         call copy  (w(1,ei),wkg(l+2*nxyzw),nxyzr)
-            endif
-         else                             ! INTERPOLATE
-            if (wdsizr.eq.4) then
-               call mapab4r(u(1,ei),wkg(l        ),nxr,1)
-               call mapab4r(v(1,ei),wkg(l+  nxyzw),nxr,1)
-               if (if3d) 
-     $         call mapab4r(w(1,ei),wkg(l+2*nxyzw),nxr,1)
-            else
-               call mapab  (u(1,ei),wkg(l        ),nxr,1)
-               call mapab  (v(1,ei),wkg(l+  nxyzw),nxr,1)
-               if (if3d) 
-     $         call mapab  (w(1,ei),wkg(l+2*nxyzw),nxr,1)
-            endif
-         endif
-         l = l+ldim*nxyzw
+      ! ---- fan-in: route (dest,srcproc,cnt); each dest gathers its counts ----
+      do d = 1,ndest
+        it(1,d) = dstlist(d)         ! proc_key col 1 -> route to dest
+        it(2,d) = nid                ! srcproc (carried)
+        it(3,d) = cnt(d)
+      enddo
+      n1 = ndest
+      key = 1
+      call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lhs_mx,key)
+      ! n1 = #source ranks routing to this dest this batch; bounded by
+      ! recvcnt <= nelt_hr0 <= lhs_mx=lelt (NOT by lbrst_max), so a wide
+      ! fan-in at large np fits. Check the GLOBAL max (collective-safe: all
+      ! ranks abort together, and the diagnostic reports the true max).
+      n1max = iglmax(n1,1)
+      if (n1max.gt.lhs_mx .and. nid.eq.0)
+     $  write(6,*) 'mfi hs r overflow: n1max,lhs_mx=',n1max,lhs_mx
+      call lim_chk(n1max,lhs_mx,'     ','     ','mfi hs r')
+      recvcnt = 0                    ! at dest: rows (?,srcproc,cnt)
+      do t = 1,n1
+        recvcnt = recvcnt+it(3,t)
+      enddo
+      nkey = 1                       ! exclusive prefix over senders (rank order)
+      key  = 2
+      if (n1.gt.0)
+     $  call fgslib_crystal_ituple_sort(cr_mfi,it,3,n1,key,nkey)
+      base = 0
+      do t = 1,n1
+        b = base
+        base = base+it(3,t)
+        it(1,t) = it(2,t)            ! reply dest <- srcproc (proc_key col 1)
+        it(2,t) = nid                ! carry X (=me) so sender maps offset->dest
+        it(3,t) = b                  ! base offset of (srcproc -> X)
       enddo
 
- 100  call err_chk(ierr,'Error reading restart data, in getv.$')
+      ! ---- fan-out: route offsets back to the original senders ----
+      key = 1
+      call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lhs_mx,key)
+      if (n1.ne.ndest) ierr = 1      ! one reply per dest we sent to
+      nkey = 1                       ! sort by X (col 2) -> aligns with dstlist
+      key  = 2
+      if (n1.gt.0)
+     $  call fgslib_crystal_ituple_sort(cr_mfi,it,3,n1,key,nkey)
+      do d = 1,ndest
+        boff(d) = it(3,d)
+      enddo
+
+      nrounds = iglmax((recvcnt+cap-1)/cap,1)
+#endif
+
+      rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine mfi_redist_round(r,cap,nmx,vi,li,w2,nxyzr,ke,n,ierr)
+c
+c     One bounded redistribution round r (0-based) of the current batch:
+c     pack this rank's elements with global stream position in
+c     [r*cap,(r+1)*cap) (contiguous per dest via /mfi_hs/), then
+c     crystal-route. Returns n = received count (<= cap). nmx = vi column
+c     capacity (used by transfer/backstop), so cap can be < nb safely.
+c     Collective over np.
+c
+      include 'SIZE'
+      include 'RESTART'         ! er, cr_mfi, rst_etime
+      parameter(lbrst_max=1024)
+      parameter(lhs_mx=lelt)    ! handshake recv bound (see mfi_redist_plan)
+      common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
+     $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
+     $               it(3,lhs_mx),ndest
+      integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
+      integer vi(li,1)
+      real*4  w2(1)
+      real*8  etime0,dnekclock_sync
+      integer d,e,r,key,cap,nmx,ke,n
+
+      ! ---- pack round r via the index (contiguous per dest) ----
+      etime0 = dnekclock_sync()
+      n = 0
+      do d = 1,ndest
+        jlo = r*cap - boff(d)
+        if (jlo.lt.0) jlo = 0
+        jhi = (r+1)*cap - 1 - boff(d)
+        if (jhi.gt.cnt(d)-1) jhi = cnt(d)-1
+        do j = jlo,jhi
+          e = ord(ioff(d)+1+j)       ! original batch pos (1-based)
+          n = n+1
+          vi(1,n) = dstlist(d)
+          vi(2,n) = er(ke+e)
+          call icopy(vi(3,n),w2((e-1)*nxyzr+1),nxyzr)
+        enddo
+      enddo
+      rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
+
+      ! ---- crystal route this round (recv <= cap by construction) ----
+#ifdef MPI
+      key = 1
+      etime0 = dnekclock_sync()
+      call fgslib_crystal_tuple_transfer(cr_mfi,n,nmx,vi,li,
+     &         vl,0,vr,0,key)
+      rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
+#endif
+      if (n.gt.nmx) ierr = 1
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine mfi_redist_round_rma(r,cap,nmx,vi,li,w2,nxyzr,
+     $                                ke,recvcnt,n,ierr)
+c
+c     RMA counterpart of mfi_redist_round: same /mfi_hs/ index + boff, but
+c     MPI_Put each tuple into a compact stream-position window (rsH, bound to
+c     the 2nd half of wk /scrns/ in mfi) instead of crystal-routing. Global
+c     position p=boff(d)+j lands at the
+c     owner's compact slot p-r*cap; disjoint boff -> no collisions, slots
+c     fill 1..n. n=min(cap,recvcnt-r*cap) (local). Collective MPI_Win_fence
+c     epoch over commrs; np>1 only.
+c
+      include 'mpif.h'
+      include 'SIZE'
+      include 'PARALLEL'        ! nid
+      include 'RESTART'         ! er, rsH, rst_etime
+      parameter(lbrst_max=1024)
+      parameter(lrcv_mx=min(lbrst_max,lelt)) ! <=lelt (see mfi_gets)
+      parameter(lhs_mx=lelt)    ! handshake recv bound (see mfi_redist_plan)
+      common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
+     $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
+     $               it(3,lhs_mx),ndest
+      integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
+      integer vi(li,1)
+      real*4  w2(1)
+      integer idst(lrcv_mx),idsp(lrcv_mx)
+      real*8  etime0,dnekclock_sync
+      integer d,e,r,cap,nmx,ke,n,recvcnt,nsend,m,jlo,jhi
+      integer*8 disp
+
+      n = recvcnt - r*cap        ! this rank's received count this round
+      if (n.gt.cap) n = cap
+      if (n.lt.0)   n = 0
+
+#ifdef MPI
+      ! ---- pack round r (as in CR) + record target rank (idst) and
+      !      compact slot (idsp) per column ----
+      etime0 = dnekclock_sync()
+      nsend = 0
+      do d = 1,ndest
+        jlo = r*cap - boff(d)
+        if (jlo.lt.0) jlo = 0
+        jhi = (r+1)*cap - 1 - boff(d)
+        if (jhi.gt.cnt(d)-1) jhi = cnt(d)-1
+        do j = jlo,jhi
+          e = ord(ioff(d)+1+j)     ! original batch pos (1-based)
+          nsend = nsend + 1
+          vi(1,nsend) = dstlist(d)
+          vi(2,nsend) = er(ke+e)
+          call icopy(vi(3,nsend),w2((e-1)*nxyzr+1),nxyzr)
+          idst(nsend) = dstlist(d)
+          idsp(nsend) = boff(d) + j - r*cap
+        enddo
+      enddo
+      if (nsend.gt.nmx) ierr = 1
+      rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
+
+      ! ---- transport: compact one-sided Put into rsH (fence epoch) ----
+      etime0 = dnekclock_sync()
+      call MPI_Win_fence(0,rsH,ierr)
+      do m = 1,nsend
+        disp = int(idsp(m),8) * int(li,8)
+        call MPI_Put(vi(1,m),li,MPI_REAL4,idst(m),
+     $               disp,li,MPI_REAL4,rsH,ierr)
+      enddo
+      call MPI_Win_fence(0,rsH,ierr)
+      rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
+#endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine mfi_assign_recv(recv,li,n,nfld,u,v,w,
+     $                           nxr,nyr,nzr,wdsizr,if_byte_sw,
+     $                           nhrefblkrs,ierr)
+c
+c     Assign n received tuples from recv (li words/column = [nid,iel,payload])
+c     into the target field(s). li = 2+nxyzr is RUNTIME (tuple width scales
+c     with the actual field), so recv is an adjustable array recv(li,1) -- the
+c     reason this helper exists (a fixed-li version would just inline). Shared
+c     by CR (recv = wk send/recv slice) and RMA (recv = window slice), and by
+c     mfi_gets (nfld=1, u) and mfi_getv (nfld=ldim, comps at 0,nw,2*nw).
+c     nhrefblkrs passed in (not via RESTART) to avoid the /cmfi_i/ COMMON vs
+c     DUMMY clash (nxr/wdsizr/if_byte_sw), same as mfi_assign_elem.
+c
+      include 'SIZE'
+      include 'INPUT'           ! if3d
+      include 'PARALLEL'        ! gllel
+      integer recv(li,1)
+      real    u(lx1*ly1*lz1,1),v(lx1*ly1*lz1,1),w(lx1*ly1*lz1,1)
+      integer nfld,li,n,nhrefblkrs
+      integer nxr,nyr,nzr,wdsizr
+      logical if_byte_sw
+
+      npts = nxr*nyr*nzr
+      nw   = npts
+      if (wdsizr.eq.8) nw = 2*npts
+      do iloc = 1,n
+        iel = ie_map_r2o(gllel(recv(2,iloc)),nhrefblkrs)
+        call mfi_assign_elem(u(1,iel),recv(3      ,iloc),npts,
+     $                       nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+        if (nfld.ge.2)
+     $  call mfi_assign_elem(v(1,iel),recv(3+nw   ,iloc),npts,
+     $                       nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+        if (nfld.ge.3 .and. if3d)
+     $  call mfi_assign_elem(w(1,iel),recv(3+2*nw ,iloc),npts,
+     $                       nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine mfi_assign_elem(u,src,npts,nxr,nyr,nzr,
+     $                           wdsizr,if_byte_sw,ierr)
+c
+c     Assign one field/component from payload src into slot u: optional
+c     endian byte-swap, then copy (nxr==lx1) or interpolate (nxr->lx1).
+c     wdsizr=8: src is real*4 reinterpreted as real*8 (2 slots/value).
+c
+      include 'SIZE'
+      real    u(1)              ! destination (one elem/comp)
+      real*4  src(1)            ! real*4 payload (r*8 if wdsizr=8)
+      integer npts,nxr,nyr,nzr,wdsizr,ierr
+      logical if_byte_sw
+
+      if (if_byte_sw) then
+         if (wdsizr.eq.8) then
+            call byte_reverse8(src,npts*2,ierr)
+         else
+            call byte_reverse (src,npts  ,ierr)
+         endif
+      endif
+
+      if (nxr.eq.lx1.and.nyr.eq.ly1.and.nzr.eq.lz1) then  ! COPY
+         if (wdsizr.eq.4) then
+            call copy4r(u,src,npts)
+         else
+            call copy  (u,src,npts)
+         endif
+      else                                                ! INTERPOLATE
+         if (wdsizr.eq.4) then
+            call mapab4r(u,src,nxr,1)
+         else
+            call mapab  (u,src,nxr,1)
+         endif
+      endif
 
       return
       end
@@ -2553,7 +2854,12 @@ c
       character*1    frontc
 
       parameter (lwk = 7*lx1*ly1*lz1*lelt)
-      common /scrns/ wk(lwk)
+c     wk (/scrns/) as real*4 (2*lwk words): passed to mfi_gets/getv as the CR/
+c     RMA send+recv buffer; for RMA its 2nd half is the MPI window, created and
+c     freed PER RESTART below so /scrns/ is untouched between restarts (no
+c     persistent aliasing -- safe for mid-run restart). No dedicated /mfi_rwin/.
+      real*4 wk(2*lwk)
+      common /scrns/ wk
       common /scrcg/ pm1(lx1*ly1*lz1,lelv)
       integer e
 
@@ -2563,35 +2869,36 @@ c
 
       real*8 etime0,dnekclock_sync
 
-      integer   disp_unit
       integer*8 win_size
 
 #ifdef MPI
       lbrst = min(lbrst, lelt)
+      nelt_hr0 = nelt ! upper bound. later reset by href: nelt_hr0=nelt/nhrefblkrs
       if (lbrst.lt.nelt_hr0.AND.nio.eq.0)
      $  write(*,*)'Batched restart with lbrst',lbrst,nelt_hr0
 
       call rzero(rst_etime,4) ! mpiio / pack / transfer / unpack
 
-      if (ifcrrs) then
+      ! Both paths use the crystal handshake (mfi_redist_plan) to size
+      ! batches/rounds; RMA additionally needs an MPI window. The window is
+      ! the 2nd half of wk (/scrns/), created here and freed at the end of
+      ! mfi (per restart) so /scrns/ is untouched between restarts. The 1st
+      ! half of wk is the RMA send-pack buffer (see mfi_getv).
+      if (np.gt.1) then
         call fgslib_crystal_setup(cr_mfi,nekcomm,np)
-      else
-        disp_unit = 4
-        win_size = int(disp_unit,8)*size(wk)
-        if (lbrst.lt.nelt_hr0) then
-          win_size = int(disp_unit,8)*(7*lx1*ly1*lz1*lbrst)*(wdsize/4)
-        endif
-
-        if (commrs .eq. MPI_COMM_NULL) then
-          call mpi_comm_dup(nekcomm,commrs,ierr)
-          call MPI_Win_create(wk,
-     $                        win_size,
-     $                        disp_unit,
-     $                        MPI_INFO_NULL,
-     $                        commrs,rsH,ierr)
-
-          if (ierr .ne. 0 ) call exitti('MPI_Win_allocate failed!$',0)
-          call rzero(wk,lwk) ! avoid unexpected FE_INVALID
+        if (.not.ifcrrs) then
+          if (commrs .eq. MPI_COMM_NULL)
+     $      call mpi_comm_dup(nekcomm,commrs,ierr)
+          win_size = int(lwk,8)*4         ! 2nd half = lwk real*4 = lwk*4 bytes
+          call MPI_Win_create(wk(lwk+1),win_size,4,
+     $                        MPI_INFO_NULL,commrs,rsH,ierr)
+          if (ierr .ne. 0 ) call exitti('MPI_Win_create failed!$',0)
+c         rzero takes default real (=real*8): lwk real*8 words == the whole
+c         2*lwk real*4 wk (send half + window half). Zeroing the window half
+c         avoids FE_INVALID; zeroing the whole buffer is the aligned, no-
+c         overflow way to do it (rzero(wk(lwk+1),lwk) would run 4*lwk bytes
+c         past the end since real*8 counts are 2x the real*4 words).
+          call rzero(wk,lwk)
         endif
       endif
 #endif
@@ -2743,8 +3050,9 @@ c               if(nid.eq.0) write(6,'(A,I2,A)') ' Reading ps',k,' field'
       if (ifgetp) call map_pm1_to_pr(pm1,ifile) ! Interpolate pressure
 
 #ifdef MPI
-      if (ifcrrs) then
-        call fgslib_crystal_free(cr_mfi)
+      if (np.gt.1) then                 ! matched to the np>1 setup above
+        if (.not.ifcrrs) call MPI_Win_free(rsH,ierr) ! per-restart RMA window
+        call fgslib_crystal_free(cr_mfi) ! handshake used by CR and RMA
       endif
 
       etime0 = rst_etime(1)+rst_etime(2)+rst_etime(3)+rst_etime(4)
