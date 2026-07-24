@@ -786,6 +786,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine gtpp_gs_setup(hndl,nelgx,nelgy,nelgz,idir)
+      use c_is1_mod
 
       include 'SIZE'
       include 'TOTAL'
@@ -793,9 +794,11 @@ c-----------------------------------------------------------------------
       integer hndl,nelgx,nelgy,nelgz,idir
 
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
-      common /c_is1/ glo_num(lx1,ly1,lz1,lelv)
+      integer*8, pointer :: glo_num(:,:,:,:)
       integer e,ex,ey,ez,eg
-      integer*8 glo_num,ex_g
+      integer*8 ex_g
+
+      glo_num(1:lx1,1:ly1,1:lz1,1:lelv) => cb_c_is1(1:lx1*ly1*lz1*lelv)
 
       nelgxyz = nelgx*nelgy*nelgz
       if (nelgxyz .ne. nelgv)
@@ -858,6 +861,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine gs_setup_ms(hndl,nel,nx,ny,nz)
+      use c_is1_mod
 
       include 'SIZE'
       include 'TOTAL'
@@ -866,8 +870,9 @@ c-----------------------------------------------------------------------
       integer hndl
       integer e,eg
 
-      common /c_is1/ glo_num(lx1*ly1*lz1*lelt)
-      integer*8 glo_num
+      integer*8, pointer :: glo_num(:)
+
+      glo_num(1:lx1*ly1*lz1*lelt) => cb_c_is1(1:lx1*ly1*lz1*lelt)
 
       do e=1,nel
          eg = lglel(e)

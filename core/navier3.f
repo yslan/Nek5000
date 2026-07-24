@@ -1,4 +1,5 @@
       SUBROUTINE EPREC2(Z2,R2)
+      use scrns_mod
 C----------------------------------------------------------------
 C
 C     Precondition the explicit pressure operator (E) with
@@ -17,17 +18,29 @@ C----------------------------------------------------------------
       INCLUDE 'TSTEP'
       REAL           Z2   (LX2,LY2,LZ2,LELV)
       REAL           R2   (LX2,LY2,LZ2,LELV)
-      COMMON /SCRNS/ MASK (LX1,LY1,LZ1,LELV)
-     $              ,R1   (LX1,LY1,LZ1,LELV)
-     $              ,X1   (LX1,LY1,LZ1,LELV)
-     $              ,W2   (LX2,LY2,LZ2,LELV)
-     $              ,H1   (LX1,LY1,LZ1,LELV)
-     $              ,H2   (LX1,LY1,LZ1,LELV)
-      REAL    MASK
+      real, pointer :: MASK(:,:,:,:),R1(:,:,:,:),X1(:,:,:,:)
+     $               , W2(:,:,:,:),H1(:,:,:,:),H2(:,:,:,:)
 c
       integer icalld
       save    icalld
       data    icalld/0/
+
+      MASK(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      R1  (1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      X1  (1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      W2  (1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv
+     $                                 + lx2*ly2*lz2*lelv)
+      H1  (1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv+1
+     $          : 4*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
+      H2  (1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv+1
+     $          : 5*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
+
       icalld=icalld+1
 c
       ntot2  = lx2*ly2*lz2*nelv
@@ -59,7 +72,12 @@ c
       include 'CTIMER'
 c
       real u(1),v(1)
-      common /scrprc/ uc(lx1*ly1*lz1*lelt)
+      real, allocatable, target, save :: cb_scrprc(:)
+      real, pointer :: uc(:)
+
+      if (.not. allocated(cb_scrprc))
+     $   allocate(cb_scrprc(lx1*ly1*lz1*lelt))
+      uc(1:lx1*ly1*lz1*lelt) => cb_scrprc(1:lx1*ly1*lz1*lelt)
 c
       if (icalld.eq.0) then
          tddsl=0.0

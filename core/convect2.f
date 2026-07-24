@@ -14,16 +14,23 @@ c                     ~  1.16 for N=256
 c
 c-----------------------------------------------------------------------
       subroutine setup_convect(igeom)
+      use scruz_mod
       include 'SIZE'
       include 'TOTAL'
       logical ifnew
 
       common /cchar/ ct_vx(0:lorder+1) ! time for each slice in c_vx()
 
-      common /scruz/ cx  (lx1*ly1*lz1*lelt)
-     $ ,             cy  (lx1*ly1*lz1*lelt)
-     $ ,             cz  (lx1*ly1*lz1*lelt)
-     $ ,             hmsk(lx1*ly1*lz1*lelt)
+      real, pointer :: cx(:), cy(:), cz(:), hmsk(:)
+
+      cx  (1:lx1*ly1*lz1*lelt) => cb_scruz(0*lx1*ly1*lz1*lelt+1
+     $                                    : 1*lx1*ly1*lz1*lelt)
+      cy  (1:lx1*ly1*lz1*lelt) => cb_scruz(1*lx1*ly1*lz1*lelt+1
+     $                                    : 2*lx1*ly1*lz1*lelt)
+      cz  (1:lx1*ly1*lz1*lelt) => cb_scruz(2*lx1*ly1*lz1*lelt+1
+     $                                    : 3*lx1*ly1*lz1*lelt)
+      hmsk(1:lx1*ly1*lz1*lelt) => cb_scruz(3*lx1*ly1*lz1*lelt+1
+     $                                    : 4*lx1*ly1*lz1*lelt)
 
 
       if (igeom.eq.1) return
@@ -72,7 +79,8 @@ c            call set_char_mask(hmsk,vx,vy,vz) ! mask for hyperbolic system
       return
       end
 c-----------------------------------------------------------------------
-      subroutine set_char_mask(mask,u,v,w) ! mask for hyperbolic system 
+      subroutine set_char_mask(mask,u,v,w) ! mask for hyperbolic system
+      use ctmp1_mod
 
       include 'SIZE'
       include 'INPUT'
@@ -82,11 +90,13 @@ c-----------------------------------------------------------------------
       integer msk(0:1)
       character      cb*3
       parameter (lxyz1=lx1*ly1*lz1)
-      common /ctmp1/ work(lxyz1,lelt)
+      real, pointer :: work(:,:)
 
       real mask(lxyz1,1),u(lxyz1,1),v(lxyz1,1),w(lxyz1,1)
 
       integer e,f
+
+      work(1:lxyz1,1:lelt) => cb_ctmp1(1 : lxyz1*lelt)
 
       nfaces= 2*ldim
       ntot1 = lx1*ly1*lz1*nelv

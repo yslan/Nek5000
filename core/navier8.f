@@ -35,6 +35,7 @@ c
 c-----------------------------------------------------------------------
 c
       subroutine crs_solve_l2(uf,vf)
+      use scrpre_mod
 c
 c     Given an input vector v, this generates the H1 coarse-grid solution
 c
@@ -47,7 +48,11 @@ c
       include 'INPUT'
       include 'TSTEP'
       real uf(1),vf(1)
-      common /scrpre/ uc(lcr*lelt),w(2*lx1*ly1*lz1)
+      real, pointer :: uc(:), w(:)
+
+      uc(1:lcr*lelt) => cb_scrpre(1 : lcr*lelt)
+      w(1:2*lx1*ly1*lz1) => cb_scrpre(lcr*lelt+1
+     $                                : lcr*lelt+2*lx1*ly1*lz1)
 
       call map_f_to_c_l2_bilin(uf,vf,w)
       call crs_solve(xxth(ifield),uc,uf)
@@ -81,6 +86,10 @@ c      end
 c-----------------------------------------------------------------------
 c
       subroutine set_up_h1_crs
+      use scrns_mod
+      use scrxxti_mod
+      use scrxxt_mod
+      use ivrtx_mod
 
       include 'SIZE'
       include 'GEOM'
@@ -90,34 +99,49 @@ c
       include 'TSTEP'
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
 
-      common /ivrtx/ vertex ((2**ldim)*lelt)
-      integer*8 vertex
+
+      integer*8 ngv
+      integer*8, pointer :: vertex(:)
 
       integer gs_handle
       integer null_space,e
 
       character*3 cb
-      common /scrxxt/ cmlt(lcr,lelv),mask(lcr,lelv)
-      common /scrxxti/ ia(lcr,lcr,lelv), ja(lcr,lcr,lelv)
-      real mask
-      integer ia,ja
+      real, pointer :: cmlt(:,:), mask(:,:)
+      integer, pointer :: ia(:,:,:), ja(:,:,:)
       real z
 
-      common /scrch/ iwork(2,lx1*ly1*lz1*lelv)
-      common /scrns/ w(7*lx1*ly1*lz1*lelv)
-      common /vptsol/ a(27*lx1*ly1*lz1*lelv)
-      integer w
-      real wr(1)
-      equivalence (wr,w)
+      real, allocatable, target, save :: cb_scrvhx(:), cb_scrmgx(:)
+      real, pointer :: a(:)
+      real, pointer :: h1(:), h2(:)
+      real, pointer :: w1(:), w2(:)
 
-      common /scrvhx/ h1(lx1*ly1*lz1*lelv),h2(lx1*ly1*lz1*lelv)
-      common /scrmgx/ w1(lx1*ly1*lz1*lelv),w2(lx1*ly1*lz1*lelv)
-
-      integer*8 ngv
       character*132 amgfile_c
       character*1   fname1(132)
       equivalence  (fname1,amgfile_c)
       integer nnamg
+
+      a(1:(2**ldim)*(2**ldim)*lelv) =>
+     $   cb_scrns(1 : (2**ldim)*(2**ldim)*lelv)
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
+      cmlt(1:lcr,1:lelv) => cb_scrxxt(0*lcr*lelv+1 : 1*lcr*lelv)
+      mask(1:lcr,1:lelv) => cb_scrxxt(1*lcr*lelv+1 : 2*lcr*lelv)
+      ia(1:lcr,1:lcr,1:lelv) => cb_scrxxti(0*lcr*lcr*lelv+1
+     $                                    : 1*lcr*lcr*lelv)
+      ja(1:lcr,1:lcr,1:lelv) => cb_scrxxti(1*lcr*lcr*lelv+1
+     $                                    : 2*lcr*lcr*lelv)
+      if (.not. allocated(cb_scrvhx))
+     $   allocate(cb_scrvhx(2*lx1*ly1*lz1*lelv))
+      if (.not. allocated(cb_scrmgx))
+     $   allocate(cb_scrmgx(2*lx1*ly1*lz1*lelv))
+      h1(1:lx1*ly1*lz1*lelv) => cb_scrvhx(0*lx1*ly1*lz1*lelv+1
+     $                                   : 1*lx1*ly1*lz1*lelv)
+      h2(1:lx1*ly1*lz1*lelv) => cb_scrvhx(1*lx1*ly1*lz1*lelv+1
+     $                                   : 2*lx1*ly1*lz1*lelv)
+      w1(1:lx1*ly1*lz1*lelv) => cb_scrmgx(0*lx1*ly1*lz1*lelv+1
+     $                                   : 1*lx1*ly1*lz1*lelv)
+      w2(1:lx1*ly1*lz1*lelv) => cb_scrmgx(1*lx1*ly1*lz1*lelv+1
+     $                                   : 2*lx1*ly1*lz1*lelv)
 
       t0 = dnekclock()
 
@@ -605,6 +629,7 @@ c
 c-----------------------------------------------------------------------
 c
       subroutine get_local_crs(a,lda,nxc,h1,h2,w,ldw)
+      use ctmp1_mod
 c
 c     This routine generates Nelv submatrices of order nxc^ldim.
 c
@@ -621,8 +646,11 @@ c
       real   a(1),h1(1),h2(1),w(ldw)
 c
       parameter (lcrd=lx1**ldim)
-      common /ctmp1/ x(lcrd),y(lcrd),z(lcrd)
+      real, pointer :: x(:),y(:),z(:)
 c
+      x(1:lcrd) => cb_ctmp1(0*lcrd+1 : 1*lcrd)
+      y(1:lcrd) => cb_ctmp1(1*lcrd+1 : 2*lcrd)
+      z(1:lcrd) => cb_ctmp1(2*lcrd+1 : 3*lcrd)
 c
       ncrs_loc = nxc**ldim
       n2       = ncrs_loc*ncrs_loc
@@ -1488,6 +1516,9 @@ c
 c-----------------------------------------------------------------------
 c
       subroutine crs_solve_h1(uf,vf)
+      use scrpre_mod
+      use scrpr2_mod
+      use scrxxt_mod
 c
 c     Given an input vector v, this generates the H1 coarse-grid solution
 c
@@ -1501,15 +1532,19 @@ c
       include 'TSTEP'
 
       real uf(1),vf(1)
-      common /scrpre/ uc(lcr*lelt)
-      common /scrpr2/ vc(lcr*lelt)
-      common /scrxxt/ cmlt(lcr,lelv),mask(lcr,lelv)
+      real, pointer :: uc(:)
+      real, pointer :: vc(:)
+      real, pointer :: cmlt(:,:), mask(:,:)
 
       integer icalld1
       save    icalld1
       data    icalld1 /0/
 
-      
+      uc(1:lcr*lelt) => cb_scrpre(1 : lcr*lelt)
+      vc(1:lcr*lelt) => cb_scrpr2(1 : lcr*lelt)
+      cmlt(1:lcr,1:lelv) => cb_scrxxt(0*lcr*lelv+1 : 1*lcr*lelv)
+      mask(1:lcr,1:lelv) => cb_scrxxt(1*lcr*lelv+1 : 2*lcr*lelv)
+
       if (icalld1.eq.0) then ! timer info
          ncrsl=0
          tcrsl=0.0
@@ -1554,6 +1589,7 @@ c
 c-----------------------------------------------------------------------
 c
       subroutine map_c_to_f_h1_bilin(uf,uc)
+      use ctmp0_mod
 c
 c     H1 Iterpolation operator:  linear --> spectral GLL mesh
 c
@@ -1564,11 +1600,16 @@ c
       parameter (lxyz = lx1*ly1*lz1)
       real uc(2,2,ldim-1,lelt),uf(lxyz,lelt)
       parameter (l2 = ldim-1)
-      common /ctmp0/ w(lx1,lx1,2),v(lx1,2,l2,lelt)
+      real, pointer :: w(:,:,:),v(:,:,:,:)
 c
       integer icalld
       save    icalld
       data    icalld/0/
+
+      w(1:lx1,1:lx1,1:2) => cb_ctmp0(0*lx1*lx1*2+1 : 1*lx1*lx1*2)
+      v(1:lx1,1:2,1:l2,1:lelt) => cb_ctmp0(1*lx1*lx1*2+1
+     $                                   : 1*lx1*lx1*2+lx1*2*l2*lelt)
+
       if (icalld.eq.0) then
          icalld=icalld+1
          call set_h1_basis_bilin
@@ -1603,6 +1644,7 @@ c
 c-----------------------------------------------------------------------
 c
       subroutine map_f_to_c_h1_bilin(uc,uf)
+      use ctmp0_mod
 c
 c     TRANSPOSE of H1 Iterpolation operator:                    T
 c                                 (linear --> spectral GLL mesh)
@@ -1613,11 +1655,16 @@ c
 c
       parameter (lxyz = lx1*ly1*lz1)
       real uc(lcr,lelt),uf(lx1,ly1,lz1,lelt)
-      common /ctmp0/ w(2,2,lx1),v(2,ly1,lz1,lelt)
+      real, pointer :: w(:,:,:),v(:,:,:,:)
 c
       integer icalld
       save    icalld
       data    icalld/0/
+
+      w(1:2,1:2,1:lx1) => cb_ctmp0(0*4*lx1+1 : 1*4*lx1)
+      v(1:2,1:ly1,1:lz1,1:lelt) => cb_ctmp0(1*4*lx1+1
+     $                                    : 1*4*lx1+2*ly1*lz1*lelt)
+
       if (icalld.eq.0) then
          icalld=icalld+1
          call set_h1_basis_bilin
@@ -1776,11 +1823,13 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine get_vertex
+      use ivrtx_mod
       include 'SIZE'
       include 'TOTAL'
 
-      common /ivrtx/ vertex ((2**ldim)*lelt)
-      integer*8 vertex
+      integer*8, pointer :: vertex(:)
+
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
 
       call get_vert
 
@@ -2002,6 +2051,9 @@ c     Use 2*m since tuple = int*8
       end
 c-----------------------------------------------------------------------
       subroutine setvert3d(glo_num,ngv,nx,nel,vertex,ifcenter)
+      use scrns_mod
+      use scrmg_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 c
 c     setup unique ids for dssum  
 c     note:
@@ -2020,23 +2072,31 @@ c
       integer*8 vertex(0:1,0:1,0:1,1)
       logical ifcenter
 
-      integer*8 edge(0:1,0:1,0:1,3,lelt),enum(12,lelt),fnum(6,lelt)
-      common  /scrmg/ edge,enum,fnum
+      integer*8, pointer :: edge0(:), enum(:,:), fnum(:,:)
+      integer*8, pointer :: edge(:,:,:,:,:)
 
       parameter (nsafe=8)  ! OFTEN, nsafe=2 suffices
-      integer*8 etuple(4,12*lelt*nsafe),ftuple(5,6,lelt*nsafe)
-      integer ind(12*lelt*nsafe)
-      common  /scrns/ etuple,ind
-      equivalence  (etuple,ftuple)
+      integer*8, pointer :: etuple(:,:),ftuple(:,:,:)
+      integer,   pointer :: ind(:)
 
       logical ifij
 
       integer e,eg
       integer*8 gvf(4),facet(4)
-      
+
       integer*8 ngvv,ngve,ngvs,ngvi,ngvm,igv,ig0
       integer*8 n_on_edge,n_on_face,n_in_interior,n_unique_edges
       integer*8 i8glmax,kswap
+
+      call c_f_pointer(c_loc(cb_scrmg(1)), edge0, [2*2*2*3*lelt])
+      edge(0:1,0:1,0:1,1:3,1:lelt) => edge0
+      call c_f_pointer(c_loc(cb_scrmg(24*lelt+1)), enum, [12,lelt])
+      call c_f_pointer(c_loc(cb_scrmg(36*lelt+1)), fnum, [6,lelt])
+
+      call c_f_pointer(c_loc(cb_scrns(1)), etuple, [4,12*lelt*nsafe])
+      call c_f_pointer(c_loc(cb_scrns(1)), ftuple, [5,6,lelt*nsafe])
+      call c_f_pointer(c_loc(cb_scrns(4*12*lelt*nsafe+1)), ind,
+     $                 [12*lelt*nsafe])
 
       ny   = nx
       nz   = nx
@@ -2360,8 +2420,11 @@ c     Quick check on maximum #dofs:
       end
 c-----------------------------------------------------------------------
       subroutine setvert2d(glo_num,ngv,nx,nel,vertex,ifcenter)
+      use scrns_mod
+      use scrmg_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 c
-c     setup unique ids for dssum  
+c     setup unique ids for dssum
 c
       include 'SIZE'
       include 'CTIMER'
@@ -2374,13 +2437,12 @@ c
       integer*8 vertex(0:1,0:1,1)
       logical ifcenter
 
-      integer*8  edge(0:1,0:1,2,lelt),enum(4,lelt)
-      common  /scrmg/ edge,enum
+      integer*8, pointer :: edge0(:), enum(:,:)
+      integer*8, pointer :: edge(:,:,:,:)
 
       parameter (nsafe=8)  ! OFTEN, nsafe=2 suffices
-      integer*8 etuple(4,4*lelt*nsafe)
-      integer   ind(4*lelt*nsafe)
-      common  /scrns/ etuple,ind
+      integer*8, pointer :: etuple(:,:)
+      integer,   pointer :: ind(:)
 
       integer e,eg
       logical ifij
@@ -2390,6 +2452,14 @@ c
       integer*8 i8glmax,kswap
 
 c     memory check...
+
+      call c_f_pointer(c_loc(cb_scrmg(1)), edge0, [2*2*2*lelt])
+      edge(0:1,0:1,1:2,1:lelt) => edge0
+      call c_f_pointer(c_loc(cb_scrmg(8*lelt+1)), enum, [4,lelt])
+
+      call c_f_pointer(c_loc(cb_scrns(1)), etuple, [4,4*lelt*nsafe])
+      call c_f_pointer(c_loc(cb_scrns(4*4*lelt*nsafe+1)), ind,
+     $                 [4*lelt*nsafe])
 
       ny   = nx
       nz   = 1

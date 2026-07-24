@@ -8,7 +8,7 @@ set -a
 #NEK_SOURCE_ROOT="$HOME/Nek5000" 
 
 # Fortran/C compiler
-#FC="mpif77"
+#FC="mpif90"
 #CC="mpicc"
 
 # Linker

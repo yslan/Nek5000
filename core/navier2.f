@@ -173,6 +173,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine gradm11(ux,uy,uz,u,e)
+      use ctmp1_mod
 c
 c     Compute gradient of T -- mesh 1 to mesh 1 (vel. to vel.)
 c
@@ -187,9 +188,13 @@ c
       parameter (lxyz=lx1*ly1*lz1)
       real ux(lxyz),uy(lxyz),uz(lxyz),u(lxyz,1)
 c
-      common /ctmp1/ ur(lxyz),us(lxyz),ut(lxyz)
+      real, pointer :: ur(:),us(:),ut(:)
 c
       integer e
+
+      ur(1:lxyz) => cb_ctmp1(0*lxyz+1 : 1*lxyz)
+      us(1:lxyz) => cb_ctmp1(1*lxyz+1 : 2*lxyz)
+      ut(1:lxyz) => cb_ctmp1(2*lxyz+1 : 3*lxyz)
 
 c
       N = lx1-1

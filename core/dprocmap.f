@@ -69,11 +69,10 @@ c     for its local and some remote elements.
 c
 c-----------------------------------------------------------------------
       subroutine dProcmapInit()
-
-      include 'mpif.h'
       include 'SIZE'
       include 'PARALLEL'
       include 'DPROCMAP'
+      include 'mpif.h'
 
       common /nekmpi/ nid_,np_,nekcomm,nekgroup,nekreal
 
@@ -100,11 +99,10 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine dProcmapPut(ibuf,lbuf,ioff,eg)
-
-      include 'mpif.h'
       include 'SIZE'
       include 'PARALLEL'
       include 'DPROCMAP'
+      include 'mpif.h'
 
       integer ibuf(lbuf),eg
       integer*8 disp
@@ -128,11 +126,10 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine dProcmapGet(ibuf,eg)
-
-      include 'mpif.h'
       include 'SIZE'
       include 'PARALLEL'
       include 'DPROCMAP'
+      include 'mpif.h'
 
       integer ibuf(2),eg
 
@@ -252,8 +249,8 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       integer function gllnid(eg)
-
       include 'SIZE'
+      include 'DPROCMAP'
       include 'mpif.h'
 
       integer egl, nidl, icalld
@@ -262,7 +259,6 @@ c-----------------------------------------------------------------------
 
       integer ibuf(2),eg
 
-      include 'DPROCMAP'
 
       integer n_in_sort,n_in_unsort
       common  /mycache/ n_in_sort,n_in_unsort

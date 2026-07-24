@@ -1,11 +1,13 @@
 c-----------------------------------------------------------------------
       subroutine h_refine_usrdat2(ncut) ! interface to oct-refine code
+      use c_is1_mod
       include 'SIZE'
       include 'TOTAL'
 
       parameter (lxyz=lx1*ly1*lz1)
-      common /c_is1/ glo_num(lxyz*lelt)
-      integer*8 glo_num
+      integer*8, pointer :: glo_num(:)
+
+      glo_num(1:lxyz*lelt) => cb_c_is1(1:lxyz*lelt)
 
       ncut_o = ncut
       nelv_o = nelv
@@ -25,6 +27,8 @@ c     call outpost(xm1,ym1,zm1,pr,t,'   ')
       end
 c-----------------------------------------------------------------------
       subroutine h_refine(glo_num,ncut)
+      use scrns_mod
+      use ivrtx_mod
 c
 c     Refine mesh including derivated vars
 c                                   ncut = 1 --> do nothing
@@ -40,12 +44,9 @@ c                                   ncut = 4 --> 64x number of elements
       integer e,eg,egn,el,en,er,es,et
 
       parameter(lxyz=lx1*ly1*lz1,mxmin=512,mxnew=max(mxmin,lelt))
-      common /scrns/ x0(lxyz,mxnew),y0(lxyz,mxnew),z0(lxyz,mxnew)
-     $             , pc(lx1*lx1,mxnew),pt(lx1*lx1,mxnew)
-      real x0,y0,z0,pc,pt
+      real, pointer :: x0(:,:),y0(:,:),z0(:,:),pc(:,:),pt(:,:)
 
-      common /ivrtx/ vertex ((2**ldim),lelt)
-      integer*8 vertex
+      integer*8, pointer :: vertex(:,:)
       integer*8 ngv
 
       integer ibuf(2)
@@ -54,6 +55,16 @@ c                                   ncut = 4 --> 64x number of elements
       integer isym2pre(8)   ! Symmetric-to-prenek vertex ordering
       save    isym2pre
       data    isym2pre / 1 , 2 , 4 , 3 , 5 , 6 , 8 , 7 /
+
+      x0(1:lxyz,1:mxnew) => cb_scrns(0*lxyz*mxnew+1 : 1*lxyz*mxnew)
+      y0(1:lxyz,1:mxnew) => cb_scrns(1*lxyz*mxnew+1 : 2*lxyz*mxnew)
+      z0(1:lxyz,1:mxnew) => cb_scrns(2*lxyz*mxnew+1 : 3*lxyz*mxnew)
+      pc(1:lx1*lx1,1:mxnew) =>
+     $   cb_scrns(3*lxyz*mxnew+1 : 3*lxyz*mxnew+lx1*lx1*mxnew)
+      pt(1:lx1*lx1,1:mxnew) =>
+     $   cb_scrns(3*lxyz*mxnew+lx1*lx1*mxnew+1
+     $          : 3*lxyz*mxnew+2*lx1*lx1*mxnew)
+      vertex(1:(2**ldim),1:lelt) => cb_ivrtx(1:(2**ldim)*lelt)
 
       nvrt = ncut+1
       nblk = ncut**ldim
@@ -255,10 +266,11 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine h_refine_set_interp_mat(nx,ncut,pc,pt,ifrecomp)
+      include 'SIZE'
+
 c     interp mat for h-refine, GLL
 c        nx: npts in 1 direction
 c        ncut: new nel in 1 direction
-      include 'SIZE'
 
       logical ifrecomp
       integer nx,ncut
@@ -461,6 +473,7 @@ c-----------------------------------------------------------------------
 c     h refine + restart
 c-----------------------------------------------------------------------
       subroutine h_refine_fld(u,nel,ncut)
+      use scrns_mod
 c     apply one round of refinement to a field
       include 'SIZE'
 
@@ -468,9 +481,16 @@ c     apply one round of refinement to a field
       integer e,eg,egn,el,en,er,es,et
 
       parameter(lxyz=lx1*ly1*lz1,mxmin=512,mxnew=max(mxmin,lelt))
-      common /scrns/ x0(lxyz,mxnew),y0(lxyz,mxnew),z0(lxyz,mxnew)
-     $             , pc(lx1*lx1,mxnew),pt(lx1*lx1,mxnew)
-      real x0,y0,z0,pc,pt
+      real, pointer :: x0(:,:),y0(:,:),z0(:,:),pc(:,:),pt(:,:)
+
+      x0(1:lxyz,1:mxnew) => cb_scrns(0*lxyz*mxnew+1 : 1*lxyz*mxnew)
+      y0(1:lxyz,1:mxnew) => cb_scrns(1*lxyz*mxnew+1 : 2*lxyz*mxnew)
+      z0(1:lxyz,1:mxnew) => cb_scrns(2*lxyz*mxnew+1 : 3*lxyz*mxnew)
+      pc(1:lx1*lx1,1:mxnew) =>
+     $   cb_scrns(3*lxyz*mxnew+1 : 3*lxyz*mxnew+lx1*lx1*mxnew)
+      pt(1:lx1*lx1,1:mxnew) =>
+     $   cb_scrns(3*lxyz*mxnew+lx1*lx1*mxnew+1
+     $          : 3*lxyz*mxnew+2*lx1*lx1*mxnew)
 
       nblk = ncut**ldim
       call lim_chk(nblk,mxnew,'nblk ','mxnew',' h_refine_fld ')
@@ -536,6 +556,7 @@ c-----------------------------------------------------------------------
       subroutine h_refine_readfld(xm1_,ym1_,zm1_,vx_,vy_,vz_
      $                           ,pm1_,t_,ps_, refine, refineSize)
 c     restart, refine fields after readfld
+      use scrns_mod
       include 'SIZE'
       include 'INPUT' ! ifaxis
       include 'PARALLEL' ! np
@@ -553,9 +574,16 @@ c     restart, refine fields after readfld
 
       integer lxyz,mxmin,mxnew
       parameter(lxyz=lx1*ly1*lz1,mxmin=512,mxnew=max(mxmin,lelt))
-      common /scrns/ x0(lxyz,mxnew),y0(lxyz,mxnew),z0(lxyz,mxnew)
-     $             , pc(lx1*lx1,mxnew),pt(lx1*lx1,mxnew)
-      real x0,y0,z0,pc,pt
+      real, pointer :: x0(:,:),y0(:,:),z0(:,:),pc(:,:),pt(:,:)
+
+      x0(1:lxyz,1:mxnew) => cb_scrns(0*lxyz*mxnew+1 : 1*lxyz*mxnew)
+      y0(1:lxyz,1:mxnew) => cb_scrns(1*lxyz*mxnew+1 : 2*lxyz*mxnew)
+      z0(1:lxyz,1:mxnew) => cb_scrns(2*lxyz*mxnew+1 : 3*lxyz*mxnew)
+      pc(1:lx1*lx1,1:mxnew) =>
+     $   cb_scrns(3*lxyz*mxnew+1 : 3*lxyz*mxnew+lx1*lx1*mxnew)
+      pt(1:lx1*lx1,1:mxnew) =>
+     $   cb_scrns(3*lxyz*mxnew+lx1*lx1*mxnew+1
+     $          : 3*lxyz*mxnew+2*lx1*lx1*mxnew)
 
       ncut_total = 1
       do iref=1,refineSize
@@ -608,6 +636,8 @@ c     Extra interface to recover original mesh info, for hMG
 c-----------------------------------------------------------------------
       subroutine h_refine_r2o_nel(nelv_o,nelt_o,ncut)
       include 'SIZE'
+
+      implicit none
       integer nelv_o,nelt_o,ncut,nblk
 
       nblk = ncut**ldim
@@ -625,6 +655,8 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine h_refine_r2o_vertex(vtxo,vtxr,nelo,ncut)
       include 'SIZE'
+
+      implicit none
       integer*8 vtxo(2**ldim,1), vtxr(2**ldim,1)
       integer nelo, ncut, nblk
       integer e, en, e1,e2,e3,e4,e5,e6,e7,e8
@@ -662,6 +694,8 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine h_refine_r2o_cbc(CBCo,CBCr,nelo,ncut)
       include 'SIZE'
+
+      implicit none
       integer e,el,er,nelo,ncut,kcut,nblk
       integer ic,jc,kc
       character*3 CBCo(6,1), CBCr(6,1)
@@ -699,6 +733,8 @@ c-----------------------------------------------------------------------
       subroutine hrefcuts_i2c(cout) ! convert integer to base 62 alphabet
       include 'SIZE'
       include 'INPUT'
+
+      implicit none
 
       character*4 cout, ctmp
       character*1 c4(4)
@@ -754,6 +790,8 @@ c-----------------------------------------------------------------------
       subroutine hrefcuts_c2i(cin) ! convert string to int list
       include 'SIZE'
       include 'RESTART'
+
+      implicit none
 
       character*4 cin
       character*4 cout, ctmp
@@ -819,6 +857,11 @@ c     zero everything when error
       end
 c-----------------------------------------------------------------------
       subroutine hrefcuts_chkdiff
+      include 'SIZE'
+      include 'INPUT'
+      include 'RESTART'
+      include 'PARALLEL' ! nelgt
+
 c
 c     Input:
 c        hrefcuts:      h-refine schedule from INPUT, e.g. par
@@ -827,10 +870,6 @@ c     This subroutine return the ordered diffeference
 c        hrefcutsrs = hrefcuts \ hrefcutsrs
 c     which is the extra refinement on the top of checkpoint to match simulation
 c
-      include 'SIZE'
-      include 'INPUT'
-      include 'RESTART'
-      include 'PARALLEL' ! nelgt
 
       integer nblk, nblk_rs, ncut, ncut_rs, i, j, ierr
       integer nelgr0, nelgt0

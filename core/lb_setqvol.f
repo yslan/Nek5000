@@ -49,6 +49,8 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine lb_process_items(nin,rdata,flocal,m,nmax)
+      use scrns_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 c
       include 'SIZE'
       common /nekmpi/ nidd,npp,nekcomm,nekgroup,nekreal
@@ -59,19 +61,21 @@ c
       integer*8 i8gl_running_sum, i8rsum
       integer*8 n8, np8, nb8
 
-      common /scrns/ vi(2,lx1*ly1*lz1*lelt)
-      integer vi
+      integer, pointer :: vi(:,:)
 
       integer icalld,cr_lb
       data icalld /0/
       save icalld,cr_lb
 
-      parameter(kid = 1) ! column to store local id 
+      parameter(kid = 1) ! column to store local id
       parameter(kp  = 2) ! column to store rank tag
 
       real tcomm
       data tcomm /0.0/
       save tcomm
+
+      call c_f_pointer(c_loc(cb_scrns(1)), vi,
+     $                 [2,lx1*ly1*lz1*lelt])
 
       n  = nin
       n0 = n

@@ -28,9 +28,9 @@ C
       end
 c-----------------------------------------------------------------------
       SUBROUTINE VSQ (A,N)
-      DIMENSION  A(1)
 C
       include 'OPCTR'
+      DIMENSION  A(1)
 C
       DO 100 I = 1, N
  100     A(I) = A(I)**2
@@ -38,9 +38,10 @@ C
       end
 c-----------------------------------------------------------------------
       SUBROUTINE VSQRT(A,N)
-      DIMENSION  A(1)
 C
       include 'OPCTR'
+      DIMENSION  A(1)
+
 C
       DO 100 I = 1, N
  100     A(I) = SQRT(A(I))
@@ -48,9 +49,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine invers2(a,b,n)
-      REAL A(1),B(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1)
+
 C
       DO 100 I=1,N
          A(I)=1./B(I)
@@ -59,9 +61,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine invcol1(a,n)
-      REAL A(1)
 C
       include 'OPCTR'
+      REAL A(1)
+
 C
       DO 100 I=1,N
          A(I)=1./A(I)
@@ -71,9 +74,9 @@ C
 c-----------------------------------------------------------------------
       subroutine invcol2(a,b,n)
 C
-      REAL A(1),B(1)
       include 'CTIMER'
       include 'OPCTR'
+      REAL A(1),B(1)
 
 #ifdef TIMER2
       if (icalld.eq.0) then
@@ -95,10 +98,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine invcol3(a,b,c,n)
-      REAL A(1),B(1),C(1)
 C
       include 'OPCTR'
       include 'CTIMER'
+      REAL A(1),B(1),C(1)
 
 #ifdef TIMER2
       if (icalld.eq.0) tinv3=0.0
@@ -117,9 +120,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine col4(a,b,c,d,n)
-      REAL A(1),B(1),C(1),D(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1),C(1),D(1)
+
 C
       DO 100 I=1,N
          A(I)=B(I)*C(I)*D(I)
@@ -128,9 +132,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine Xaddcol3(a,b,c,n)
-      REAL A(1),B(1),C(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1),C(1)
+
 C
       DO 100 I=1,N
          A(I)=A(I)+B(I)*C(I)
@@ -139,9 +144,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine addcol4(a,b,c,d,n)
-      REAL A(1),B(1),C(1),D(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1),C(1),D(1)
+
 C
       DO 100 I=1,N
          A(I)=A(I)+B(I)*C(I)*D(I)
@@ -150,9 +156,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine ascol5 (a,b,c,d,e,n)
-      REAL A(1),B(1),C(1),D(1),E(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1),C(1),D(1),E(1)
+
 C
       DO 100 I=1,N
          A(I) = B(I)*C(I)-D(I)*E(I)
@@ -161,9 +168,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine sub2(a,b,n)
-      REAL A(1),B(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1)
+
 C
       DO 100 I=1,N
          A(I)=A(I)-B(I)
@@ -172,9 +180,9 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine sub3(a,b,c,n)
-      REAL A(1),B(1),C(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1),C(1)
 C
       DO 100 I=1,N
          A(I)=B(I)-C(I)
@@ -183,9 +191,9 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine subcol3(a,b,c,n)
-      REAL A(1),B(1),C(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1),C(1)
 C
       DO 100 I=1,N
          A(I)=A(I)-B(I)*C(I)
@@ -194,9 +202,9 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine subcol4(a,b,c,d,n)
-      REAL A(1),B(1),C(1),D(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1),C(1),D(1)
 C
       DO 100 I=1,N
          A(I)=A(I)-B(I)*C(I)*D(I)
@@ -312,9 +320,10 @@ C
 C
 c-----------------------------------------------------------------------
       subroutine cmult(a,const,n)
-      REAL A(1)
 C
       include 'OPCTR'
+      REAL A(1)
+
 C
       DO 100 I=1,N
          A(I)=A(I)*CONST
@@ -323,9 +332,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine cadd(a,const,n)
-      REAL A(1)
 C
       include 'OPCTR'
+      REAL A(1)
+
 C
       DO 100 I=1,N
          A(I)=A(I)+CONST
@@ -343,9 +353,10 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine cadd2(a,b,const,n)
-      REAL A(1),B(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1)
+
 C
       DO 100 I=1,N
          A(I)=B(I)+CONST
@@ -414,8 +425,9 @@ C
       end
 c-----------------------------------------------------------------------
       real function vlsum(vec,n)
-      REAL VEC(1)
       include 'OPCTR'
+      REAL VEC(1)
+
 C
       SUM = 0.
 C
@@ -561,9 +573,9 @@ C***
       end
 c-----------------------------------------------------------------------
       subroutine col2(a,b,n)
-      real a(1),b(1)
       include 'OPCTR'
       include 'CTIMER'
+      real a(1),b(1)
 
 #ifdef TIMER2
       if (icalld.eq.0) then
@@ -595,9 +607,9 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine col3(a,b,c,n)
-      real a(1),b(1),c(1)
       include 'OPCTR'
       include 'CTIMER'
+      real a(1),b(1),c(1)
 
 #ifdef TIMER2
       if (icalld.eq.0) then
@@ -619,9 +631,9 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine add2(a,b,n)
-      real a(1),b(1)
       include 'OPCTR'
       include 'CTIMER'
+      real a(1),b(1)
 
 #ifdef TIMER2
       if (icalld.eq.0) then
@@ -641,8 +653,8 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine add3(a,b,c,n)
-      real a(1),b(1),c(1)
       include 'OPCTR'
+      real a(1),b(1),c(1)
 
       do i=1,n
          a(i)=b(i)+c(i)
@@ -651,9 +663,9 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine addcol3(a,b,c,n)
-      real a(1),b(1),c(1)
       include 'OPCTR'
       include 'CTIMER'
+      real a(1),b(1),c(1)
 
 #ifdef TIMER2
       if (icalld.eq.0) then
@@ -675,9 +687,10 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine add2s1(a,b,c1,n)
-      real a(1),b(1)
 C
       include 'OPCTR'
+      real a(1),b(1)
+
 C
       DO 100 I=1,N
         A(I)=C1*A(I)+B(I)
@@ -687,10 +700,11 @@ C
 C
 c-----------------------------------------------------------------------
       subroutine add2s2(a,b,c1,n)
-      real a(1),b(1)
 C
       include 'OPCTR'
       include 'CTIMER'
+      real a(1),b(1)
+
 C
 #ifdef TIMER2
       if (icalld.eq.0) then
@@ -713,9 +727,10 @@ C
 C
 c-----------------------------------------------------------------------
       subroutine add3s2(a,b,c,c1,c2,n)
-      real a(1),b(1),c(1)
 C
       include 'OPCTR'
+      real a(1),b(1),c(1)
+
 C
       DO 100 I=1,N
         A(I)=C1*B(I)+C2*C(I)
@@ -725,9 +740,9 @@ C
 C
 c-----------------------------------------------------------------------
       subroutine add4(a,b,c,d,n)
-      REAL A(1),B(1),C(1),D(1)
 C
       include 'OPCTR'
+      REAL A(1),B(1),C(1),D(1)
 C
       DO 100 I=1,N
          A(I)=B(I)+C(I)+D(I)
@@ -736,10 +751,11 @@ C
       end
 c-----------------------------------------------------------------------
       real function vlsc2(x,y,n)
-      REAL X(1),Y(1)
       include 'SIZE'
       include 'OPCTR'
       include 'PARALLEL'
+
+      REAL X(1),Y(1)
 C
       s = 0.
       do i=1,n
@@ -750,10 +766,11 @@ C
       end
 c-----------------------------------------------------------------------
       real function vlsc21(x,y,n)
-      real x(1),y(1)
       include 'SIZE'
       include 'OPCTR'
       include 'PARALLEL'
+
+      real x(1),y(1)
 C
       s = 0.
       do i=1,n
@@ -773,13 +790,14 @@ C----------------------------------------------------------------------------
 
 
       function glsc3(a,b,mult,n)
+      include 'OPCTR'
+
 C
 C     Perform inner-product in double precision
 C
       REAL A(1),B(1),MULT(1)
       REAL TMP,WORK(1)
 C
-      include 'OPCTR'
 C
       TMP = 0.0
       DO 10 I=1,N
@@ -826,13 +844,16 @@ c
       end
 c-----------------------------------------------------------------------
       real function gl2norm(a,n)
+      use scrsf_mod
 
       include 'SIZE'
       include 'MASS'
 
       real a(1)
 
-      common /scrsf/ w1 (lx1,ly1,lz1,lelt)
+      real, pointer :: w1(:,:,:,:)
+
+      w1(1:lx1,1:ly1,1:lz1,1:lelt) => cb_scrsf(1 : lx1*ly1*lz1*lelt)
 
       call col3 (w1,a,a,n)
       call col2 (w1,bm1,n)
@@ -842,13 +863,16 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       real function gl2norm2(a,n)
+      use scrsf_mod
 
       include 'SIZE'
       include 'MASS'
 
       real a(n)
 
-      common /scrsf/ w1 (lx2*ly2*lz2*lelt)
+      real, pointer :: w1(:)
+
+      w1(1:lx2*ly2*lz2*lelt) => cb_scrsf(1 : lx2*ly2*lz2*lelt)
 
       call col3 (w1,a,a,n)
       call col2 (w1,bm2,n)

@@ -1,7 +1,9 @@
 c-----------------------------------------------------------------------
       subroutine uzawa_gmres(res,h1,h2,h2inv,intype,iter)
+      use ctmp0_mod
+      use scrmg_mod
 
-c     Solve the pressure equation by right-preconditioned 
+c     Solve the pressure equation by right-preconditioned
 c     GMRES iteration.
 c     intype =  0  (steady)
 c     intype =  1  (explicit)
@@ -18,9 +20,9 @@ c     intype = -1  (implicit)
       real             h2   (lx1,ly1,lz1,lelv)
       real             h2inv(lx1,ly1,lz1,lelv)
 
-      common /scrmg/    wp (lx2,ly2,lz2,lelv)
+      real, pointer :: wp(:,:,:,:)
 
-      common /ctmp0/   wk1(lgmres),wk2(lgmres)
+      real, pointer :: wk1(:),wk2(:)
       common /cgmres1/ y(lgmres)
 
       real alpha, l, temp
@@ -34,6 +36,10 @@ c
 c
       real*8 etime1,dnekclock
 c
+      wk1(1:lgmres) => cb_ctmp0(0*lgmres+1 : 1*lgmres)
+      wk2(1:lgmres) => cb_ctmp0(1*lgmres+1 : 2*lgmres)
+      wp(1:lx2,1:ly2,1:lz2,1:lelv) => cb_scrmg(1 : lx2*ly2*lz2*lelv)
+
       if(.not.iflag) then
          iflag=.true.
          call uzawa_gmres_split0(ml_gmres,mu_gmres,bm2,bm2inv,
@@ -302,8 +308,10 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine hmh_gmres(res,h1,h2,wt,iter)
+      use ctmp0_mod
+      use scrcg_mod
 
-c     Solve the Helmholtz equation by right-preconditioned 
+c     Solve the Helmholtz equation by right-preconditioned
 c     GMRES iteration.
 
      
@@ -319,10 +327,10 @@ c     GMRES iteration.
       real             h2   (lx1,ly1,lz1,lelv)
       real             wt   (lx1,ly1,lz1,lelv)
 
-      common /scrcg/ d(lx1*ly1*lz1*lelv),wk(lx1*ly1*lz1*lelv)
+      real, pointer :: d(:), wk(:)
 
       common /cgmres1/ y(lgmres)
-      common /ctmp0/   wk1(lgmres),wk2(lgmres)
+      real, pointer :: wk1(:),wk2(:)
       real alpha, l, temp
       integer outer
 
@@ -335,6 +343,12 @@ c     data    iflag,if_hyb  /.false. , .true. /
 
       real*8 etime1,dnekclock
 
+      wk1(1:lgmres) => cb_ctmp0(0*lgmres+1 : 1*lgmres)
+      wk2(1:lgmres) => cb_ctmp0(1*lgmres+1 : 2*lgmres)
+      d(1:lx1*ly1*lz1*lelv) => cb_scrcg(0*lx1*ly1*lz1*lelv+1
+     $                                : 1*lx1*ly1*lz1*lelv)
+      wk(1:lx1*ly1*lz1*lelv) => cb_scrcg(1*lx1*ly1*lz1*lelv+1
+     $                                 : 2*lx1*ly1*lz1*lelv)
 
       n = lx1*ly1*lz1*nelv
 
@@ -545,18 +559,21 @@ c     call flush_hack
       end
 c-----------------------------------------------------------------------
       subroutine set_overlap2
+      use c_is1_mod
+      use ivrtx_mod
 c
 c     Sets up the gather scatter and the SEM operators
 c
-      include 'SIZE'  
-      include 'TOTAL' 
- 
-      common /c_is1/ glo_num(lxs*lys*lzs*lelv)  
-      integer*8 glo_num
-      common /ivrtx/ vertex ((2**ldim)*lelt)
-      integer*8 vertex
+      include 'SIZE'
+      include 'TOTAL'
+
+      integer*8, pointer :: glo_num(:)
+      integer*8, pointer :: vertex(:)
       common /handle/ gsh_dd
       integer gsh_dd
+
+      glo_num(1:lxs*lys*lzs*lelv) => cb_c_is1(1:lxs*lys*lzs*lelv)
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
 
       mz = ldim-2
       nx = lx1+2
@@ -658,6 +675,8 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine gen_fast_g
+      use fastg_mod
+      use ctmpf_mod
 c
 c     Generate fast diagonalization matrices for each element
 c
@@ -668,20 +687,45 @@ c
       include 'WZ'
 
       parameter (lxss=lxs*lxs)
-      common /fastg/  sr(lxss,2,lelv),ss(lxss,2,lelv),st(lxss,2,lelv)
-     $             ,  df(lxs*lys*lzs,lelv)
+      real, pointer :: sr(:,:,:), ss(:,:,:), st(:,:,:)
+      real, pointer :: df(:,:)
 
-      common /ctmpf/  lr(2*lx1+4),ls(2*lx1+4),lt(2*lx1+4)
-     $              , llr(lelt),lls(lelt),llt(lelt)
-     $              , lmr(lelt),lms(lelt),lmt(lelt)
-     $              , lrr(lelt),lrs(lelt),lrt(lelt)
-      real lr ,ls ,lt
-      real llr,lls,llt
-      real lmr,lms,lmt
-      real lrr,lrs,lrt
+      real, pointer :: lr(:),ls(:),lt(:)
+     $               , llr(:),lls(:),llt(:)
+     $               , lmr(:),lms(:),lmt(:)
+     $               , lrr(:),lrs(:),lrt(:)
 
       integer lbr,rbr,lbs,rbs,lbt,rbt
-     
+
+      sr(1:lxss,1:2,1:lelv) => cb_fastg(0*lxss*2*lelv+1
+     $                                : 1*lxss*2*lelv)
+      ss(1:lxss,1:2,1:lelv) => cb_fastg(1*lxss*2*lelv+1
+     $                                : 2*lxss*2*lelv)
+      st(1:lxss,1:2,1:lelv) => cb_fastg(2*lxss*2*lelv+1
+     $                                : 3*lxss*2*lelv)
+      df(1:lxs*lys*lzs,1:lelv) => cb_fastg(3*lxss*2*lelv+1
+     $                          : 3*lxss*2*lelv+lxs*lys*lzs*lelv)
+      lr (1:2*lx1+4) => cb_ctmpf(0*(2*lx1+4)+1 : 1*(2*lx1+4))
+      ls (1:2*lx1+4) => cb_ctmpf(1*(2*lx1+4)+1 : 2*(2*lx1+4))
+      lt (1:2*lx1+4) => cb_ctmpf(2*(2*lx1+4)+1 : 3*(2*lx1+4))
+      llr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+0*lelt+1
+     $                      : 3*(2*lx1+4)+1*lelt)
+      lls(1:lelt) => cb_ctmpf(3*(2*lx1+4)+1*lelt+1
+     $                      : 3*(2*lx1+4)+2*lelt)
+      llt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+2*lelt+1
+     $                      : 3*(2*lx1+4)+3*lelt)
+      lmr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+3*lelt+1
+     $                      : 3*(2*lx1+4)+4*lelt)
+      lms(1:lelt) => cb_ctmpf(3*(2*lx1+4)+4*lelt+1
+     $                      : 3*(2*lx1+4)+5*lelt)
+      lmt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+5*lelt+1
+     $                      : 3*(2*lx1+4)+6*lelt)
+      lrr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+6*lelt+1
+     $                      : 3*(2*lx1+4)+7*lelt)
+      lrs(1:lelt) => cb_ctmpf(3*(2*lx1+4)+7*lelt+1
+     $                      : 3*(2*lx1+4)+8*lelt)
+      lrt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+8*lelt+1
+     $                      : 3*(2*lx1+4)+9*lelt)
 
       call load_semhat_weighted   !   Fills the SEMHAT arrays
      
@@ -1077,18 +1121,28 @@ c     Scale interior and add to face of element
       end
 c-----------------------------------------------------------------------
       subroutine fastdm1_g(R,ie,w1,w2)
+      use fastg_mod
 c
 c     Fast diagonalization solver for FEM on mesh 1
 c
       include 'SIZE'
 
       parameter (lxss=lxs*lxs)
-      common /fastg/  sr(lxss,2,lelv),ss(lxss,2,lelv),st(lxss,2,lelv)
-     $             ,  df(lxs*lys*lzs,lelv)
+      real, pointer :: sr(:,:,:), ss(:,:,:), st(:,:,:)
+      real, pointer :: df(:,:)
 
       parameter (lxyz = lxs*lys*lzs)
 
       real r(1),w1(1),w2(1)
+
+      sr(1:lxss,1:2,1:lelv) => cb_fastg(0*lxss*2*lelv+1
+     $                                : 1*lxss*2*lelv)
+      ss(1:lxss,1:2,1:lelv) => cb_fastg(1*lxss*2*lelv+1
+     $                                : 2*lxss*2*lelv)
+      st(1:lxss,1:2,1:lelv) => cb_fastg(2*lxss*2*lelv+1
+     $                                : 3*lxss*2*lelv)
+      df(1:lxs*lys*lzs,1:lelv) => cb_fastg(3*lxss*2*lelv+1
+     $                          : 3*lxss*2*lelv+lxs*lys*lzs*lelv)
 
       nx = lx1+2
 c

@@ -1,5 +1,6 @@
 c-----------------------------------------------------------------------
       subroutine plan5(igeom)
+      use scrns_mod
 
 c     Two-step Richardson Extrapolation.
 c     Operator splitting technique.
@@ -7,7 +8,10 @@ c     Operator splitting technique.
       include 'SIZE'
       include 'TOTAL'
 
-      common /scrns/  resv  (lx1*ly1*lz1*lelv,3)
+      real, pointer ::  resv(:,:)
+
+      resv(1:lx1*ly1*lz1*lelv,1:3) =>
+     $   cb_scrns(1 : lx1*ly1*lz1*lelv*3)
 
       n   = lx1*ly1*lz1*nelv
       n2  = lx2*ly2*lz2*nelv
@@ -67,23 +71,41 @@ c     Operator splitting technique.
       end
 c-----------------------------------------------------------------------
       subroutine midstep(ux,uy,uz,pu,iresv,dtl)
+      use scrns_mod
+      use scrvh_mod
       include 'SIZE'
       include 'TOTAL'
 
       parameter (lv=lx1*ly1*lz1*lelt)
       real ux(1),uy(1),uz(1),pu(1)
 
-      common /p5var/ rhs2   (lx1*ly1*lz1*lelv,3)
+      real, allocatable, target, save :: cb_p5var(:)
+      real, pointer :: rhs2(:,:)
 
-      common /scrns/  resv  (lx1*ly1*lz1*lelv,3)
-     $ ,              dv1   (lx1*ly1*lz1*lelv)
-     $ ,              dv2   (lx1*ly1*lz1*lelv)
-     $ ,              dv3   (lx1*ly1*lz1*lelv)
-      common /scrvh/  h1    (lx1*ly1*lz1*lelv)
-     $ ,              h2    (lx1*ly1*lz1*lelv)
+      real, pointer ::  resv(:,:)
+     $               ,  dv1(:), dv2(:), dv3(:)
+      real, pointer :: h1(:), h2(:)
 
+      if (.not. allocated(cb_p5var))
+     $   allocate(cb_p5var(3*lx1*ly1*lz1*lelv))
+      rhs2(1:lx1*ly1*lz1*lelv,1:3) =>
+     $   cb_p5var(1 : 3*lx1*ly1*lz1*lelv)
+      h1(1:lx1*ly1*lz1*lelv) => cb_scrvh(0*lx1*ly1*lz1*lelv+1
+     $                                  : 1*lx1*ly1*lz1*lelv)
+      h2(1:lx1*ly1*lz1*lelv) => cb_scrvh(1*lx1*ly1*lz1*lelv+1
+     $                                  : 2*lx1*ly1*lz1*lelv)
+      resv(1:lx1*ly1*lz1*lelv,1:3) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv*3+1 : 1*lx1*ly1*lz1*lelv*3)
+      dv1(1:lx1*ly1*lz1*lelv) => cb_scrns(
+     $   1*lx1*ly1*lz1*lelv*3+1 : 1*lx1*ly1*lz1*lelv*3+lx1*ly1*lz1*lelv)
+      dv2(1:lx1*ly1*lz1*lelv) => cb_scrns(
+     $   1*lx1*ly1*lz1*lelv*3+lx1*ly1*lz1*lelv+1
+     $ : 1*lx1*ly1*lz1*lelv*3+2*lx1*ly1*lz1*lelv)
+      dv3(1:lx1*ly1*lz1*lelv) => cb_scrns(
+     $   1*lx1*ly1*lz1*lelv*3+2*lx1*ly1*lz1*lelv+1
+     $ : 1*lx1*ly1*lz1*lelv*3+3*lx1*ly1*lz1*lelv)
 
-      if (lx1.eq.lx2) 
+      if (lx1.eq.lx2)
      $   call exitti('midstep requires lx2=lx1-2 in SIZE$',lx2)
 
       ifield = 1                ! Set field for velocity

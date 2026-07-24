@@ -176,6 +176,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine rans_init(ifld_k_in,ifld_omega_in,ifcoeffs
      $                       ,coeffs_in,wall_id,ywd_in,model_id)
+      use scrns_mod
 c
 c     Initialize values ifld_omega & ifld_k for RANS k-omega turbulence
 c     modeling
@@ -184,13 +185,7 @@ c
       include 'TOTAL'
       include 'RANS_KOMG'
 
-      real w1,w2,w3,w4,w5
-      common /SCRNS/
-     & w1(lx1*ly1*lz1*lelv)
-     &,w2(lx1*ly1*lz1*lelv)
-     &,w3(lx1*ly1*lz1*lelv)
-     &,w4(lx1*ly1*lz1*lelv)
-     &,w5(lx1*ly1*lz1*lelv)
+      real, pointer :: w1(:),w2(:),w3(:),w4(:),w5(:)
 
       integer n,wall_id,ifld_mx
       real coeffs_in(*),ywd_in(*)
@@ -207,6 +202,17 @@ c
      &,'standard k-tau                      '
      &,'low-Re   k-tau                      '
      &,'standard k-tau SST                  '/
+
+      w1(1:lx1*ly1*lz1*lelv) => cb_scrns(0*lx1*ly1*lz1*lelv+1
+     &                                   : 1*lx1*ly1*lz1*lelv)
+      w2(1:lx1*ly1*lz1*lelv) => cb_scrns(1*lx1*ly1*lz1*lelv+1
+     &                                   : 2*lx1*ly1*lz1*lelv)
+      w3(1:lx1*ly1*lz1*lelv) => cb_scrns(2*lx1*ly1*lz1*lelv+1
+     &                                   : 3*lx1*ly1*lz1*lelv)
+      w4(1:lx1*ly1*lz1*lelv) => cb_scrns(3*lx1*ly1*lz1*lelv+1
+     &                                   : 4*lx1*ly1*lz1*lelv)
+      w5(1:lx1*ly1*lz1*lelv) => cb_scrns(4*lx1*ly1*lz1*lelv+1
+     &                                   : 5*lx1*ly1*lz1*lelv)
 
       n=lx1*ly1*lz1*nelv
 
@@ -3094,6 +3100,7 @@ c calculate mu_t
       end
 c-----------------------------------------------------------------------
       subroutine comp_StOm(St_mag2,Om_mag2,OiOjSk,DivQ)
+      use scruz_mod
 c
 c     Compute the square of the magnitude of the stress and rotation tensors
 c     St_mag2=2Sij*Sij=S'ij*S'ij/2, S'ij=2Sij, Sij=(dui/dxj+duj/dxi)/2
@@ -3107,8 +3114,7 @@ c
       parameter(lt  =lx1*ly1*lz1*lelv)
       parameter(lxyz=lx1*ly1*lz1)
 
-      common /scruz/    sij  (lx1*ly1*lz1,6,lelv)
-     $                , oij  (lx1*ly1*lz1,lelv,3)
+      real, pointer :: sij(:,:,:), oij(:,:,:)
 
       real              St_mag2(lx1*ly1*lz1,lelv)
      $                , Om_mag2(lx1*ly1*lz1,lelv)
@@ -3116,6 +3122,11 @@ c
      $                , DivQ   (lx1*ly1*lz1,lelv)
 
       logical iflmc, ifdss
+c
+      sij(1:lx1*ly1*lz1,1:6,1:lelv) => cb_scruz(0*lxyz*lelv+1
+     $                                         : 6*lxyz*lelv)
+      oij(1:lx1*ly1*lz1,1:lelv,1:3) => cb_scruz(6*lxyz*lelv+1
+     $                                         : 9*lxyz*lelv)
 c
       thqrt    = 0.75
 
@@ -3540,9 +3551,9 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine sqrt_tau(tausq,tinput,n)
-      implicit real(a-h,o-z)
       include 'SIZE'
       include 'PARALLEL'
+      implicit real(a-h,o-z)
 c
       real tausq(n), tinput(n)
 
@@ -3555,9 +3566,9 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine limit_komg
-      implicit real(a-h,o-z)
       include 'SIZE'
       include 'TOTAL'
+      implicit real(a-h,o-z)
       include 'RANS_KOMG'
 c
       integer e
@@ -3615,9 +3626,9 @@ c      endif
       end
 c-----------------------------------------------------------------------
       subroutine limit_komg_noreg
-      implicit real(a-h,o-z)
       include 'SIZE'
       include 'TOTAL'
+      implicit real(a-h,o-z)
       include 'RANS_KOMG'
 c
       integer e
@@ -3675,9 +3686,9 @@ c      endif
       end
 c-----------------------------------------------------------------------
       subroutine limit_ktau
-      implicit real(a-h,o-z)
       include 'SIZE'
       include 'TOTAL'
+      implicit real(a-h,o-z)
       include 'RANS_KOMG'
 c
       integer e

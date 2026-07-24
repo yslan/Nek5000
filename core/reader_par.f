@@ -538,10 +538,10 @@ c        stabilization type: none, explicit or hpfrt
             goto 101
          else if (index(c_out,'EXPLICIT') .eq. 1) then
             filterType = 1
-            call ltrue(iffilter,size(iffilter))
+            call ltrue(iffilter,ldimt1)
          else if (index(c_out,'HPFRT') .eq. 1) then
             filterType = 2
-            call ltrue(iffilter,size(iffilter))
+            call ltrue(iffilter,ldimt1)
          else
            write(6,*) 'value: ',c_out
            write(6,*) 'is invalid for general:filtering!'

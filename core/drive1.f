@@ -1,5 +1,7 @@
 c-----------------------------------------------------------------------
       subroutine nek_init(comm)
+      use c_is1_mod
+      use ivrtx_mod
 c
       include 'SIZE'
       include 'TOTAL'
@@ -38,10 +40,12 @@ c      COMMON /SCRCG/ DUMM10(LX1,LY1,LZ1,LELT,1)
       character ctest
       logical ltest 
 
-      common /c_is1/ glo_num(lx1 * ly1 * lz1, lelt)
-      common /ivrtx/ vertex((2 ** ldim) * lelt)
-      integer*8 glo_num, ngv
-      integer*8 vertex
+      integer*8, pointer :: glo_num(:,:)
+      integer*8, pointer :: vertex(:)
+      integer*8 ngv
+
+      glo_num(1:lx1*ly1*lz1,1:lelt) => cb_c_is1(1:lx1*ly1*lz1*lelt)
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
 
       ! set word size for REAL
       wdsize = sizeof(rtest)
@@ -337,11 +341,11 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine nek_end
 
-      include 'mpif.h'
       include 'SIZE'
       include 'TOTAL'
       include 'DPROCMAP'
       include 'RESTART'
+      include 'mpif.h'
 
       if(instep.ne.0) call runstat
 

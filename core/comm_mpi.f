@@ -1,11 +1,11 @@
 c-----------------------------------------------------------------------
       subroutine setupcomm(comm,newcomm,newcommg,path_in,session_in)
-      include 'mpif.h'
       include 'SIZE'
       include 'PARALLEL' 
       include 'TSTEP' 
       include 'INPUT'
       include 'RESTART'
+      include 'mpif.h'
 
       integer comm, newcomm, newcommg
       character session_in*(*), path_in*(*)
@@ -220,7 +220,7 @@ c     Global vector commutative operation
       include 'CTIMER'
 
       include 'mpif.h'
-      common /nekmpi/ nid,np,nekcomm,nekgroup,nekreal
+      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
 
       real x(n), w(n)
       character*3 op
@@ -246,7 +246,7 @@ c
       elseif (op.EQ.'*  ') then
       call mpi_allreduce(x,w,n,MPI_DOUBLE_PRECISION,mpi_prod,nekcomm,ie)
       else
-      write(6,*) nid,' OP ',op,' not supported.  ABORT in GOP.'
+      write(6,*) mid,' OP ',op,' not supported.  ABORT in GOP.'
       call exitt
       endif
 
@@ -467,12 +467,13 @@ c      call mpi_group_free (itmp,ierr)
       end
 c-----------------------------------------------------------------------
       function isend(msgtag,x,len,jnid,jpid)
+      include 'mpif.h'
+
 c
 c     Note: len in bytes
 c
       integer x(1)
 C
-      include 'mpif.h'
       common /nekmpi/ nid,np,nekcomm,nekgroup,nekreal
 C
       call mpi_isend (x,len,mpi_byte,jnid,msgtag
@@ -484,12 +485,13 @@ c
       end
 c-----------------------------------------------------------------------
       function irecv(msgtag,x,len)
+      include 'mpif.h'
+
 c
 c     Note: len in bytes
 c
       integer x(1)
 C
-      include 'mpif.h'
       common /nekmpi/ nid,np,nekcomm,nekgroup,nekreal
 C
       call mpi_irecv (x,len,mpi_byte,mpi_any_source,msgtag
@@ -525,12 +527,13 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine exittr(stringi,rdata,idata)
-      character*1 stringi(132)
-      character*1 stringo(132)
-      character*25 s25
       include 'SIZE'
       include 'TOTAL'
       include 'CTIMER'
+
+      character*1 stringi(132)
+      character*1 stringo(132)
+      character*25 s25
 
       call blank(stringo,132)
       call chcopy(stringo,stringi,132)
@@ -548,12 +551,13 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine exitti(stringi,idata)
-      character*1 stringi(132)
-      character*1 stringo(132)
-      character*11 s11
       include 'SIZE'
       include 'TOTAL'
       include 'CTIMER'
+
+      character*1 stringi(132)
+      character*1 stringo(132)
+      character*11 s11
 
       call blank(stringo,132)
       call chcopy(stringo,stringi,132)
@@ -571,10 +575,11 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine err_chk(ierr,string)
+      include 'SIZE'
+
       character*1 string(132)
       character*1 ostring(132)
       character*10 s10
-      include 'SIZE'
 c     include 'TOTAL'
 c     include 'CTIMER'
 
@@ -744,12 +749,13 @@ c     call exitti('done mxm_test_all$',ivb)
       end
 c-----------------------------------------------------------------------
       subroutine comm_test(ivb) ! measure message-passing and all-reduce times
+      include 'SIZE'
+      include 'PARALLEL'
+
                                 ! ivb = 0 --> minimal verbosity
                                 ! ivb = 1 --> fully verbose
                                 ! ivb = 2 --> smaller sample set(shorter)
 
-      include 'SIZE'
-      include 'PARALLEL'
 
       call gop_test(ivb)   ! added, Jan. 8, 2008
 
@@ -778,18 +784,24 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine pingpong(alphas,betas,nodea,nodeb,dt,io,ivb,kk)
-
+      use scrns_mod
       include 'SIZE'
+      include 'mpif.h'
+
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
 
       parameter  (lt=lx1*ly1*lz1*lelt)
       parameter (mwd = 3*lt/2)
-      common /scrns/ x(mwd),y(mwd),x1(mwd),y1(mwd)
+      real, pointer :: x(:),y(:),x1(:),y1(:)
 
-      include 'mpif.h'
       integer status(mpi_status_size)
 
       character*10 fname
+
+      x (1:mwd) => cb_scrns(0*mwd+1 : 1*mwd)
+      y (1:mwd) => cb_scrns(1*mwd+1 : 2*mwd)
+      x1(1:mwd) => cb_scrns(2*mwd+1 : 3*mwd)
+      y1(1:mwd) => cb_scrns(3*mwd+1 : 4*mwd)
 
       if (nid.eq.nodea) then
          write(fname,3) np,nodeb
@@ -858,18 +870,22 @@ c        if (nwds.gt.1024) then
       end
 c-----------------------------------------------------------------------
       subroutine pingpongo(alphas,betas,nodea,nodeb,dt,io,ivb)
-
+      use scrns_mod
       include 'SIZE'
+      include 'mpif.h'
+
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
 
       parameter  (lt=lx1*ly1*lz1*lelt)
       parameter (mwd = 3*lt)
-      common /scrns/ x(mwd),y(mwd)
+      real, pointer :: x(:),y(:)
 
-      include 'mpif.h'
       integer status(mpi_status_size)
 
       character*10 fname
+
+      x(1:mwd) => cb_scrns(0*mwd+1 : 1*mwd)
+      y(1:mwd) => cb_scrns(1*mwd+1 : 2*mwd)
 
       if (nid.eq.nodea) then
          write(fname,3) np,nodeb
@@ -955,13 +971,17 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine get_msg_vol(msg_vol,dt,nodea,nodeb)
+      use scrns_mod
       include 'SIZE'
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
       parameter (lt=lx1*ly1*lz1*lelt)
-      common /scrns/ x(3*lt),y(3*lt)
+      real, pointer :: x(:),y(:)
 !
 !     Est. msg vol for dt s
 !
+      x(1:3*lt) => cb_scrns(0*(3*lt)+1 : 1*(3*lt))
+      y(1:3*lt) => cb_scrns(1*(3*lt)+1 : 2*(3*lt))
+
       msg_vol = 1000
 
       nwds  = min(1000,lt)
@@ -1011,16 +1031,27 @@ c     if (nid.eq.nodea) write(6,*) nid,msg_vol,nwds,dt,tmsg,' msgvol'
       end
 c-----------------------------------------------------------------------
       subroutine gop_test(ivb)
+      use scrns_mod
+      use scrcg_mod
+      use scruz_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
       include 'SIZE'
-      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
       include 'mpif.h'
+
+      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
       integer status(mpi_status_size)
 
       parameter  (lt=lx1*ly1*lz1*lelt)
       parameter (mwd = 3*lt)
-      common /scrns/ x(mwd),y(mwd)
-      common /scruz/ times(2,500)
-      common /scrcg/ nwd(500)
+      real, pointer :: x(:),y(:)
+      real, pointer :: times(:,:)
+      integer, pointer :: nwd(:)
+
+      call c_f_pointer(c_loc(cb_scrcg(1)), nwd, [500])
+      times(1:2,1:500) => cb_scruz(1 : 1000)
+
+      x(1:mwd) => cb_scrns(0*mwd+1 : 1*mwd)
+      y(1:mwd) => cb_scrns(1*mwd+1 : 2*mwd)
 
       nwds  = 1
       mtest = 0
@@ -1075,6 +1106,8 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine gp2_test(ivb)
+      use scrns_mod
+      use scruz_mod
 
       include 'SIZE'
       include 'mpif.h'
@@ -1084,8 +1117,12 @@ c-----------------------------------------------------------------------
 
       parameter  (lt=lx1*ly1*lz1*lelt)
       parameter (mwd = 3*lt)
-      common /scrns/ x(mwd),y(mwd)
-      common /scruz/ times(2,500)
+      real, pointer :: x(:),y(:)
+      real, pointer :: times(:,:)
+
+      x(1:mwd) => cb_scrns(0*mwd+1 : 1*mwd)
+      y(1:mwd) => cb_scrns(1*mwd+1 : 2*mwd)
+      times(1:2,1:500) => cb_scruz(1 : 1000)
 
       call rzero(x,mwd)
 
@@ -1233,12 +1270,12 @@ c     Await final answer from node 0 via log_2 fan out
       end
 c-----------------------------------------------------------------------
       subroutine ping_loop1(t1,t0,len,nloop,nodea,nodeb,nid,x,y)
+      include 'mpif.h'
 
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
 
       real x(1),y(1)
 
-      include 'mpif.h'
       integer status(mpi_status_size)
 
       i=0
@@ -1283,12 +1320,12 @@ c        call mpi_rsend(x,len,mpi_byte,nodea,j,nekcomm,ierr)        ! nb
       end
 c-----------------------------------------------------------------------
       subroutine ping_loop2(t1,t0,len,nloop,nodea,nodeb,nid,x,y)
+      include 'mpif.h'
 
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
 
       real x(1),y(1)
 
-      include 'mpif.h'
       integer status(mpi_status_size)
 
       i=0
@@ -1329,13 +1366,14 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine ping_loop(t1,t0,len,nloop,nodea,nodeb,nid,x1,y1,x2,y2)
+      include 'mpif.h'
+
 c     Double Buffer : does 2*nloop timings
 
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
 
       real x1(1),y1(1),x2(1),y2(1)
 
-      include 'mpif.h'
       integer status(mpi_status_size)
 
       itag=1

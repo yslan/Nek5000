@@ -1,5 +1,8 @@
 c-----------------------------------------------------------------------
       subroutine char_conv(p0,u,ulag,bm,bmlag,msk,c,cs,gsl)
+      use scrns_mod
+      use scrvh_mod
+      use scrmg_mod
 c
 c
 c     Convect over last NBD steps using characteristics scheme
@@ -13,18 +16,33 @@ c
       real    p0(1),u(1),ulag(1),bm(1),bmlag(1),msk(1),c(1),cs(0:1)
       integer gsl
 
-      common /scrns/ ct  (lxd*lyd*lzd*lelv*ldim)
+      real, pointer :: ct(:)
 
-      common /scrvh/ bmsk(lx1*ly1*lz1*lelv)
-     $             , bdwt(lx1*ly1*lz1*lelv)
-     $             , bmst(lx1*ly1*lz1*lelv)
-     $             , u1  (lx1*ly1*lz1*lelv)
+      real, pointer :: bmsk(:), bdwt(:), bmst(:), u1(:)
 
-      common /scrmg/ r1  (lx1*ly1*lz1*lelv)
-     $             , r2  (lx1*ly1*lz1*lelv)
-     $             , r3  (lx1*ly1*lz1*lelv)
-     $             , r4  (lx1*ly1*lz1*lelv)
-      
+      real, pointer :: r1(:), r2(:), r3(:), r4(:)
+
+      r1(1:lx1*ly1*lz1*lelv) => cb_scrmg(0*lx1*ly1*lz1*lelv+1
+     $                                  : 1*lx1*ly1*lz1*lelv)
+      r2(1:lx1*ly1*lz1*lelv) => cb_scrmg(1*lx1*ly1*lz1*lelv+1
+     $                                  : 2*lx1*ly1*lz1*lelv)
+      r3(1:lx1*ly1*lz1*lelv) => cb_scrmg(2*lx1*ly1*lz1*lelv+1
+     $                                  : 3*lx1*ly1*lz1*lelv)
+      r4(1:lx1*ly1*lz1*lelv) => cb_scrmg(3*lx1*ly1*lz1*lelv+1
+     $                                  : 4*lx1*ly1*lz1*lelv)
+
+      bmsk(1:lx1*ly1*lz1*lelv) => cb_scrvh(0*lx1*ly1*lz1*lelv+1
+     $                                    : 1*lx1*ly1*lz1*lelv)
+      bdwt(1:lx1*ly1*lz1*lelv) => cb_scrvh(1*lx1*ly1*lz1*lelv+1
+     $                                    : 2*lx1*ly1*lz1*lelv)
+      bmst(1:lx1*ly1*lz1*lelv) => cb_scrvh(2*lx1*ly1*lz1*lelv+1
+     $                                    : 3*lx1*ly1*lz1*lelv)
+      u1  (1:lx1*ly1*lz1*lelv) => cb_scrvh(3*lx1*ly1*lz1*lelv+1
+     $                                    : 4*lx1*ly1*lz1*lelv)
+
+      ct(1:lxd*lyd*lzd*lelv*ldim) =>
+     $   cb_scrns(1 : lxd*lyd*lzd*lelv*ldim)
+
       nelc = nelv            ! number of elements in convecting field
       if (ifield.eq.ifldmhd) nelc = nelfld(ifield)
 
@@ -234,6 +252,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine convop_fst_3d(du,u,c,mx,md,nel)
+      use ctmp1_mod
 c
       include 'SIZE'
 c
@@ -243,10 +262,15 @@ c
       real  u(mx*mx*mx,nel)
       real  c(md*md*md,nel,3)
       parameter (ldd=lxd*lyd*lzd)
-      common /ctmp1/ ur(ldd),us(ldd),ut(ldd),ud(ldd)
+      real, pointer :: ur(:),us(:),ut(:),ud(:)
 c
       logical if3d,ifd
       integer e
+c
+      ur(1:ldd) => cb_ctmp1(0*ldd+1 : 1*ldd)
+      us(1:ldd) => cb_ctmp1(1*ldd+1 : 2*ldd)
+      ut(1:ldd) => cb_ctmp1(2*ldd+1 : 3*ldd)
+      ud(1:ldd) => cb_ctmp1(3*ldd+1 : 4*ldd)
 c
       if3d = .true.
       ifd  = .false.
@@ -276,6 +300,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine convop_fst_2d(du,u,c,mx,md,nel)
+      use ctmp1_mod
 c
       include 'SIZE'
 c
@@ -285,10 +310,15 @@ c
       real  u(mx*mx,nel)
       real  c(md*md,nel,2)
       parameter (ldd=lxd*lyd*lzd)
-      common /ctmp1/ ur(ldd),us(ldd),ut(ldd),ud(ldd)
+      real, pointer :: ur(:),us(:),ut(:),ud(:)
 c
       logical if3d,ifd
       integer e
+c
+      ur(1:ldd) => cb_ctmp1(0*ldd+1 : 1*ldd)
+      us(1:ldd) => cb_ctmp1(1*ldd+1 : 2*ldd)
+      ut(1:ldd) => cb_ctmp1(2*ldd+1 : 3*ldd)
+      ud(1:ldd) => cb_ctmp1(3*ldd+1 : 4*ldd)
 c
       if3d = .false.
       ifd  = .false.
@@ -344,6 +374,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine intp_rstd(ju,u,mx,md,if3d,idir) ! GLL->GL interpolation
+      use ctmp0_mod
 
 c     GLL interpolation from mx to md.
 
@@ -360,7 +391,9 @@ c     If idir ^= 0, then apply transpose operator  (md to mx)
       real jgl,jgt
 
       parameter (ld=2*lxd)
-      common /ctmp0/ w(ld**ldim,2)
+      real, pointer :: w(:,:)
+
+      w(1:ld**ldim,1:2) => cb_ctmp0(1 : 2*(ld**ldim))
 
       call lim_chk(md,ld,'md   ','ld   ','grad_rstd ')
       call lim_chk(mx,ld,'mx   ','ld   ','grad_rstd ')
@@ -909,8 +942,9 @@ c        Convert convector F to r-s-t coordinates
       end
 c-----------------------------------------------------------------------
       subroutine advchar
+      use scruz_mod
 c
-c     Compute convective contribution using 
+c     Compute convective contribution using
 c     operator-integrator-factor method (characteristics).
 c
       include 'SIZE'
@@ -924,10 +958,16 @@ c
 
       common /cchar/ ct_vx(0:lorder) ! time for each slice in c_vx()
 
-      common /scruz/ phx  (lx1*ly1*lz1*lelt)
-     $ ,             phy  (lx1*ly1*lz1*lelt)
-     $ ,             phz  (lx1*ly1*lz1*lelt)
-     $ ,             hmsk (lx1*ly1*lz1*lelt)
+      real, pointer :: phx(:), phy(:), phz(:), hmsk(:)
+
+      phx (1:lx1*ly1*lz1*lelt) => cb_scruz(0*lx1*ly1*lz1*lelt+1
+     $                                    : 1*lx1*ly1*lz1*lelt)
+      phy (1:lx1*ly1*lz1*lelt) => cb_scruz(1*lx1*ly1*lz1*lelt+1
+     $                                    : 2*lx1*ly1*lz1*lelt)
+      phz (1:lx1*ly1*lz1*lelt) => cb_scruz(2*lx1*ly1*lz1*lelt+1
+     $                                    : 3*lx1*ly1*lz1*lelt)
+      hmsk(1:lx1*ly1*lz1*lelt) => cb_scruz(3*lx1*ly1*lz1*lelt+1
+     $                                    : 4*lx1*ly1*lz1*lelt)
 
       if (icalld.eq.0) tadvc=0.0
       icalld=icalld+1
@@ -970,8 +1010,9 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine convch
+      use scruz_mod
 
-c     Compute convective contribution using 
+c     Compute convective contribution using
 c     operator-integrator-factor method (characteristics).
 
       include 'SIZE'
@@ -984,8 +1025,12 @@ c     operator-integrator-factor method (characteristics).
 
       common /cchar/ ct_vx(0:lorder) ! time for each slice in c_vx()
 
-      common /scruz/ phi  (lx1*ly1*lz1*lelt)
-     $ ,             hmsk (lx1*ly1*lz1*lelt)
+      real, pointer :: phi(:), hmsk(:)
+
+      phi (1:lx1*ly1*lz1*lelt) => cb_scruz(0*lx1*ly1*lz1*lelt+1
+     $                                    : 1*lx1*ly1*lz1*lelt)
+      hmsk(1:lx1*ly1*lz1*lelt) => cb_scruz(1*lx1*ly1*lz1*lelt+1
+     $                                    : 2*lx1*ly1*lz1*lelt)
 
       if (icalld.eq.0) tadvc=0.0
       icalld=icalld+1
@@ -1010,6 +1055,7 @@ c     operator-integrator-factor method (characteristics).
       end
 c-----------------------------------------------------------------------
       subroutine convop_cons_3d(du,u,c,mx,md,nel) ! Conservation form
+      use ctmp1_mod
 
 c     Apply convecting field c to scalar field u, conservation form d/dxj cj phi
 
@@ -1023,11 +1069,17 @@ c     Assumes that current convecting field is on dealias mesh, in c()
       real  u(mx*mx*mx,nel)
       real  c(md*md*md,nel,3)
       parameter (ldd=lxd*lyd*lzd)
-      common /ctmp1/ ur(ldd),us(ldd),ut(ldd),ju(ldd),ud(ldd),tu(ldd)
-      real ju
+      real, pointer :: ur(:),us(:),ut(:),ju(:),ud(:),tu(:)
 
       logical if3d,ifd
       integer e
+
+      ur(1:ldd) => cb_ctmp1(0*ldd+1 : 1*ldd)
+      us(1:ldd) => cb_ctmp1(1*ldd+1 : 2*ldd)
+      ut(1:ldd) => cb_ctmp1(2*ldd+1 : 3*ldd)
+      ju(1:ldd) => cb_ctmp1(3*ldd+1 : 4*ldd)
+      ud(1:ldd) => cb_ctmp1(4*ldd+1 : 5*ldd)
+      tu(1:ldd) => cb_ctmp1(5*ldd+1 : 6*ldd)
 
       if3d = .true.
       ifd  = .false.
@@ -1065,6 +1117,7 @@ c     Assumes that current convecting field is on dealias mesh, in c()
       end
 c-----------------------------------------------------------------------
       subroutine convop_cons_2d(du,u,c,mx,md,nel) ! Conservation form
+      use ctmp1_mod
 
 c     Apply convecting field c to scalar field u, conservation form d/dxj cj phi
 
@@ -1079,11 +1132,17 @@ c     Assumes that current convecting field is on dealias mesh, in c()
       real  u(mx*mx,nel)
       real  c(md*md,nel,2)
       parameter (ldd=lxd*lyd*lzd)
-      common /ctmp1/ ur(ldd),us(ldd),ut(ldd),ju(ldd),ud(ldd),tu(ldd)
-      real ju
+      real, pointer :: ur(:),us(:),ut(:),ju(:),ud(:),tu(:)
 
       logical if3d,ifd
       integer e
+
+      ur(1:ldd) => cb_ctmp1(0*ldd+1 : 1*ldd)
+      us(1:ldd) => cb_ctmp1(1*ldd+1 : 2*ldd)
+      ut(1:ldd) => cb_ctmp1(2*ldd+1 : 3*ldd)
+      ju(1:ldd) => cb_ctmp1(3*ldd+1 : 4*ldd)
+      ud(1:ldd) => cb_ctmp1(4*ldd+1 : 5*ldd)
+      tu(1:ldd) => cb_ctmp1(5*ldd+1 : 6*ldd)
 
       if3d = .false.
       ifd  = .false.
@@ -1203,17 +1262,23 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine set_bdivw(bdivw,hmsk,n) ! Store binvm1*(hyperbolic mask)
+      use scruz_mod
 
       include 'SIZE'
       include 'PARALLEL'
       include 'MASS'
       include 'INPUT'
       include 'MVGEOM'
-      common /scruz/ cx  (lx1*ly1*lz1*lelt)
-     $ ,             cy  (lx1*ly1*lz1*lelt)
-     $ ,             cz  (lx1*ly1*lz1*lelt)
+      real, pointer :: cx(:), cy(:), cz(:)
 
       real bdivw(n,lorder),hmsk(n)
+
+      cx(1:lx1*ly1*lz1*lelt) => cb_scruz(0*lx1*ly1*lz1*lelt+1
+     $                                  : 1*lx1*ly1*lz1*lelt)
+      cy(1:lx1*ly1*lz1*lelt) => cb_scruz(1*lx1*ly1*lz1*lelt+1
+     $                                  : 2*lx1*ly1*lz1*lelt)
+      cz(1:lx1*ly1*lz1*lelt) => cb_scruz(2*lx1*ly1*lz1*lelt+1
+     $                                  : 3*lx1*ly1*lz1*lelt)
 
       do i=lorder,2,-1
          call copy(bdivw(1,i),bdivw(1,i-1),n)
@@ -1249,6 +1314,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine setup_dg_gs(dgh,nx,ny,nz,nel,melg,vertex)
+      use c_is1_mod
 
 c     Global-to-local mapping for gs
 
@@ -1259,11 +1325,14 @@ c     Global-to-local mapping for gs
       integer*8 vertex(1)
 
       parameter(lf=lx1*lz1*2*ldim*lelt)
-      common /c_is1/ glo_num_face(lf)
-     $             , glo_num_vol((lx1+2)*(ly1+2)*(lz1+2)*lelt)
-      integer*8 glo_num_face,glo_num_vol,ngv
+      integer*8, pointer :: glo_num_face(:), glo_num_vol(:)
+      integer*8 ngv
 
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
+
+      glo_num_face(1:lf) => cb_c_is1(1:lf)
+      glo_num_vol(1:(lx1+2)*(ly1+2)*(lz1+2)*lelt) =>
+     $   cb_c_is1(lf+1 : lf+(lx1+2)*(ly1+2)*(lz1+2)*lelt)
 
       mx = nx+2
       call set_vert(glo_num_vol,ngv,mx,nel,vertex,.false.)
@@ -1383,6 +1452,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine conv_rhs_dg_aliased (du,u,c)
+      use scrdg_mod
 c
       include 'SIZE'
       include 'TOTAL'
@@ -1392,9 +1462,15 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       real du(1),u(1),c(1)
 
       parameter(lf=lx1*lz1*2*ldim*lelt)
-      common /scrdg/ uf(lf),uxf(lf),uyf(lf),uzf(lf),upwind_wgt(lf)
+      real, pointer :: uf(:),uxf(:),uyf(:),uzf(:),upwind_wgt(:)
 
       integer e,f
+
+      uf        (1:lf) => cb_scrdg(0*lf+1 : 1*lf)
+      uxf       (1:lf) => cb_scrdg(1*lf+1 : 2*lf)
+      uyf       (1:lf) => cb_scrdg(2*lf+1 : 3*lf)
+      uzf       (1:lf) => cb_scrdg(3*lf+1 : 4*lf)
+      upwind_wgt(1:lf) => cb_scrdg(4*lf+1 : 5*lf)
 
       n  = lx1*ly1*lz1*nelv
       nf = lx1*lz1*2*ldim*nelt
@@ -1455,6 +1531,7 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       end
 c-----------------------------------------------------------------------
       subroutine map_faced(ju,u,mx,md,fdim,idir) ! GLL->GL interpolation
+      use ctmp0_mod
 
 c     GLL interpolation from mx to md for a face array of size (nx,nz)
 
@@ -1471,7 +1548,9 @@ c     If idir ^= 0, then apply transpose operator  (md to mx)
       real jgl,jgt
 
       parameter (ld=2*lxd)
-      common /ctmp0/ w(ld**ldim,2)
+      real, pointer :: w(:,:)
+
+      w(1:ld**ldim,1:2) => cb_ctmp0(1 : 2*(ld**ldim))
 
       call lim_chk(md,ld,'md   ','ld   ','map_faced ')
       call lim_chk(mx,ld,'mx   ','ld   ','map_faced ')
@@ -1507,14 +1586,24 @@ c-----------------------------------------------------------------------
 
       real     rhs(lx1,ly1,lz1,lelt)
 
-      common /cfbinv/ qn(lx1),alpha_n,beta_n
-     $               ,s1(ly1,lz1),bnv(lx1)
-     $               ,tmp(lx1*ly1*lz1*lelt)
+      real, allocatable, target, save :: cb_cfbinv(:)
+      real, pointer :: qn(:), s1(:,:), bnv(:), tmp(:)
+      real, pointer :: alpha_n, beta_n
       integer icalld
       save    icalld
       data    icalld /0/
 
       integer e
+
+      if (.not. allocated(cb_cfbinv))
+     $   allocate(cb_cfbinv(2*lx1 + 2 + ly1*lz1 + lx1*ly1*lz1*lelt))
+      qn(1:lx1) => cb_cfbinv(1:lx1)
+      alpha_n => cb_cfbinv(lx1+1)
+      beta_n  => cb_cfbinv(lx1+2)
+      s1(1:ly1,1:lz1) => cb_cfbinv(lx1+3 : lx1+2+ly1*lz1)
+      bnv(1:lx1) => cb_cfbinv(lx1+2+ly1*lz1+1 : 2*lx1+2+ly1*lz1)
+      tmp(1:lx1*ly1*lz1*lelt) => cb_cfbinv(2*lx1+2+ly1*lz1+1
+     $                        : 2*lx1+2+ly1*lz1+lx1*ly1*lz1*lelt)
 
       n = lx1*ly1*lz1*nelfld(ifield)
 
@@ -1586,6 +1675,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine conv_rhs_dg (du,u,c)
+      use scrdg_mod
 c
       include 'SIZE'
       include 'TOTAL'
@@ -1596,15 +1686,28 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       real du(1),u(1),c(ldd*lelv,3)
 
       parameter(lf=lx1*lz1*2*ldim*lelt)
-      common /scrdg/ uf(lf),uxf(lf),uyf(lf),uzf(lf),upwind_wgt(lf)
-     $             , beta_c(lx1*lz1),jaco_c(lx1*lz1)
-     $             , beta_f(lxd*lzd),jaco_f(lxd*lzd)
-     $             , ufine (lxd*lzd)
-      real jaco_c,jaco_f
+      real, pointer :: uf(:),uxf(:),uyf(:),uzf(:),upwind_wgt(:)
+     $               , beta_c(:),jaco_c(:)
+     $               , beta_f(:),jaco_f(:)
+     $               , ufine(:)
       common /finewts/ zptf(lxd),wgtf(lxd),wghtf(lxd*lzd),wghtc(lx1*lz1)
 
       integer e,f,fdim
 
+      uf        (1:lf) => cb_scrdg(0*lf+1 : 1*lf)
+      uxf       (1:lf) => cb_scrdg(1*lf+1 : 2*lf)
+      uyf       (1:lf) => cb_scrdg(2*lf+1 : 3*lf)
+      uzf       (1:lf) => cb_scrdg(3*lf+1 : 4*lf)
+      upwind_wgt(1:lf) => cb_scrdg(4*lf+1 : 5*lf)
+      beta_c(1:lx1*lz1) => cb_scrdg(5*lf+1 : 5*lf+lx1*lz1)
+      jaco_c(1:lx1*lz1) => cb_scrdg(5*lf+lx1*lz1+1
+     $                            : 5*lf+2*lx1*lz1)
+      beta_f(1:lxd*lzd) => cb_scrdg(5*lf+2*lx1*lz1+1
+     $                            : 5*lf+2*lx1*lz1+lxd*lzd)
+      jaco_f(1:lxd*lzd) => cb_scrdg(5*lf+2*lx1*lz1+lxd*lzd+1
+     $                            : 5*lf+2*lx1*lz1+2*lxd*lzd)
+      ufine (1:lxd*lzd) => cb_scrdg(5*lf+2*lx1*lz1+2*lxd*lzd+1
+     $                            : 5*lf+2*lx1*lz1+3*lxd*lzd)
 
       n  = lx1*ly1*lz1*lelv
       nf = lx1*lz1*2*ldim*lelt
@@ -1684,6 +1787,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine convop_weak(du,u,cr,cs,ct,mx,md,nel) ! Weak Conservation form
+      use ctmp1_mod
 
 c     Apply convecting field c to scalar field u, conservation form d/dxj cj phi
 
@@ -1696,10 +1800,16 @@ c     Assumes that current convecting field is on dealias mesh, in c()
       real du(lxx,nel)
       real  u(lxx,nel)
       real  cr(ldd,nel),cs(ldd,nel),ct(ldd,nel)
-      common /ctmp1/ ur(ldd),us(ldd),ut(ldd),ju(ldd),ud(ldd),tu(ldd)
-      real ju
+      real, pointer :: ur(:),us(:),ut(:),ju(:),ud(:),tu(:)
 
       integer e
+
+      ur(1:ldd) => cb_ctmp1(0*ldd+1 : 1*ldd)
+      us(1:ldd) => cb_ctmp1(1*ldd+1 : 2*ldd)
+      ut(1:ldd) => cb_ctmp1(2*ldd+1 : 3*ldd)
+      ju(1:ldd) => cb_ctmp1(3*ldd+1 : 4*ldd)
+      ud(1:ldd) => cb_ctmp1(4*ldd+1 : 5*ldd)
+      tu(1:ldd) => cb_ctmp1(5*ldd+1 : 6*ldd)
 
       nxyz  = lx1*ly1*lz1
       nrstd = md**ldim
@@ -1735,6 +1845,7 @@ c     Assumes that current convecting field is on dealias mesh, in c()
       end
 c-----------------------------------------------------------------------
       subroutine conv_bdry_dg_weak (du,u) ! THIS SHOULD HAVE: ,cr,cs,ct)
+      use scrdg_mod
 c
 c     Implement  Cu = Div (cu) in weak form using DG
 c
@@ -1746,15 +1857,30 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       real du(1),u(1)
 
       parameter(lf=lx1*lz1*2*ldim*lelt)
-      common /scrdg/uf(lf),uxf(lf),uyf(lf),uzf(lf),upwind_wgt(lf),us(lf)
-     $             ,beta_c(lx1*lz1),jaco_c(lx1*lz1)
-     $             ,beta_f(lxd*lzd),jaco_f(lxd*lzd)
-     $             ,ufine (lxd*lzd)
-      real jaco_c,jaco_f
+      real, pointer :: uf(:),uxf(:),uyf(:),uzf(:),upwind_wgt(:),us(:)
+     $               , beta_c(:),jaco_c(:)
+     $               , beta_f(:),jaco_f(:)
+     $               , ufine(:)
 
       common /finewts/ zptf(lxd),wgtf(lxd),wghtf(lxd*lzd),wghtc(lx1*lz1)
 
       integer e,f,fdim
+
+      uf        (1:lf) => cb_scrdg(0*lf+1 : 1*lf)
+      uxf       (1:lf) => cb_scrdg(1*lf+1 : 2*lf)
+      uyf       (1:lf) => cb_scrdg(2*lf+1 : 3*lf)
+      uzf       (1:lf) => cb_scrdg(3*lf+1 : 4*lf)
+      upwind_wgt(1:lf) => cb_scrdg(4*lf+1 : 5*lf)
+      us        (1:lf) => cb_scrdg(5*lf+1 : 6*lf)
+      beta_c(1:lx1*lz1) => cb_scrdg(6*lf+1 : 6*lf+lx1*lz1)
+      jaco_c(1:lx1*lz1) => cb_scrdg(6*lf+lx1*lz1+1
+     $                            : 6*lf+2*lx1*lz1)
+      beta_f(1:lxd*lzd) => cb_scrdg(6*lf+2*lx1*lz1+1
+     $                            : 6*lf+2*lx1*lz1+lxd*lzd)
+      jaco_f(1:lxd*lzd) => cb_scrdg(6*lf+2*lx1*lz1+lxd*lzd+1
+     $                            : 6*lf+2*lx1*lz1+2*lxd*lzd)
+      ufine (1:lxd*lzd) => cb_scrdg(6*lf+2*lx1*lz1+2*lxd*lzd+1
+     $                            : 6*lf+2*lx1*lz1+3*lxd*lzd)
 
       n  = lx1*ly1*lz1*nelv
       nf = lx1*lz1*2*ldim*nelt
@@ -1822,6 +1948,7 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       end
 c-----------------------------------------------------------------------
       subroutine conv_rhs_dg_weak (du,u,cr,cs,ct)
+      use scrdg_mod
 c
 c     Implement  Cu = Div (cu) in weak form using DG
 c
@@ -1833,15 +1960,30 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       real du(1),u(1),cr(1),cs(1),ct(1)
 
       parameter(lf=lx1*lz1*2*ldim*lelt)
-      common /scrdg/uf(lf),uxf(lf),uyf(lf),uzf(lf),upwind_wgt(lf),us(lf)
-     $             ,beta_c(lx1*lz1),jaco_c(lx1*lz1)
-     $             ,beta_f(lxd*lzd),jaco_f(lxd*lzd)
-     $             ,ufine (lxd*lzd)
-      real jaco_c,jaco_f
+      real, pointer :: uf(:),uxf(:),uyf(:),uzf(:),upwind_wgt(:),us(:)
+     $               , beta_c(:),jaco_c(:)
+     $               , beta_f(:),jaco_f(:)
+     $               , ufine(:)
 
       common /finewts/ zptf(lxd),wgtf(lxd),wghtf(lxd*lzd),wghtc(lx1*lz1)
 
       integer e,f,fdim
+
+      uf        (1:lf) => cb_scrdg(0*lf+1 : 1*lf)
+      uxf       (1:lf) => cb_scrdg(1*lf+1 : 2*lf)
+      uyf       (1:lf) => cb_scrdg(2*lf+1 : 3*lf)
+      uzf       (1:lf) => cb_scrdg(3*lf+1 : 4*lf)
+      upwind_wgt(1:lf) => cb_scrdg(4*lf+1 : 5*lf)
+      us        (1:lf) => cb_scrdg(5*lf+1 : 6*lf)
+      beta_c(1:lx1*lz1) => cb_scrdg(6*lf+1 : 6*lf+lx1*lz1)
+      jaco_c(1:lx1*lz1) => cb_scrdg(6*lf+lx1*lz1+1
+     $                            : 6*lf+2*lx1*lz1)
+      beta_f(1:lxd*lzd) => cb_scrdg(6*lf+2*lx1*lz1+1
+     $                            : 6*lf+2*lx1*lz1+lxd*lzd)
+      jaco_f(1:lxd*lzd) => cb_scrdg(6*lf+2*lx1*lz1+lxd*lzd+1
+     $                            : 6*lf+2*lx1*lz1+2*lxd*lzd)
+      ufine (1:lxd*lzd) => cb_scrdg(6*lf+2*lx1*lz1+2*lxd*lzd+1
+     $                            : 6*lf+2*lx1*lz1+3*lxd*lzd)
 
       n  = lx1*ly1*lz1*lelv
       nf = lx1*lz1*2*ldim*lelt

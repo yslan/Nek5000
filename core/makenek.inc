@@ -81,7 +81,7 @@ function config_nek() {
 
 # set defaults
 : ${NEK_SOURCE_ROOT:="$HOME/Nek5000"}
-: ${FC:="mpif77"}
+: ${FC:="mpif90"}
 : ${CC:="mpicc"}
 : ${LD:=$FC}
 : ${MPI:=1}
@@ -251,24 +251,27 @@ case $FCcomp in
                ;;
   *gfortran*)  FCPP="-cpp"
                FR8="-fdefault-real-8 -fdefault-double-8"
-               FF77="-w -std=legacy"
+               FF77="-w -std=legacy -ffixed-form"
                ;;
   *ftn*)       FCPP="-eZ"
                FR8="-sreal64"
+               FF77="-fixed"
                ;;
   *frt*)       FCPP="-Cpp"
                FR8="-CcdRR"
-               FF77="-Fixed"
+               FF77="-fixed"
                ;;
   *armflang*)  FCPP="-cpp"
                FR8="-r8"
-               FF77="-std=legacy"
+               FF77="-std=legacy -ffixed-form"
                ;;
   *ifort*)     FCPP="-fpp"
                FR8="-r8 -fpconstant"
+               F77="-fixed"
                ;;
   *ifx*)       FCPP="-fpp"
                FR8="-r8 -fpconstant"
+               F77="-fixed"
                ;;
   *xlf*)       FCPP="-qsuffix=cpp=f"
                FR8="-qrealsize=8 -qdpc=e"
@@ -527,106 +530,106 @@ else
 fi
 \rm .makefile 2>/dev/null
 
-# tweak SIZE file
-if [ -f SIZEu ]; then
-   if [ -f SIZE ]; then
-      echo "FATAL ERROR: found SIZEu and SIZE!"
+# tweak SIZE.usr file
+if [ -f SIZE.usru ]; then
+   if [ -f SIZE.usr ]; then
+      echo "FATAL ERROR: found SIZE.usru and SIZE.usr!"
       return 11
    fi
-   NEK_WARN="WARNING: SIZEu will be deprecated in a future release!"
-   mv -v SIZEu SIZE
+   NEK_WARN="WARNING: SIZE.usru will be deprecated in a future release!"
+   mv -v SIZE.usru SIZE.usr
 fi
 
-if [ ! -f SIZE ]; then
-   echo "FATAL ERROR: Cannot find SIZE!"
+if [ ! -f SIZE.usr ]; then
+   echo "FATAL ERROR: Cannot find SIZE.usr!"
    return 11
 fi
 
-if ! cat SIZE | grep -qi 'lelr' ; then
-   echo >>SIZE
-   echo 'c automatically added by makenek' >>SIZE
-   echo '      integer lelr' >>SIZE
-   echo '      parameter (lelr=lelt) ! max number of local elements per restart file' >>SIZE
+if ! cat SIZE.usr | grep -qi 'lelr' ; then
+   echo >>SIZE.usr
+   echo 'c automatically added by makenek' >>SIZE.usr
+   echo '      integer lelr' >>SIZE.usr
+   echo '      parameter (lelr=lelt) ! max number of local elements per restart file' >>SIZE.usr
 fi
-if ! cat SIZE | grep -qi 'ldimt_proj' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer ldimt_proj' >>SIZE
-     echo '      parameter(ldimt_proj=1) ! max auxiliary fields residual projection ' >>SIZE
+if ! cat SIZE.usr | grep -qi 'ldimt_proj' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer ldimt_proj' >>SIZE.usr
+     echo '      parameter(ldimt_proj=1) ! max auxiliary fields residual projection ' >>SIZE.usr
 fi
 
-# tweak leagacy SIZE file
-if ! cat SIZE | grep -q 'SIZE.inc' ; then
-  NEK_WARN="WARNING: Deprecated SIZE will be removed in a future release!"
-  if ! cat SIZE | grep -qi 'optlevel' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer optlevel,loglevel' >>SIZE
-     echo '      common /lolevels/ optlevel,loglevel' >>SIZE
+# tweak leagacy SIZE.usr file
+if ! cat SIZE.usr | grep -q 'SIZE.inc' ; then
+  NEK_WARN="WARNING: Deprecated SIZE.usr will be removed in a future release!"
+  if ! cat SIZE.usr | grep -qi 'optlevel' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer optlevel,loglevel' >>SIZE.usr
+     echo '      common /lolevels/ optlevel,loglevel' >>SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'lxo' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lxo' >> SIZE
-     echo '      parameter(lxo   = lx1) ! max output grid size (lxo>=lx1)' >>SIZE
+  if ! cat SIZE.usr | grep -qi 'lxo' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lxo' >> SIZE.usr
+     echo '      parameter(lxo   = lx1) ! max output grid size (lxo>=lx1)' >>SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'ax1' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer ax1,ay1,az1,ax2,ay2,az2' >> SIZE
-     echo '      parameter (ax1=lx1,ay1=ly1,az1=lz1,ax2=lx2,ay2=ly2,az2=lz2) ! running averages' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'ax1' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer ax1,ay1,az1,ax2,ay2,az2' >> SIZE.usr
+     echo '      parameter (ax1=lx1,ay1=ly1,az1=lz1,ax2=lx2,ay2=ly2,az2=lz2) ! running averages' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'lys=lxs' ; then
-     cat SIZE | grep -iv lxs > SIZE.x; mv SIZE.x SIZE  # Clean existing SIZE file of old version
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lxs,lys,lzs' >> SIZE
-     echo '      parameter (lxs=1,lys=lxs,lzs=(lxs-1)*(ldim-2)+1) !New Pressure Preconditioner' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'lys=lxs' ; then
+     cat SIZE.usr | grep -iv lxs > SIZE.usr.x; mv SIZE.usr.x SIZE.usr  # Clean existing SIZE.usr file of old version
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lxs,lys,lzs' >> SIZE.usr
+     echo '      parameter (lxs=1,lys=lxs,lzs=(lxs-1)*(ldim-2)+1) !New Pressure Preconditioner' >> SIZE.usr
 
   fi
-  if ! cat SIZE | grep -qi 'lcvx1' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lcvx1,lcvy1,lcvz1,lcvelt' >> SIZE
-     echo '      parameter (lcvx1=1,lcvy1=1,lcvz1=1,lcvelt=1) ! cvode arrays' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'lcvx1' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lcvx1,lcvy1,lcvz1,lcvelt' >> SIZE.usr
+     echo '      parameter (lcvx1=1,lcvy1=1,lcvz1=1,lcvelt=1) ! cvode arrays' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'lfdm' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lfdm' >> SIZE
-     echo '      parameter (lfdm=0)  ! == 1 for fast diagonalization method' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'lfdm' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lfdm' >> SIZE.usr
+     echo '      parameter (lfdm=0)  ! == 1 for fast diagonalization method' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'nsessmax' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer nsessmax' >> SIZE
-     echo '      parameter (nsessmax=1)  ! max sessions to NEKNEK' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'nsessmax' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer nsessmax' >> SIZE.usr
+     echo '      parameter (nsessmax=1)  ! max sessions to NEKNEK' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'nmaxl_nn' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer nmaxl_nn' >> SIZE
-     echo '      parameter (nmaxl_nn=' >> SIZE
-     echo '     $          min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt))' >>SIZE
+  if ! cat SIZE.usr | grep -qi 'nmaxl_nn' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer nmaxl_nn' >> SIZE.usr
+     echo '      parameter (nmaxl_nn=' >> SIZE.usr
+     echo '     $          min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt))' >>SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'nfldmax_nn' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer nfldmax_nn' >> SIZE
-     echo '      parameter (nfldmax_nn=' >> SIZE
-     echo '     $          min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt))' >>SIZE
+  if ! cat SIZE.usr | grep -qi 'nfldmax_nn' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer nfldmax_nn' >> SIZE.usr
+     echo '      parameter (nfldmax_nn=' >> SIZE.usr
+     echo '     $          min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt))' >>SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'nio' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer nio' >> SIZE
-     echo '      common/IOFLAG/nio  ! for logfile verbosity control' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'nio' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer nio' >> SIZE.usr
+     echo '      common/IOFLAG/nio  ! for logfile verbosity control' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'lhref' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lhref' >> SIZE
-     echo '      parameter (lhref=10)' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'lhref' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lhref' >> SIZE.usr
+     echo '      parameter (lhref=10)' >> SIZE.usr
   fi
 fi
 
@@ -671,6 +674,10 @@ done ;
 
 if [ $NODEP -ne 1 ]; then
   build_3rdparty
+fi
+
+if [ -f SIZE ]; then
+    mv SIZE SIZE.usr
 fi
 
 return 0
