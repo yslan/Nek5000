@@ -123,6 +123,7 @@ CASEDIR=`pwd`
 CASENAME=$1
 NODEP=0
 ONLYDEP=0
+NEK_WARN=""
 
 SOURCE_ROOT_BLAS="$NEK_SOURCE_ROOT/3rd_party/blasLapack"
 export SOURCE_ROOT_BLAS
@@ -411,7 +412,6 @@ export FCPP
 export FR8
 export FF77
 export CC
-export NEK_WARN 
 export MPI
 export MPIO
 export UNDERSCORE
@@ -424,15 +424,16 @@ if [ $ONLYDEP -eq 1 ]; then
 fi 
 
 if [ $nargs -eq 0 ]; then
-   NCASEFILES=`find *.usr 2>/dev/null| wc -l`
+   NCASEFILES=$(find *.usr ! -name 'SIZE.usr' 2>/dev/null | wc -l)
    if [ $NCASEFILES == "0" ]; then
      true
    elif [ $NCASEFILES != "1" ]; then
      echo "FATAL ERROR: Found multiple .usr files!"
      echo "Please use makenek [.usr filename]"
+     find *.usr ! -name 'SIZE.usr'
      return 11
    else
-     CASENAME=`find *.usr | sed 's/\.usr$//g'`
+     CASENAME=$(find *.usr ! -name 'SIZE.usr' | sed 's/\.usr$//')
    fi
 fi
 
@@ -530,13 +531,24 @@ else
 fi
 \rm .makefile 2>/dev/null
 
+# backward support SIZE and SIZEu
+if [ ! -f SIZE.usr ] && [ -f SIZE ]; then
+    NEK_WARN+="WARNING: SIZE is renamed to SIZE.usr\n"
+    mv SIZE SIZE.usr
+fi
+
+if [ ! -f SIZEu.usr ] && [ -f SIZEu ]; then
+    NEK_WARN+="WARNING: SIZEu is renamed to SIZE.usru\n"
+    mv SIZEu SIZE.usru
+fi
+
 # tweak SIZE.usr file
 if [ -f SIZE.usru ]; then
    if [ -f SIZE.usr ]; then
       echo "FATAL ERROR: found SIZE.usru and SIZE.usr!"
       return 11
    fi
-   NEK_WARN="WARNING: SIZE.usru will be deprecated in a future release!"
+   NEK_WARN+="WARNING: SIZE.usru will be deprecated in a future release!\n"
    mv -v SIZE.usru SIZE.usr
 fi
 
@@ -560,7 +572,7 @@ fi
 
 # tweak leagacy SIZE.usr file
 if ! cat SIZE.usr | grep -q 'SIZE.inc' ; then
-  NEK_WARN="WARNING: Deprecated SIZE.usr will be removed in a future release!"
+  NEK_WARN+="WARNING: Deprecated SIZE.usr will be removed in a future release!\n"
   if ! cat SIZE.usr | grep -qi 'optlevel' ; then
      echo >>SIZE.usr
      echo 'c automatically added by makenek' >>SIZE.usr
@@ -676,8 +688,11 @@ if [ $NODEP -ne 1 ]; then
   build_3rdparty
 fi
 
-if [ -f SIZE ]; then
-    mv SIZE SIZE.usr
+# Collet NEK_WARN to obj/.nekwarn for later echo
+mkdir -p "$CASEDIR/obj"
+\rm -f "$CASEDIR/obj/.nekwarn"
+if [ -n "$NEK_WARN" ]; then
+   printf '%b' "$NEK_WARN" > "$CASEDIR/obj/.nekwarn"
 fi
 
 return 0

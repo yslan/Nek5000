@@ -195,7 +195,7 @@ nek5000: ${LIB} $(USRF)
 	$(LD) $(FL2) -o ${BINNAME} drive.o $(USRF) $(MODS) ${LIB} $(USR_LFLAGS) $(LDFLAGS)
 	@if test -f ${BINNAME}; then \
         echo ""; \
-        echo "$(NEK_WARN)"; \
+        if [ -s $(OBJDIR)/.nekwarn ]; then cat $(OBJDIR)/.nekwarn; echo ""; fi; \
 	echo "#############################################################"; \
 	echo "#                  Compilation successful!                  #"; \
 	echo "#############################################################"; \
