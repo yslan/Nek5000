@@ -233,51 +233,62 @@ case $FCcomp in
   *pgf*)       FCPP="-Mpreprocess"
                FR8="-r8"
                FF77="-Mfixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *flang*)
     if is_llvm_flang "$FCcomp"; then
         FCPP="-cpp"
         FR8="-fdefault-real-8 -fdefault-double-8"
         FF77="-w -ffixed-form"
+        MODFLAG='-J$(OBJDIR)'
     else
         # CLASSIC FLANG (Legacy/PGI-based)
         FCPP="-Mpreprocess"
         FR8="-r8"
         FF77="-Mfixed"
+        MODFLAG='-module $(OBJDIR)'
     fi
     ;;
   *nvfortran*) FCPP="-Mpreprocess"
                FR8="-r8"
                FF77="-Mfixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *gfortran*)  FCPP="-cpp"
                FR8="-fdefault-real-8 -fdefault-double-8"
                FF77="-w -std=legacy -ffixed-form"
+               MODFLAG='-J$(OBJDIR)'
                ;;
   *ftn*)       FCPP="-eZ"
                FR8="-sreal64"
                FF77="-fixed"
+               MODFLAG='-J $(OBJDIR)'
                ;;
   *frt*)       FCPP="-Cpp"
                FR8="-CcdRR"
                FF77="-fixed"
+               MODFLAG='-M $(OBJDIR)'
                ;;
   *armflang*)  FCPP="-cpp"
                FR8="-r8"
                FF77="-std=legacy -ffixed-form"
+               MODFLAG='-J$(OBJDIR)'
                ;;
   *ifort*)     FCPP="-fpp"
                FR8="-r8 -fpconstant"
-               F77="-fixed"
+               FF77="-fixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *ifx*)       FCPP="-fpp"
                FR8="-r8 -fpconstant"
-               F77="-fixed"
+               FF77="-fixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *xlf*)       FCPP="-qsuffix=cpp=f"
                FR8="-qrealsize=8 -qdpc=e"
                FF77="-qfixed"
                PPPO="-WF,"
+               MODFLAG='-qmoddir=$(OBJDIR)'
                ;;
   *)  echo "ERROR: Cannot find a supported compiler!"
       echo ""
@@ -453,6 +464,7 @@ sed -e "s:^FC[ ]*=.*:FC=$FC:" \
 -e "s:^LD[ ]*=.*:LD=$LD:" \
 -e "s:^OPT_INCDIR[ ]*=.*:OPT_INCDIR=$OPT_INCDIR:" \
 -e "s:^FFLAGS[ ]*+=.*:FFLAGS+=$FCPP $FR8 $FF77 $FFLAGS:" \
+-e "s:^MODFLAG[ ]*=.*:MODFLAG=$MODFLAG:" \
 -e "s:^CFLAGS[ ]*+=.*:CFLAGS+=$CFLAGS:" \
 -e "s:^LDFLAGS[ ]*+=.*:LDFLAGS+=$LDFLAGS:" \
 -e "s/^PPPO[ ]*=.*/PPPO=$PPPO/" \
