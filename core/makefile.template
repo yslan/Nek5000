@@ -230,8 +230,6 @@ clean::
 
 .PHONY: all clean lib usr 
 
-$(NOBJS) : 
-
 # NEK CORE     ##################################################################
 $(OBJDIR)/drive1.o	:$S/core/drive1.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/drive2.o	:$S/core/drive2.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@

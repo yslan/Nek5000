@@ -295,8 +295,6 @@ case $FCcomp in
       read;;
 esac
 
-LONGLONGINT=1
-
 # Check if the compiler adds an underscore to external functions
 UNDERSCORE=0
 cat > test_underscore.f << _ACEOF
@@ -424,7 +422,7 @@ export FR8
 export FF77
 export CC
 export MPI
-export MPIO
+export MPIIO
 export UNDERSCORE
 export GSLIB_OPT
 export PARRSB_OPT
@@ -525,7 +523,7 @@ fi
 
 
 if [ "$USR" != "" ]; then
-  echo "###########################################################" >> makefile
+  echo "###########################################################" >> .makefile
   echo "include makefile_usr.inc" >> .makefile
 fi
 
