@@ -542,14 +542,17 @@ fi
 \rm .makefile 2>/dev/null
 
 # backward support SIZE and SIZEu
-if [ ! -f SIZE.usr ] && [ -f SIZE ]; then
+if [ -f SIZE ]; then
+  if [ -f SIZE.usr ]; then
+    NEK_WARN+="WARNING: SIZE detected. Renaming SIZE to SIZE.usr (overwriting SIZE.usr)\n"
+  else
     NEK_WARN+="WARNING: SIZE is renamed to SIZE.usr\n"
-    mv SIZE SIZE.usr
+  fi
+  mv SIZE SIZE.usr
 fi
-
 if [ ! -f SIZEu.usr ] && [ -f SIZEu ]; then
-    NEK_WARN+="WARNING: SIZEu is renamed to SIZE.usru\n"
-    mv SIZEu SIZE.usru
+  NEK_WARN+="WARNING: SIZEu is renamed to SIZE.usru\n"
+  mv SIZEu SIZE.usru
 fi
 
 # tweak SIZE.usr file
