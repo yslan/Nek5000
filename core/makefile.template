@@ -169,6 +169,8 @@ INCLUDES:= $(foreach dir,$(INCLUDES_DIR),-I$(dir))
 
 NOBJS = $(patsubst %,$(OBJDIR)/%,$(TMP1))
 USRF = $(OBJDIR)/${CASENAME}.o
+SMOD = $(OBJDIR)/size_mod.o
+FMOD = $(MODFLAG)
 
 L0 = $(G) -O0
 L2 = $(G) -O2
@@ -187,7 +189,7 @@ all : nek5000
 
 usr: $(USRF)
 
-$(USRF): ./SIZE.usr ${CASENAME}.usr $(OBJDIR)/size_mod.o $(MODS)
+$(USRF): ./SIZE.usr ${CASENAME}.usr $(SMOD) $(MODS)
 	@env CASENAME=$(CASENAME) PPS="$(PPS)" $S/core/mkuserfile
 	$(FC) -c $(FL2) $(VISITNEK_INCLUDES) -I$(CASEDIR) $(CASEDIR)/${CASENAME}.f -o $(USRF)
 
@@ -212,7 +214,7 @@ lib: ${LIB}
 
 mods: ${MODS}
 
-${LIB}: $(OBJDIR)/size_mod.o $(MODS) $(NOBJS)
+${LIB}: $(SMOD) $(MODS) $(NOBJS)
 	@$(AR) cr ${LIB} $(NOBJS)
 	@ranlib ${LIB}
 	@if test -f ${LIB}; then \
@@ -231,136 +233,72 @@ clean::
 $(NOBJS) : 
 
 # NEK CORE     ##################################################################
-$(OBJDIR)/drive1.o	:$S/core/drive1.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/drive2.o	:$S/core/drive2.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/prepost.o	:$S/core/prepost.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/postpro.o	:$S/core/postpro.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/gfldr.o	:$S/core/gfldr.f $(OBJDIR)/gfldr_mod.o $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/connect1.o	:$S/core/connect1.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/connect2.o	:$S/core/connect2.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/genxyz.o	:$S/core/genxyz.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/subs1.o	:$S/core/subs1.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/subs2.o	:$S/core/subs2.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/map2.o	:$S/core/map2.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/dprocmap.o    :$S/core/dprocmap.f $(OBJDIR)/dprocmap_mod.o $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/interp.o      :$S/core/interp.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/mvmesh.o	:$S/core/mvmesh.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/induct.o	:$S/core/induct.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/convect.o	:$S/core/convect.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/convect2.o	:$S/core/convect2.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL0) $< -o $@
-$(OBJDIR)/perturb.o	:$S/core/perturb.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/hsmg.o	:$S/core/hsmg.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/gmres.o	:$S/core/gmres.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/papi.o	:$S/core/papi.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/bdry.o	:$S/core/bdry.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/ic.o		:$S/core/ic.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/conduct.o	:$S/core/conduct.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/navier0.o	:$S/core/navier0.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/navier2.o	:$S/core/navier2.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/navier3.o	:$S/core/navier3.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/navier4.o	:$S/core/navier4.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/navier5.o	:$S/core/navier5.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/navier6.o	:$S/core/navier6.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/navier7.o	:$S/core/navier7.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/navier8.o	:$S/core/navier8.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/speclib.o	:$S/core/speclib.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/calcz.o	:$S/core/calcz.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/fast3d.o	:$S/core/fast3d.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/dssum.o	:$S/core/dssum.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/eigsolv.o	:$S/core/eigsolv.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/gauss.o	:$S/core/gauss.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/planx.o	:$S/core/planx.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/ssolv.o	:$S/core/ssolv.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/coef.o	:$S/core/coef.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/plan4.o	:$S/core/plan4.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/plan5.o	:$S/core/plan5.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/vprops.o	:$S/core/vprops.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/cvode_driver.o :$S/core/cvode_driver.f $(OBJDIR)/cvode_mod.o $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/makeq.o      	:$S/core/makeq.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/makeq_aux.o  	:$S/core/makeq_aux.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/hmholtz.o	:$S/core/hmholtz.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/navier1.o	:$S/core/navier1.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/fasts.o	:$S/core/fasts.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/comm_mpi.o	:$S/core/comm_mpi.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/mpi_dummy.o	:$S/core/mpi_dummy.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/byte_mpi.o	:$S/core/byte_mpi.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/math.o	:$S/core/math.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL3) $< -o $@
-$(OBJDIR)/multimesh.o	:$S/core/multimesh.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/lb_setqvol.o	:$S/core/lb_setqvol.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/reader_rea.o	:$S/core/reader_rea.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/reader_par.o	:$S/core/reader_par.f $S/core/PARDICT $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/reader_re2.o	:$S/core/reader_re2.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/hpf.o	       	:$S/core/hpf.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/hrefine.o	:$S/core/hrefine.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/drive1.o	:$S/core/drive1.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/drive2.o	:$S/core/drive2.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/prepost.o	:$S/core/prepost.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/postpro.o	:$S/core/postpro.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/gfldr.o	:$S/core/gfldr.f $(OBJDIR)/gfldr_mod.o $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/connect1.o	:$S/core/connect1.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/connect2.o	:$S/core/connect2.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/genxyz.o	:$S/core/genxyz.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/subs1.o	:$S/core/subs1.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/subs2.o	:$S/core/subs2.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/map2.o	:$S/core/map2.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dprocmap.o    :$S/core/dprocmap.f $(OBJDIR)/dprocmap_mod.o $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/interp.o      :$S/core/interp.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/mvmesh.o	:$S/core/mvmesh.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/induct.o	:$S/core/induct.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/convect.o	:$S/core/convect.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/convect2.o	:$S/core/convect2.f $(SMOD) $(MODS);	$(FC) -c $(FL0) $< -o $@
+$(OBJDIR)/perturb.o	:$S/core/perturb.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/hsmg.o	:$S/core/hsmg.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/gmres.o	:$S/core/gmres.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/papi.o	:$S/core/papi.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/bdry.o	:$S/core/bdry.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ic.o		:$S/core/ic.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/conduct.o	:$S/core/conduct.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/navier0.o	:$S/core/navier0.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/navier2.o	:$S/core/navier2.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/navier3.o	:$S/core/navier3.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/navier4.o	:$S/core/navier4.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/navier5.o	:$S/core/navier5.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/navier6.o	:$S/core/navier6.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/navier7.o	:$S/core/navier7.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/navier8.o	:$S/core/navier8.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/speclib.o	:$S/core/speclib.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/calcz.o	:$S/core/calcz.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/fast3d.o	:$S/core/fast3d.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/dssum.o	:$S/core/dssum.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/eigsolv.o	:$S/core/eigsolv.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/gauss.o	:$S/core/gauss.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/planx.o	:$S/core/planx.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/ssolv.o	:$S/core/ssolv.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/coef.o	:$S/core/coef.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/plan4.o	:$S/core/plan4.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/plan5.o	:$S/core/plan5.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/vprops.o	:$S/core/vprops.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/cvode_driver.o :$S/core/cvode_driver.f $(OBJDIR)/cvode_mod.o $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/makeq.o      	:$S/core/makeq.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/makeq_aux.o  	:$S/core/makeq_aux.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/hmholtz.o	:$S/core/hmholtz.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/navier1.o	:$S/core/navier1.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/fasts.o	:$S/core/fasts.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/comm_mpi.o	:$S/core/comm_mpi.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/mpi_dummy.o	:$S/core/mpi_dummy.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/byte_mpi.o	:$S/core/byte_mpi.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/math.o	:$S/core/math.f $(SMOD) $(MODS);	$(FC) -c $(FL3) $< -o $@
+$(OBJDIR)/multimesh.o	:$S/core/multimesh.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/lb_setqvol.o	:$S/core/lb_setqvol.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/reader_rea.o	:$S/core/reader_rea.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/reader_par.o	:$S/core/reader_par.f $S/core/PARDICT $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/reader_re2.o	:$S/core/reader_re2.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/hpf.o	       	:$S/core/hpf.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/hrefine.o	:$S/core/hrefine.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
 
 # MXM       ############################################################################
-$(OBJDIR)/mxm_wrapper.o	  :$S/core/mxm_wrapper.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/mxm_std.o	  :$S/core/mxm_std.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL3) $< -o $@
-$(OBJDIR)/mxm_bgq.o	  :$S/core/mxm_bgq.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(FL3) $< -o $@
+$(OBJDIR)/mxm_wrapper.o	  :$S/core/mxm_wrapper.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/mxm_std.o	  :$S/core/mxm_std.f $(SMOD) $(MODS);	$(FC) -c $(FL3) $< -o $@
+$(OBJDIR)/mxm_bgq.o	  :$S/core/mxm_bgq.f $(SMOD) $(MODS);	$(FC) -c $(FL3) $< -o $@
 
 # C Files ##################################################################################
 $(OBJDIR)/byte.o             :$S/core/byte.c;              $(CC) -c $(cFL2) $< -o $@
@@ -374,152 +312,80 @@ $(OBJDIR)/partitioner.o      :$S/core/partitioner.c;       $(CC) -c $(cFL2) $(GS
 $(OBJDIR)/nekio.o          :$S/core/nekio.c;           $(CC) -c $(cFL2) $(GSLIB_IFLAGS) $< -o $@
 
 # 3rd party #######################################################################################
-$(OBJDIR)/visit.o        :$S/core/3rd_party/visit.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(VISIT_IFLAGS) $(FL2) $< -o $@
-$(OBJDIR)/nek_in_situ.o  :$S/core/3rd_party/nek_in_situ.f $(OBJDIR)/size_mod.o $(MODS)
-	$(FC) -c $(VISIT_IFLAGS) $(FL2) $< -o $@
+$(OBJDIR)/visit.o        :$S/core/3rd_party/visit.f $(SMOD) $(MODS);	$(FC) -c $(VISIT_IFLAGS) $(FL2) $< -o $@
+$(OBJDIR)/nek_in_situ.o  :$S/core/3rd_party/nek_in_situ.f $(SMOD) $(MODS);	$(FC) -c $(VISIT_IFLAGS) $(FL2) $< -o $@
 $(OBJDIR)/finiparser.o   :$S/core/3rd_party/finiparser.c;    $(CC) -c $(cFL2) $(JL) $< -o $@
 $(OBJDIR)/iniparser.o    :$S/core/3rd_party/iniparser.c;     $(CC) -c $(cFL2) $(JL) $< -o $@
 $(OBJDIR)/dictionary.o   :$S/core/3rd_party/dictionary.c;    $(CC) -c $(cFL2) $(JL) $< -o $@
 
 # MODULES  ######################################################################
-$(OBJDIR)/adjoint_mod.o	:$(MODDIR)/ADJOINT.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/avg_mod.o	:$(MODDIR)/AVG.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/c_is1_mod.o	:$(MODDIR)/C_IS1.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/cbplan_vol_ms_mod.o	:$(MODDIR)/CBPLAN_VOL_MS.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/ctimer_mod.o	:$(MODDIR)/CTIMER.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/ctmp0_mod.o	:$(MODDIR)/CTMP0.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/ctmp1_mod.o	:$(MODDIR)/CTMP1.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/ctmpf_mod.o	:$(MODDIR)/CTMPF.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/cvflow_a_mod.o	:$(MODDIR)/CVFLOW_A.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/cvflow_nn_mod.o	:$(MODDIR)/CVFLOW_NN.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/cvode_mod.o	:$(MODDIR)/CVODE.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/dealias_mod.o	:$(MODDIR)/DEALIAS.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/domain_mod.o	:$(MODDIR)/DOMAIN.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/dprocmap_mod.o	:$(MODDIR)/DPROCMAP.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/dxyz_mod.o	:$(MODDIR)/DXYZ.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/eigen_mod.o	:$(MODDIR)/EIGEN.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/esolv_mod.o	:$(MODDIR)/ESOLV.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/fastd_mod.o	:$(MODDIR)/FASTD.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/fastg_mod.o	:$(MODDIR)/FASTG.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/fdmh1_mod.o	:$(MODDIR)/FDMH1.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/geom_mod.o	:$(MODDIR)/GEOM.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/gfldr_mod.o	:$(MODDIR)/GFLDR.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/gmres_mod.o	:$(MODDIR)/GMRES.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/hsmg_mod.o	:$(MODDIR)/HSMG.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/input_mod.o	:$(MODDIR)/INPUT.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/ivrtx_mod.o	:$(MODDIR)/IVRTX.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/ixyz_mod.o	:$(MODDIR)/IXYZ.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/mass_mod.o	:$(MODDIR)/MASS.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/mvgeom_mod.o	:$(MODDIR)/MVGEOM.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/neknek_mod.o	:$(MODDIR)/NEKNEK.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/nekuse_mod.o	:$(MODDIR)/NEKUSE.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/noncon_mod.o	:$(MODDIR)/NONCON.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/objdata_mod.o	:$(MODDIR)/OBJDATA.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/opctr_mod.o	:$(MODDIR)/OPCTR.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/orthop_mod.o	:$(MODDIR)/ORTHOP.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/orthostrs_mod.o	:$(MODDIR)/ORTHOSTRS.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/orthot_mod.o	:$(MODDIR)/ORTHOT.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/orthov_mod.o	:$(MODDIR)/ORTHOV.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/orthox_mod.o	:$(MODDIR)/ORTHOX.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/outtmp_mod.o	:$(MODDIR)/OUTTMP.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/restart_mod.o	:$(MODDIR)/RESTART.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/screv_mod.o	:$(MODDIR)/SCREV.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrcg_mod.o	:$(MODDIR)/SCRCG.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrch_mod.o	:$(MODDIR)/SCRCH.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrct_mod.o	:$(MODDIR)/SCRCT.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrdg_mod.o	:$(MODDIR)/SCRDG.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrhi_mod.o	:$(MODDIR)/SCRHI.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrmg_mod.o	:$(MODDIR)/SCRMG.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrns_mod.o	:$(MODDIR)/SCRNS.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrpr2_mod.o	:$(MODDIR)/SCRPR2.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrpre_mod.o	:$(MODDIR)/SCRPRE.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrsf_mod.o	:$(MODDIR)/SCRSF.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scruz_mod.o	:$(MODDIR)/SCRUZ.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrvh_mod.o	:$(MODDIR)/SCRVH.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrxxt_mod.o	:$(MODDIR)/SCRXXT.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/scrxxti_mod.o	:$(MODDIR)/SCRXXTI.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/semhat_mod.o	:$(MODDIR)/SEMHAT.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/steady_mod.o	:$(MODDIR)/STEADY.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/swaplengths_mod.o	:$(MODDIR)/SWAPLENGTHS.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/topol_mod.o	:$(MODDIR)/TOPOL.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/tstep_mod.o	:$(MODDIR)/TSTEP.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/vproj_mod.o	:$(MODDIR)/VPROJ.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/vrthov_mod.o	:$(MODDIR)/VRTHOV.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/weightop_mod.o	:$(MODDIR)/WEIGHTOP.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/wz_mod.o	:$(MODDIR)/WZ.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/wzf_mod.o	:$(MODDIR)/WZF.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/zper_mod.o	:$(MODDIR)/ZPER.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/soln_mod.o	:$(MODDIR)/SOLN.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/parallel_mod.o	:$(OBJDIR)/PARALLEL.f $(OBJDIR)/size_mod.o
-	$(FC) -c $(FL2) $(MODFLAG) $< -o $@
-$(OBJDIR)/size_mod.o	:$(MODDIR)/SIZE.f ./SIZE.usr
-	$(FC) -c -I$(CASEDIR) $(FL2) $(MODFLAG) $< -o $@
+$(OBJDIR)/adjoint_mod.o	:$(MODDIR)/ADJOINT.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/avg_mod.o	:$(MODDIR)/AVG.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/c_is1_mod.o	:$(MODDIR)/C_IS1.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/cbplan_vol_ms_mod.o	:$(MODDIR)/CBPLAN_VOL_MS.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/ctimer_mod.o	:$(MODDIR)/CTIMER.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/ctmp0_mod.o	:$(MODDIR)/CTMP0.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/ctmp1_mod.o	:$(MODDIR)/CTMP1.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/ctmpf_mod.o	:$(MODDIR)/CTMPF.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/cvflow_a_mod.o	:$(MODDIR)/CVFLOW_A.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/cvflow_nn_mod.o	:$(MODDIR)/CVFLOW_NN.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/cvode_mod.o	:$(MODDIR)/CVODE.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/dealias_mod.o	:$(MODDIR)/DEALIAS.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/domain_mod.o	:$(MODDIR)/DOMAIN.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/dprocmap_mod.o	:$(MODDIR)/DPROCMAP.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/dxyz_mod.o	:$(MODDIR)/DXYZ.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/eigen_mod.o	:$(MODDIR)/EIGEN.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/esolv_mod.o	:$(MODDIR)/ESOLV.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/fastd_mod.o	:$(MODDIR)/FASTD.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/fastg_mod.o	:$(MODDIR)/FASTG.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/fdmh1_mod.o	:$(MODDIR)/FDMH1.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/geom_mod.o	:$(MODDIR)/GEOM.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/gfldr_mod.o	:$(MODDIR)/GFLDR.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/gmres_mod.o	:$(MODDIR)/GMRES.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/hsmg_mod.o	:$(MODDIR)/HSMG.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/input_mod.o	:$(MODDIR)/INPUT.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/ivrtx_mod.o	:$(MODDIR)/IVRTX.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/ixyz_mod.o	:$(MODDIR)/IXYZ.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/mass_mod.o	:$(MODDIR)/MASS.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/mvgeom_mod.o	:$(MODDIR)/MVGEOM.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/neknek_mod.o	:$(MODDIR)/NEKNEK.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/nekuse_mod.o	:$(MODDIR)/NEKUSE.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/noncon_mod.o	:$(MODDIR)/NONCON.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/objdata_mod.o	:$(MODDIR)/OBJDATA.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/opctr_mod.o	:$(MODDIR)/OPCTR.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/orthop_mod.o	:$(MODDIR)/ORTHOP.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/orthostrs_mod.o	:$(MODDIR)/ORTHOSTRS.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/orthot_mod.o	:$(MODDIR)/ORTHOT.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/orthov_mod.o	:$(MODDIR)/ORTHOV.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/orthox_mod.o	:$(MODDIR)/ORTHOX.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/outtmp_mod.o	:$(MODDIR)/OUTTMP.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/restart_mod.o	:$(MODDIR)/RESTART.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/screv_mod.o	:$(MODDIR)/SCREV.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrcg_mod.o	:$(MODDIR)/SCRCG.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrch_mod.o	:$(MODDIR)/SCRCH.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrct_mod.o	:$(MODDIR)/SCRCT.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrdg_mod.o	:$(MODDIR)/SCRDG.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrhi_mod.o	:$(MODDIR)/SCRHI.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrmg_mod.o	:$(MODDIR)/SCRMG.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrns_mod.o	:$(MODDIR)/SCRNS.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrpr2_mod.o	:$(MODDIR)/SCRPR2.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrpre_mod.o	:$(MODDIR)/SCRPRE.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrsf_mod.o	:$(MODDIR)/SCRSF.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scruz_mod.o	:$(MODDIR)/SCRUZ.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrvh_mod.o	:$(MODDIR)/SCRVH.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrxxt_mod.o	:$(MODDIR)/SCRXXT.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/scrxxti_mod.o	:$(MODDIR)/SCRXXTI.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/semhat_mod.o	:$(MODDIR)/SEMHAT.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/steady_mod.o	:$(MODDIR)/STEADY.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/swaplengths_mod.o	:$(MODDIR)/SWAPLENGTHS.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/topol_mod.o	:$(MODDIR)/TOPOL.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/tstep_mod.o	:$(MODDIR)/TSTEP.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/vproj_mod.o	:$(MODDIR)/VPROJ.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/vrthov_mod.o	:$(MODDIR)/VRTHOV.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/weightop_mod.o	:$(MODDIR)/WEIGHTOP.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/wz_mod.o	:$(MODDIR)/WZ.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/wzf_mod.o	:$(MODDIR)/WZF.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/zper_mod.o	:$(MODDIR)/ZPER.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/soln_mod.o	:$(MODDIR)/SOLN.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(OBJDIR)/parallel_mod.o	:$(OBJDIR)/PARALLEL.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
+$(SMOD)	:$(MODDIR)/SIZE.f ./SIZE.usr;	$(FC) -c -I$(CASEDIR) $(FL2) $(FMOD) $< -o $@
