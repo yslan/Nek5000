@@ -3,6 +3,7 @@
       implicit none
 
       real, allocatable, target :: cb_scrns(:)
+      real, allocatable, target :: cb_resdmp(:)  ! restart T/ps dump (was common /cbresdmp/); separate from cb_scrns
 
       contains
 
@@ -35,6 +36,8 @@
      $                sz_hrefine)
 
          allocate(cb_scrns(nscrns), stat=ierr)
+
+         allocate(cb_resdmp(lx1*ly1*lz1*lelt*ldimt), stat=ierr)
 
       end subroutine init
       end module scrns_mod

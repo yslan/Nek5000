@@ -460,9 +460,7 @@ C----------------------------------------------------------------------
 C     note, this usage of CTMP1 will be less than elsewhere if NELT ~> 9.
       real*4, pointer :: tdump(:,:)
 c
-c      REAL SDMP2(LXYZT,LDIMT)
-      REAL SDMP2(1,LDIMT)
-c      common /cbresdmp/ SDMP2 
+      real, pointer :: SDMP2(:,:)   ! => cb_resdmp (SCRNS mod); separate from SDUMP/cb_scrns
 
 c     cdump comes in via PARALLEL (->TOTAL)
 
@@ -492,6 +490,7 @@ C     Local logical flags to determine whether to copy data or not.
 
 c
       SDUMP(1:LXYZT,1:7) => cb_scrns(1 : LXYZT*7)
+      SDMP2(1:LXYZT,1:LDIMT) => cb_resdmp(1 : LXYZT*LDIMT)
       call c_f_pointer(c_loc(cb_ctmp1(1)), tdump, [LXYZR,LPSC9])
       pm1(1:lx1*ly1*lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
 

@@ -1,10 +1,11 @@
       module cvode_mod
 
+      use size_mod
       implicit none
 c
 c     Variables for the method of characteristics
 c
-      integer cv_lysize   ! depends on SIZE, set in init()
+      integer, parameter :: cv_lysize = lcvx1*lcvy1*lcvz1*lcvelt*ldimt
 
       integer igstype,itmeth
       parameter(
@@ -39,12 +40,9 @@ c
       contains
 
       subroutine init
-         use size_mod
          implicit none
 
          integer ierr, ioff
-
-         cv_lysize = lcvx1*lcvy1*lcvz1*lcvelt*ldimt
 
 c        --- allocate backing arrays ---
 
