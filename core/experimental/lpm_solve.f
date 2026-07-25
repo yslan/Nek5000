@@ -617,6 +617,7 @@ c     ndum = lpm_npart_gp
       end
 !-----------------------------------------------------------------------
       subroutine lpm_qtl_pvol(divin,phipin)
+      use scrns_mod
 c
 c     Computes modified divergence constraint for multiphase dense
 c     incompressible flow
@@ -630,16 +631,26 @@ c
 
       real divin(lx2,ly2,lz2,lelv), phipin(lx1,ly1,lz1,lelt)
 
-      COMMON /SCRNS/ ur(lx1,ly1,lz1,lelt)
-     >              ,us(lx1,ly1,lz1,lelt)
-     >              ,ut(lx1,ly1,lz1,lelt)
-     >              ,phigin(lx1,ly1,lz1,lelt)
-     >              ,phig_qtl(lx1,ly1,lz1,lelt)
-     >              ,grad_dot(lx1,ly1,lz1,lelt)
+      real, pointer :: ur(:,:,:,:), us(:,:,:,:), ut(:,:,:,:)
+     >               , phigin(:,:,:,:), phig_qtl(:,:,:,:)
+     >               , grad_dot(:,:,:,:)
 
       integer icalld
       save    icalld
       data    icalld  /-1/
+
+      ur(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     >   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      us(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     >   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      ut(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     >   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      phigin(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     >   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
+      phig_qtl(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     >   cb_scrns(4*lx1*ly1*lz1*lelt+1 : 5*lx1*ly1*lz1*lelt)
+      grad_dot(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     >   cb_scrns(5*lx1*ly1*lz1*lelt+1 : 6*lx1*ly1*lz1*lelt)
 
       icalld = icalld + 1
       nxyze = lx1*ly1*lz1*lelt

@@ -1,12 +1,14 @@
 #ifndef NOMPIIO
 
       subroutine gfldr(sourcefld)
+      use scrcg_mod
+      use gfldr_mod, only : gfldr_init => init
 c
 c     generic field file reader
 c     reads sourcefld and interpolates all avaiable fields
 c     onto current mesh
 c
-c     memory requirement: 
+c     memory requirement:
 c     nelgs*nxs**ldim < np*(4*lelt*lx1**ldim)
 c
       include 'SIZE'
@@ -16,7 +18,7 @@ c
 
       character sourcefld*(*)
 
-      common /scrcg/  pm1(lx1*ly1*lz1,lelv)
+      real, pointer :: pm1(:,:)
       common /nekmpi/ nidd,npp,nekcomm,nekgroup,nekreal
 
       character*1   hdr(iHeaderSize)
@@ -26,6 +28,10 @@ c
 
       logical if_byte_swap_test
       real*4 bytetest
+
+      pm1(1:lx1*ly1*lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
+
+      call gfldr_init() ! no-op after the first call
 
       etime_t = dnekclock_sync()
       if(nio.eq.0) write(6,*) 'call gfldr ',trim(sourcefld) 

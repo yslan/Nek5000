@@ -5,6 +5,10 @@ c=======================================================================
       include 'FDMH1'
       include 'CTIMER'
 
+      integer icalld
+      save    icalld
+      data    icalld /0/
+
       CHARACTER      NAME*4
       REAL           U    (LX1,LY1,LZ1,1)
       REAL           RHS  (LX1,LY1,LZ1,1)
@@ -70,6 +74,7 @@ c     $    write(6,*) param(22),' p22 ',istep,imsh
 C
 c=======================================================================
       subroutine axhelm (au,u,helm1,helm2,imesh,isd)
+      use ctmp1_mod
 C------------------------------------------------------------------
 C
 C     Compute the (Helmholtz) matrix-vector product,
@@ -93,21 +98,33 @@ C
      $ ,             U     (LX1,LY1,LZ1,1)
      $ ,             HELM1 (LX1,LY1,LZ1,1)
      $ ,             HELM2 (LX1,LY1,LZ1,1)
-      COMMON /CTMP1/ DUDR  (LX1,LY1,LZ1)
-     $ ,             DUDS  (LX1,LY1,LZ1)
-     $ ,             DUDT  (LX1,LY1,LZ1)
-     $ ,             TMP1  (LX1,LY1,LZ1)
-     $ ,             TMP2  (LX1,LY1,LZ1)
-     $ ,             TMP3  (LX1,LY1,LZ1)
+      real, pointer :: DUDR(:,:,:), DUDS(:,:,:), DUDT(:,:,:)
+     $               , TMP1(:,:,:), TMP2(:,:,:), TMP3(:,:,:)
 
-      REAL           TM1   (LX1,LY1,LZ1)
-      REAL           TM2   (LX1,LY1,LZ1)
-      REAL           TM3   (LX1,LY1,LZ1)
+      real, pointer :: TM1(:,:,:), TM2(:,:,:), TM3(:,:,:)
       REAL           DUAX  (LX1)
       REAL           YSM1  (LX1)
-      EQUIVALENCE    (DUDR,TM1),(DUDS,TM2),(DUDT,TM3)
 
       integer e
+
+      DUDR(1:lx1,1:ly1,1:lz1) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1+1 : 1*lx1*ly1*lz1)
+      DUDS(1:lx1,1:ly1,1:lz1) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1+1 : 2*lx1*ly1*lz1)
+      DUDT(1:lx1,1:ly1,1:lz1) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1+1 : 3*lx1*ly1*lz1)
+      TMP1(1:lx1,1:ly1,1:lz1) =>
+     $   cb_ctmp1(3*lx1*ly1*lz1+1 : 4*lx1*ly1*lz1)
+      TMP2(1:lx1,1:ly1,1:lz1) =>
+     $   cb_ctmp1(4*lx1*ly1*lz1+1 : 5*lx1*ly1*lz1)
+      TMP3(1:lx1,1:ly1,1:lz1) =>
+     $   cb_ctmp1(5*lx1*ly1*lz1+1 : 6*lx1*ly1*lz1)
+      TM1(1:lx1,1:ly1,1:lz1) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1+1 : 1*lx1*ly1*lz1)
+      TM2(1:lx1,1:ly1,1:lz1) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1+1 : 2*lx1*ly1*lz1)
+      TM3(1:lx1,1:ly1,1:lz1) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1+1 : 3*lx1*ly1*lz1)
 
       naxhm = naxhm + 1
       etime1 = dnekclock()
@@ -525,6 +542,7 @@ C
 C
 c=======================================================================
       subroutine chktcg1 (tol,res,h1,h2,mask,mult,imesh,isd)
+      use ctmp0_mod
 C-------------------------------------------------------------------
 C
 C     Check that the tolerances are not too small for the CG-solver.
@@ -538,13 +556,17 @@ C-------------------------------------------------------------------
       include 'EIGEN'
       COMMON  /CPRINT/ IFPRINT
       LOGICAL          IFPRINT
-      COMMON /CTMP0/ W1   (LX1,LY1,LZ1,LELT)
-     $ ,             W2   (LX1,LY1,LZ1,LELT)
+      real, pointer :: W1(:,:,:,:), W2(:,:,:,:)
       REAL RES  (LX1,LY1,LZ1,1)
       REAL H1   (LX1,LY1,LZ1,1)
       REAL H2   (LX1,LY1,LZ1,1)
       REAL MULT (LX1,LY1,LZ1,1)
       REAL MASK (LX1,LY1,LZ1,1)
+C
+      W1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      W2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 C
       IF (EIGAA.NE.0.) THEN
          ACONDNO = EIGGA/EIGAA
@@ -609,6 +631,8 @@ C
       end
 c=======================================================================
       subroutine cggo(x,f,h1,h2,mask,mult,imsh,tin,maxit,isd,binv,name)
+      use scrcg_mod
+      use scrmg_mod
 C-------------------------------------------------------------------------
 C
 C     Solve the Helmholtz equation, H*U = RHS,
@@ -630,13 +654,20 @@ C------------------------------------------------------------------------
  
       real x(1),f(1),h1(1),h2(1),mask(1),mult(1),binv(1)
       parameter        (lg=lx1*ly1*lz1*lelt)
-      COMMON /SCRCG/ d (lg) , scalar(2)
-      common /SCRMG/ r (lg) , w (lg) , p (lg) , z (lg)
+      real, pointer :: d(:), scalar(:)
+      real, pointer :: r(:), w(:), p(:), z(:)
 c
       parameter (maxcg=900)
       common /tdarray/ diagt(maxcg),upper(maxcg)
       common /iterhm/ niterhm
       character*4 name
+c
+      d     (1:lg) => cb_scrcg(0*lg+1 : 1*lg)
+      scalar(1:2)  => cb_scrcg(1*lg+1 : 1*lg+2)
+      r(1:lg) => cb_scrmg(0*lg+1 : 1*lg)
+      w(1:lg) => cb_scrmg(1*lg+1 : 2*lg)
+      p(1:lg) => cb_scrmg(2*lg+1 : 3*lg)
+      z(1:lg) => cb_scrmg(3*lg+1 : 4*lg)
 c
       if (ifsplit.and.name.eq.'PRES') then
          if (param(42).eq.0) then
@@ -935,12 +966,14 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine fdm_h1(z,r,d,mask,mult,nel,kt,rr)
+      use ctmp0_mod
       include 'SIZE'
       include 'TOTAL'
-c
-      common /ctmp0/ w(lx1,ly1,lz1)
-c
       include 'FDMH1'
+
+c
+      real, pointer :: w(:,:,:)
+c
 c
 c     Overlapping Schwarz, FDM based
 c
@@ -956,6 +989,8 @@ c
       integer icalld
       save    icalld
       data    icalld /0/
+c
+      w(1:lx1,1:ly1,1:lz1) => cb_ctmp0(1 : lx1*ly1*lz1)
 c
       n1 = lx1
       n2 = lx1*lx1
@@ -1026,6 +1061,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine set_fdm_prec_h1A_gen
+      use ctmp0_mod
 c
       include 'SIZE'
       include 'DXYZ'
@@ -1035,9 +1071,13 @@ c
 c
       include 'FDMH1'
 c
-      COMMON /CTMP0/ W(LX1,LX1),aa(lx1,lx1),bb(lx1,lx1)
+      real, pointer :: W(:,:),aa(:,:),bb(:,:)
 c
       integer left,right
+c
+      W (1:lx1,1:lx1) => cb_ctmp0(0*lx1*lx1+1 : 1*lx1*lx1)
+      aa(1:lx1,1:lx1) => cb_ctmp0(1*lx1*lx1+1 : 2*lx1*lx1)
+      bb(1:lx1,1:lx1) => cb_ctmp0(2*lx1*lx1+1 : 3*lx1*lx1)
 c
 c     Set up generic operators for fdm applied to H1 operator (Helmholtz)
 c
@@ -1118,6 +1158,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine set_fdm_prec_h1A_els
+      use ctmp0_mod
 c
       include 'SIZE'
       include 'DXYZ'
@@ -1128,11 +1169,14 @@ c
       include 'TOPOL'
       include 'WZ'
 c
-      COMMON /CTMP0/ W(LX1,LX1),aa(lx1,lx1),bb(lx1,lx1)
-     $             , mask(lx1,ly1,lz1,lelt)
-      real mask
+      real, pointer :: W(:,:),aa(:,:),bb(:,:),mask(:,:,:,:)
       character*3 cb
 c
+      W   (1:lx1,1:lx1) => cb_ctmp0(0*lx1*lx1+1 : 1*lx1*lx1)
+      aa  (1:lx1,1:lx1) => cb_ctmp0(1*lx1*lx1+1 : 2*lx1*lx1)
+      bb  (1:lx1,1:lx1) => cb_ctmp0(2*lx1*lx1+1 : 3*lx1*lx1)
+      mask(1:lx1,1:ly1,1:lz1,1:lelt) => cb_ctmp0(3*lx1*lx1+1
+     $                                : 3*lx1*lx1+lx1*ly1*lz1*lelt)
 c
 c     Set up element specific information
 c
@@ -1384,7 +1428,11 @@ c
       real aa(100),bb(100)
 c
       parameter (lbw=4*lx1*ly1*lz1*lelv)
-      common /bigw/ bw(lbw)
+      real, allocatable, target, save :: cb_bigw(:)
+      real, pointer :: bw(:)
+
+      if (.not. allocated(cb_bigw)) allocate(cb_bigw(lbw))
+      bw(1:lbw) => cb_bigw(1:lbw)
 c
       lw = n*n
 c     write(6,*) 'in generalev, =',info,n,ninf
@@ -1475,8 +1523,7 @@ C
       real           h2   (lx1,ly1,lz1,1)
       real           mask (lx1,ly1,lz1,1)
 
-      icalld=icalld+1
-      nhmhz=icalld
+      nhmhz=nhmhz+1
       etime1=dnekclock()
 
       if (ifield.eq.2) then
@@ -1492,6 +1539,8 @@ C
 C
 c=======================================================================
       subroutine cggo_dg(x,f,h1,h2,binv,mask,name,tin,maxit)
+      use scrcg_mod
+      use scrmg_mod
 C-------------------------------------------------------------------------
 C
 C     Solve the Helmholtz equation, H*U = RHS,
@@ -1505,8 +1554,8 @@ C------------------------------------------------------------------------
 
       real x(1),f(1),h1(1),h2(1),binv(1),mask(1)
       parameter        (lg=lx1*ly1*lz1*lelt)
-      common /scrcg/ d (lg) , scalar(2)
-      common /scrmg/ r (lg) , w (lg) , p (lg) , z (lg)
+      real, pointer :: d(:), scalar(:)
+      real, pointer :: r(:), w(:), p(:), z(:)
 
       parameter (maxcg=900)
       common /tdarray/ diagt(maxcg),upper(maxcg)
@@ -1515,12 +1564,18 @@ C------------------------------------------------------------------------
 
       common /fastmd/ ifdfrm(lelt), iffast(lelt), ifh2, ifsolv
       logical ifdfrm, iffast, ifh2, ifsolv
- 
+
       common  /cprint/ ifprint, ifhzpc
       logical          ifprint, ifhzpc
 
       logical ifmcor
 
+      d     (1:lg) => cb_scrcg(0*lg+1 : 1*lg)
+      scalar(1:2)  => cb_scrcg(1*lg+1 : 1*lg+2)
+      r(1:lg) => cb_scrmg(0*lg+1 : 1*lg)
+      w(1:lg) => cb_scrmg(1*lg+1 : 2*lg)
+      p(1:lg) => cb_scrmg(2*lg+1 : 3*lg)
+      z(1:lg) => cb_scrmg(3*lg+1 : 4*lg)
 
 c **  zero out stuff for Lanczos eigenvalue estimator
       call rzero(diagt,maxcg)
@@ -2055,6 +2110,8 @@ c     Helmholtz matrix-vector product: Au = Au + surface term
       end
 c-----------------------------------------------------------------------
       subroutine hxdg (au,u,h1,h2)
+      use ctmp1_mod
+      use ctmp0_mod
 
 c     Helmholtz matrix-vector product: Au = h1*[A]u + h2*[B]u
 
@@ -2064,13 +2121,26 @@ c     Helmholtz matrix-vector product: Au = h1*[A]u + h2*[B]u
       parameter(lxyz=lx1*ly1*lz1)
       real au(lx1,ly1,lz1,1),u(lx1,ly1,lz1,1),h1(lx1,ly1,lz1,1),h2(1)
 
-      common /ctmp0/ w(2*lx1*lz1*2*ldim*lelt)
-      common /ctmp1/ ur(lx1,ly1,lz1,lelt),us(lx1,ly1,lz1,lelt)
-     $                                   ,ut(lx1,ly1,lz1,lelt)
+      real, pointer :: w(:)
+      real, pointer :: ur(:,:,:,:),us(:,:,:,:),ut(:,:,:,:)
       common /ytmp9/ qr(lx1,ly1,lz1),qs(lx1,ly1,lz1),qt(lx1,ly1,lz1)
-      common /ytmp0/ uf(lx1*lz1,2*ldim,lelt,2)
+      real, allocatable, target, save :: cb_ytmp0(:)
+      real, pointer :: uf(:,:,:,:)
 
       integer e,f,pf
+
+      w(1:2*lx1*lz1*2*ldim*lelt) => cb_ctmp0(1 : 2*lx1*lz1*2*ldim*lelt)
+      if (.not. allocated(cb_ytmp0))
+     $   allocate(cb_ytmp0(2*lx1*lz1*2*ldim*lelt))
+      uf(1:lx1*lz1,1:2*ldim,1:lelt,1:2) =>
+     $   cb_ytmp0(1 : 2*lx1*lz1*2*ldim*lelt)
+
+      ur(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      us(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      ut(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp1(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 
       n     = lx1*ly1*lz1*nelfld(ifield)
       nface = 2*ldim
@@ -2162,8 +2232,11 @@ c             Normally, we'd store this as a 2-vector: uf(2,...)
       end
 c-----------------------------------------------------------------------
       subroutine hmh_flex_cg(res,h1,h2,wt,iter)
+      use ctmp0_mod
+      use scrcg_mod
+      use scrmg_mod
 
-c     Solve the Helmholtz equation by right-preconditioned 
+c     Solve the Helmholtz equation by right-preconditioned
 c     GMRES iteration.
 
      
@@ -2180,11 +2253,11 @@ c     GMRES iteration.
       real             wt   (lx1,ly1,lz1,lelv)
 
       parameter (lt=lx1*ly1*lz1*lelt)
-      common /scrcg/ r(lt),z(lt),p(lt),w(lt)
-      common /scrmg/ r1(lt)
+      real, pointer :: r(:), z(:), p(:), w(:)
+      real, pointer :: r1(:)
 
       common /cgmres1/ y(lgmres)
-      common /ctmp0/   wk1(lgmres),wk2(lgmres)
+      real, pointer :: wk1(:),wk2(:)
       real alpha, l, temp
       integer outer
 
@@ -2196,6 +2269,14 @@ c     data    iflag,if_hyb  /.false. , .true. /
       save    norm_fac
 
       real*8 etime1,dnekclock
+
+      wk1(1:lgmres) => cb_ctmp0(0*lgmres+1 : 1*lgmres)
+      wk2(1:lgmres) => cb_ctmp0(1*lgmres+1 : 2*lgmres)
+      r(1:lt) => cb_scrcg(0*lt+1 : 1*lt)
+      z(1:lt) => cb_scrcg(1*lt+1 : 2*lt)
+      p(1:lt) => cb_scrcg(2*lt+1 : 3*lt)
+      w(1:lt) => cb_scrcg(3*lt+1 : 4*lt)
+      r1(1:lt) => cb_scrmg(1 : lt)
 
       n = lx1*ly1*lz1*nelv
 

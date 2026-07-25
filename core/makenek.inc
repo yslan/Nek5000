@@ -81,7 +81,7 @@ function config_nek() {
 
 # set defaults
 : ${NEK_SOURCE_ROOT:="$HOME/Nek5000"}
-: ${FC:="mpif77"}
+: ${FC:="mpif90"}
 : ${CC:="mpicc"}
 : ${LD:=$FC}
 : ${MPI:=1}
@@ -123,6 +123,7 @@ CASEDIR=`pwd`
 CASENAME=$1
 NODEP=0
 ONLYDEP=0
+NEK_WARN=""
 
 SOURCE_ROOT_BLAS="$NEK_SOURCE_ROOT/3rd_party/blasLapack"
 export SOURCE_ROOT_BLAS
@@ -232,55 +233,67 @@ case $FCcomp in
   *pgf*)       FCPP="-Mpreprocess"
                FR8="-r8"
                FF77="-Mfixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *flang*)
     if is_llvm_flang "$FCcomp"; then
         FCPP="-cpp"
         FR8="-fdefault-real-8 -fdefault-double-8"
         FF77="-w -ffixed-form"
+        MODFLAG='-J$(OBJDIR)'
     else
         # CLASSIC FLANG (Legacy/PGI-based)
         FCPP="-Mpreprocess"
         FR8="-r8"
         FF77="-Mfixed"
+        MODFLAG='-module $(OBJDIR)'
     fi
     ;;
   *nvfortran*) FCPP="-Mpreprocess"
                FR8="-r8"
                FF77="-Mfixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *gfortran*)  FCPP="-cpp"
                FR8="-fdefault-real-8 -fdefault-double-8"
-               FF77="-w -std=legacy"
+               FF77="-w -std=legacy -ffixed-form"
+               MODFLAG='-J$(OBJDIR)'
                ;;
   *ftn*)       FCPP="-eZ"
                FR8="-sreal64"
+               FF77="-fixed"
+               MODFLAG='-J $(OBJDIR)'
                ;;
   *frt*)       FCPP="-Cpp"
                FR8="-CcdRR"
-               FF77="-Fixed"
+               FF77="-fixed"
+               MODFLAG='-M $(OBJDIR)'
                ;;
   *armflang*)  FCPP="-cpp"
                FR8="-r8"
-               FF77="-std=legacy"
+               FF77="-std=legacy -ffixed-form"
+               MODFLAG='-J$(OBJDIR)'
                ;;
   *ifort*)     FCPP="-fpp"
                FR8="-r8 -fpconstant"
+               FF77="-fixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *ifx*)       FCPP="-fpp"
                FR8="-r8 -fpconstant"
+               FF77="-fixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *xlf*)       FCPP="-qsuffix=cpp=f"
                FR8="-qrealsize=8 -qdpc=e"
                FF77="-qfixed"
                PPPO="-WF,"
+               MODFLAG='-qmoddir=$(OBJDIR)'
                ;;
   *)  echo "ERROR: Cannot find a supported compiler!"
       echo ""
       read;;
 esac
-
-LONGLONGINT=1
 
 # Check if the compiler adds an underscore to external functions
 UNDERSCORE=0
@@ -408,9 +421,8 @@ export FCPP
 export FR8
 export FF77
 export CC
-export NEK_WARN 
 export MPI
-export MPIO
+export MPIIO
 export UNDERSCORE
 export GSLIB_OPT
 export PARRSB_OPT
@@ -421,15 +433,16 @@ if [ $ONLYDEP -eq 1 ]; then
 fi 
 
 if [ $nargs -eq 0 ]; then
-   NCASEFILES=`find *.usr 2>/dev/null| wc -l`
+   NCASEFILES=$(find *.usr ! -name 'SIZE.usr' 2>/dev/null | wc -l)
    if [ $NCASEFILES == "0" ]; then
      true
    elif [ $NCASEFILES != "1" ]; then
      echo "FATAL ERROR: Found multiple .usr files!"
      echo "Please use makenek [.usr filename]"
+     find *.usr ! -name 'SIZE.usr'
      return 11
    else
-     CASENAME=`find *.usr | sed 's/\.usr$//g'`
+     CASENAME=$(find *.usr ! -name 'SIZE.usr' | sed 's/\.usr$//')
    fi
 fi
 
@@ -449,6 +462,7 @@ sed -e "s:^FC[ ]*=.*:FC=$FC:" \
 -e "s:^LD[ ]*=.*:LD=$LD:" \
 -e "s:^OPT_INCDIR[ ]*=.*:OPT_INCDIR=$OPT_INCDIR:" \
 -e "s:^FFLAGS[ ]*+=.*:FFLAGS+=$FCPP $FR8 $FF77 $FFLAGS:" \
+-e "s:^MODFLAG[ ]*=.*:MODFLAG=$MODFLAG:" \
 -e "s:^CFLAGS[ ]*+=.*:CFLAGS+=$CFLAGS:" \
 -e "s:^LDFLAGS[ ]*+=.*:LDFLAGS+=$LDFLAGS:" \
 -e "s/^PPPO[ ]*=.*/PPPO=$PPPO/" \
@@ -509,7 +523,7 @@ fi
 
 
 if [ "$USR" != "" ]; then
-  echo "###########################################################" >> makefile
+  echo "###########################################################" >> .makefile
   echo "include makefile_usr.inc" >> .makefile
 fi
 
@@ -527,106 +541,155 @@ else
 fi
 \rm .makefile 2>/dev/null
 
-# tweak SIZE file
-if [ -f SIZEu ]; then
-   if [ -f SIZE ]; then
-      echo "FATAL ERROR: found SIZEu and SIZE!"
-      return 11
-   fi
-   NEK_WARN="WARNING: SIZEu will be deprecated in a future release!"
-   mv -v SIZEu SIZE
+# backward support SIZE and SIZEu
+# Transition aid: legacy SIZE -> canonical SIZE.usr.
+#   - lone SIZE            : auto-migrate (mv SIZE SIZE.usr).
+#   - both, identical      : drop the duplicate SIZE (warn, no prompt).
+#   - both, differ, TTY    : prompt y/N (y=overwrite SIZE.usr with SIZE; N=keep).
+#   - both, differ, no TTY : FATAL, ask the user to resolve (CI/scripted builds
+#     never silently pick one -- a leftover case-dir SIZE also SHADOWS core/SIZE
+#     at compile time, so an unresolved SIZE must not remain).
+if [ -f SIZE ]; then
+  if [ -f SIZE.usr ]; then
+    if cmp -s SIZE SIZE.usr; then
+      rm -f SIZE
+      NEK_WARN+="WARNING: removed duplicate legacy SIZE (identical to SIZE.usr)\n"
+    else
+      ans=N
+      if [ -t 0 ]; then
+        printf "\n"
+        printf "SIZE and SIZE.usr both exist and DIFFER.\n"
+        printf "  SIZE.usr is canonical; SIZE is legacy.\n"
+        printf "  y = overwrite SIZE.usr with legacy SIZE\n"
+        printf "  N = keep SIZE.usr (default)\n"
+        read -r -p "Overwrite SIZE.usr with legacy SIZE? [y/N] " ans </dev/tty
+      fi
+      case "$ans" in
+        y|Y)
+          mv -f SIZE SIZE.usr
+          NEK_WARN+="WARNING: SIZE.usr overwritten by legacy SIZE (user choice)\n"
+          ;;
+        *)
+          echo ""
+          echo "FATAL ERROR: SIZE and SIZE.usr both exist and differ."
+          echo "  Resolve the conflict before continuing. Options:"
+          echo "    - keep SIZE.usr : rm SIZE      (or mv SIZE SIZE.bak)"
+          echo "    - use SIZE      : mv SIZE SIZE.usr"
+          echo "    - Merge changes : port changes from SIZE into SIZE.usr"
+          return 11
+          ;;
+      esac
+    fi
+  else
+    NEK_WARN+="WARNING: SIZE is renamed to SIZE.usr\n"
+    mv SIZE SIZE.usr
+  fi
+fi
+if [ ! -f SIZEu.usr ] && [ -f SIZEu ]; then
+  NEK_WARN+="WARNING: SIZEu is renamed to SIZE.usru\n"
+  mv SIZEu SIZE.usru
 fi
 
-if [ ! -f SIZE ]; then
-   echo "FATAL ERROR: Cannot find SIZE!"
+# tweak SIZE.usr file
+if [ -f SIZE.usru ]; then
+   if [ -f SIZE.usr ]; then
+      echo "FATAL ERROR: found SIZE.usru and SIZE.usr!"
+      return 11
+   fi
+   NEK_WARN+="WARNING: SIZE.usru will be deprecated in a future release!\n"
+   mv -v SIZE.usru SIZE.usr
+fi
+
+if [ ! -f SIZE.usr ]; then
+   echo "FATAL ERROR: Cannot find SIZE.usr!"
    return 11
 fi
 
-if ! cat SIZE | grep -qi 'lelr' ; then
-   echo >>SIZE
-   echo 'c automatically added by makenek' >>SIZE
-   echo '      integer lelr' >>SIZE
-   echo '      parameter (lelr=lelt) ! max number of local elements per restart file' >>SIZE
+if ! cat SIZE.usr | grep -qi 'lelr' ; then
+   echo >>SIZE.usr
+   echo 'c automatically added by makenek' >>SIZE.usr
+   echo '      integer lelr' >>SIZE.usr
+   echo '      parameter (lelr=lelt) ! max number of local elements per restart file' >>SIZE.usr
 fi
-if ! cat SIZE | grep -qi 'ldimt_proj' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer ldimt_proj' >>SIZE
-     echo '      parameter(ldimt_proj=1) ! max auxiliary fields residual projection ' >>SIZE
+if ! cat SIZE.usr | grep -qi 'ldimt_proj' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer ldimt_proj' >>SIZE.usr
+     echo '      parameter(ldimt_proj=1) ! max auxiliary fields residual projection ' >>SIZE.usr
 fi
 
-# tweak leagacy SIZE file
-if ! cat SIZE | grep -q 'SIZE.inc' ; then
-  NEK_WARN="WARNING: Deprecated SIZE will be removed in a future release!"
-  if ! cat SIZE | grep -qi 'optlevel' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer optlevel,loglevel' >>SIZE
-     echo '      common /lolevels/ optlevel,loglevel' >>SIZE
+# tweak leagacy SIZE.usr file
+if ! cat SIZE.usr | grep -q 'SIZE.inc' ; then
+  NEK_WARN+="WARNING: Deprecated SIZE.usr will be removed in a future release!\n"
+  if ! cat SIZE.usr | grep -qi 'optlevel' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer optlevel,loglevel' >>SIZE.usr
+     echo '      common /lolevels/ optlevel,loglevel' >>SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'lxo' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lxo' >> SIZE
-     echo '      parameter(lxo   = lx1) ! max output grid size (lxo>=lx1)' >>SIZE
+  if ! cat SIZE.usr | grep -qi 'lxo' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lxo' >> SIZE.usr
+     echo '      parameter(lxo   = lx1) ! max output grid size (lxo>=lx1)' >>SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'ax1' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer ax1,ay1,az1,ax2,ay2,az2' >> SIZE
-     echo '      parameter (ax1=lx1,ay1=ly1,az1=lz1,ax2=lx2,ay2=ly2,az2=lz2) ! running averages' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'ax1' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer ax1,ay1,az1,ax2,ay2,az2' >> SIZE.usr
+     echo '      parameter (ax1=lx1,ay1=ly1,az1=lz1,ax2=lx2,ay2=ly2,az2=lz2) ! running averages' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'lys=lxs' ; then
-     cat SIZE | grep -iv lxs > SIZE.x; mv SIZE.x SIZE  # Clean existing SIZE file of old version
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lxs,lys,lzs' >> SIZE
-     echo '      parameter (lxs=1,lys=lxs,lzs=(lxs-1)*(ldim-2)+1) !New Pressure Preconditioner' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'lys=lxs' ; then
+     cat SIZE.usr | grep -iv lxs > SIZE.usr.x; mv SIZE.usr.x SIZE.usr  # Clean existing SIZE.usr file of old version
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lxs,lys,lzs' >> SIZE.usr
+     echo '      parameter (lxs=1,lys=lxs,lzs=(lxs-1)*(ldim-2)+1) !New Pressure Preconditioner' >> SIZE.usr
 
   fi
-  if ! cat SIZE | grep -qi 'lcvx1' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lcvx1,lcvy1,lcvz1,lcvelt' >> SIZE
-     echo '      parameter (lcvx1=1,lcvy1=1,lcvz1=1,lcvelt=1) ! cvode arrays' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'lcvx1' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lcvx1,lcvy1,lcvz1,lcvelt' >> SIZE.usr
+     echo '      parameter (lcvx1=1,lcvy1=1,lcvz1=1,lcvelt=1) ! cvode arrays' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'lfdm' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lfdm' >> SIZE
-     echo '      parameter (lfdm=0)  ! == 1 for fast diagonalization method' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'lfdm' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lfdm' >> SIZE.usr
+     echo '      parameter (lfdm=0)  ! == 1 for fast diagonalization method' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'nsessmax' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer nsessmax' >> SIZE
-     echo '      parameter (nsessmax=1)  ! max sessions to NEKNEK' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'nsessmax' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer nsessmax' >> SIZE.usr
+     echo '      parameter (nsessmax=1)  ! max sessions to NEKNEK' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'nmaxl_nn' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer nmaxl_nn' >> SIZE
-     echo '      parameter (nmaxl_nn=' >> SIZE
-     echo '     $          min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt))' >>SIZE
+  if ! cat SIZE.usr | grep -qi 'nmaxl_nn' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer nmaxl_nn' >> SIZE.usr
+     echo '      parameter (nmaxl_nn=' >> SIZE.usr
+     echo '     $          min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt))' >>SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'nfldmax_nn' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer nfldmax_nn' >> SIZE
-     echo '      parameter (nfldmax_nn=' >> SIZE
-     echo '     $          min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt))' >>SIZE
+  if ! cat SIZE.usr | grep -qi 'nfldmax_nn' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer nfldmax_nn' >> SIZE.usr
+     echo '      parameter (nfldmax_nn=' >> SIZE.usr
+     echo '     $          min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt))' >>SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'nio' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer nio' >> SIZE
-     echo '      common/IOFLAG/nio  ! for logfile verbosity control' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'nio' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer nio' >> SIZE.usr
+     echo '      common/IOFLAG/nio  ! for logfile verbosity control' >> SIZE.usr
   fi
-  if ! cat SIZE | grep -qi 'lhref' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer lhref' >> SIZE
-     echo '      parameter (lhref=10)' >> SIZE
+  if ! cat SIZE.usr | grep -qi 'lhref' ; then
+     echo >>SIZE.usr
+     echo 'c automatically added by makenek' >>SIZE.usr
+     echo '      integer lhref' >> SIZE.usr
+     echo '      parameter (lhref=10)' >> SIZE.usr
   fi
 fi
 
@@ -671,6 +734,18 @@ done ;
 
 if [ $NODEP -ne 1 ]; then
   build_3rdparty
+fi
+
+# Collet NEK_WARN to obj/.nekwarn for later echo
+mkdir -p "$CASEDIR/obj"
+\rm -f "$CASEDIR/obj/.nekwarn"
+if [ -n "$NEK_WARN" ]; then
+   printf '%b' "$NEK_WARN" > "$CASEDIR/obj/.nekwarn"
+   # Also echo now (before make runs) so warnings are visible even if the
+   # compilation fails; on success they are shown again before the banner.
+   echo ""
+   printf '%b' "$NEK_WARN"
+   echo ""
 fi
 
 return 0

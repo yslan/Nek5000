@@ -1,4 +1,5 @@
       subroutine MAKE_HPF
+      use scruz_mod
 
       include 'SIZE'
       include 'SOLN'
@@ -25,15 +26,19 @@
       save icalld
       data icalld /0/
 
-      real TA1,TA2,TA3
-      COMMON /SCRUZ/ TA1 (LX1,LY1,LZ1,LELV)
-     $ ,             TA2 (LX1,LY1,LZ1,LELV)
-     $ ,             TA3 (LX1,LY1,LZ1,LELV)
+      real, pointer :: TA1(:,:,:,:), TA2(:,:,:,:), TA3(:,:,:,:)
 
       real hpf_op(lx1,lx1)
       save hpf_op
 
-c---------------------------------------- 
+      TA1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      TA2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      TA3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+
+c----------------------------------------
       if(.not. iffilter(ifield)) return
 
       hpf_kut = int(param(101))+1

@@ -1,0 +1,14 @@
+      module esolv_mod
+      include 'SIZE'
+c
+c     Variables for E-solver
+c
+      integer         iesolv
+      common /econst/ iesolv
+
+      logical         ifalgn(lelv), ifrsxy(lelv)
+      common /efastm/ ifalgn      , ifrsxy
+
+      real            volel(lelv)
+      common /eouter/ volel       
+      end module esolv_mod

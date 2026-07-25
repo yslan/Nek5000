@@ -20,8 +20,9 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        test_case: [ 
+        test_case: [
             "Tools",
+            "LibLink::test_PnPn2_Parallel",
             "Axi::test_PnPn_Parallel",
             "ConjHt::test_PnPn_Parallel",
             "Eddy_EddyUv::test_PnPn_Parallel",

@@ -1,4 +1,5 @@
       real function avm_vdiff(ix,iy,iz,e,c1,ncut)
+      use scrmg_mod
 c
 c c1 and ncut a user tuneable control parameters. 
 c Set c1 = 1.0 and reduce/increase as much possible/required,
@@ -19,10 +20,7 @@ c
       real visc(lx1,ly1,lz1,lelt)
       save visc
 
-      common /SCRMG/ r (lx1*ly1*lz1,lelt),
-     $               tx(lx1*ly1*lz1,lelt),
-     $               ty(lx1*ly1*lz1,lelt),
-     $               tz(lx1*ly1*lz1,lelt)
+      real, pointer :: r(:,:), tx(:,:), ty(:,:), tz(:,:)
 
       parameter (lm=40)
       parameter (lm2=lm*lm)
@@ -38,6 +36,15 @@ c
 
       real h0,h0max
       real viscc(8,lelt)
+
+      r (1:lx1*ly1*lz1,1:lelt) => cb_scrmg(0*lx1*ly1*lz1*lelt+1
+     $                                    : 1*lx1*ly1*lz1*lelt)
+      tx(1:lx1*ly1*lz1,1:lelt) => cb_scrmg(1*lx1*ly1*lz1*lelt+1
+     $                                    : 2*lx1*ly1*lz1*lelt)
+      ty(1:lx1*ly1*lz1,1:lelt) => cb_scrmg(2*lx1*ly1*lz1*lelt+1
+     $                                    : 3*lx1*ly1*lz1*lelt)
+      tz(1:lx1*ly1*lz1,1:lelt) => cb_scrmg(3*lx1*ly1*lz1*lelt+1
+     $                                    : 4*lx1*ly1*lz1*lelt)
 
       if (ix*iy*iz*e .ne. 1) then ! use cache
          avm_vdiff = visc(ix,iy,iz,e)

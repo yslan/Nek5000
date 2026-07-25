@@ -1,10 +1,10 @@
 c*********************************************************************72
       subroutine mpi_scan(data1, data2, n, datatype,
      &  operation, comm, ierror )
-
       implicit none
-
       include "mpi_dummy.h"
+
+
 
       integer n
 
@@ -70,14 +70,14 @@ c
       end
       subroutine mpi_allgather ( data1, nsend, sendtype, data2, 
      &  nrecv, recvtype, comm, ierror )
+      implicit none
+      include "mpi_dummy.h"
 
 c*********************************************************************72
 c
 cc MPI_ALLGATHER gathers data from all the processes in a communicator.
 c
-      implicit none
 
-      include "mpi_dummy.h"
 
       integer nsend
 
@@ -105,14 +105,14 @@ c
       end
       subroutine mpi_allgatherv ( data1, nsend, sendtype,
      &  data2, nrecv, ndispls, recvtype, comm, ierror )
+      implicit none
+      include "mpi_dummy.h"
 
 c*********************************************************************72
 c
 cc MPI_ALLGATHERV gathers data from all the processes in a communicator.
 c
-      implicit none
 
-      include "mpi_dummy.h"
 
       integer nsend
 
@@ -141,14 +141,14 @@ c
       end
       subroutine mpi_allreduce ( data1, data2, n, datatype,
      &  operation, comm, ierror )
+      implicit none
+      include "mpi_dummy.h"
 
 c*********************************************************************72
 c
 cc MPI_ALLREDUCE carries out a reduction operation.
 c
-      implicit none
 
-      include "mpi_dummy.h"
 
       integer n
 
@@ -687,14 +687,14 @@ c
       end
       subroutine mpi_reduce ( data1, data2, n, datatype, operation,
      &  receiver, comm, ierror )
+      implicit none
+      include "mpi_dummy.h"
 
 c*********************************************************************72
 c
 cc MPI_REDUCE carries out a reduction operation.
 c
-      implicit none
 
-      include "mpi_dummy.h"
 
       integer n
 
@@ -733,14 +733,14 @@ c
       end
       subroutine mpi_reduce_double_precision ( 
      &  data1, data2, n, operation, ierror )
+      implicit none
+      include "mpi_dummy.h"
 
 c*********************************************************************72
 c
 cc MPI_REDUCE_DOUBLE_PRECISION carries out a reduction operation on real*8 values.
 c
-      implicit none
 
-      include "mpi_dummy.h"
 
       integer n
 
@@ -762,12 +762,12 @@ c
 
       subroutine mpi_reduce_integer8 ( 
      &  data1, data2, n, operation, ierror )
+      implicit none
+      include "mpi_dummy.h"
 
 c*********************************************************************72
 c
-      implicit none
 
-      include "mpi_dummy.h"
 
       integer n
 
@@ -790,12 +790,12 @@ c
  
       subroutine mpi_reduce_integer ( 
      &  data1, data2, n, operation, ierror )
+      implicit none
+      include "mpi_dummy.h"
 
 c*********************************************************************72
 c
-      implicit none
 
-      include "mpi_dummy.h"
 
       integer n
 
@@ -818,6 +818,8 @@ c
 
       subroutine mpi_reduce_real ( 
      &  data1, data2, n, operation, ierror )
+      implicit none
+      include "mpi_dummy.h"
 
 c*********************************************************************72
 c
@@ -825,9 +827,7 @@ cc MPI_REDUCE_REAL carries out a reduction operation on reals.
 c
 c  Discussion:
 c
-      implicit none
 
-      include "mpi_dummy.h"
 
       integer n
 
@@ -847,14 +847,14 @@ c
       end
       subroutine mpi_reduce_scatter ( data1, data2, n, datatype,
      &  operation, comm, ierror )
+      implicit none
+      include "mpi_dummy.h"
 
 c*********************************************************************72
 c
 cc MPI_REDUCE_SCATTER collects a message of the same length from each process.
 c
-      implicit none
 
-      include "mpi_dummy.h"
 
       integer n
 

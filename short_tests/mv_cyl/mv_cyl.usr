@@ -5,12 +5,12 @@ C  The resulting isentropic flow is compared to an analytical solution.
 C
 c-----------------------------------------------------------------------
       SUBROUTINE USERVP (IX,IY,IZ,ieg)
-
-C Set user variable properties
-
       INCLUDE 'SIZE'   
       INCLUDE 'TOTAL'  
       INCLUDE 'NEKUSE' 
+
+C Set user variable properties
+
 
       if (ifield.eq.1) then 
          utrans = 1.0*p0th/temp
@@ -26,12 +26,12 @@ C Set user variable properties
 C=======================================================================
 
       SUBROUTINE USERF  (IX,IY,IZ,ieg)                
-
-C Set user forcing function for the momentum
-
       INCLUDE 'SIZE'   
       INCLUDE 'TSTEP'  
       INCLUDE 'NEKUSE' 
+
+C Set user forcing function for the momentum
+
 
       FFY = 0.0
       FFX = 0.0
@@ -43,12 +43,12 @@ C Set user forcing function for the momentum
 C=======================================================================
 
       SUBROUTINE USERQ  (IX,IY,IZ,ieg)                
-
-C Set user forcing function for the energy and species
-
       INCLUDE 'SIZE'   
       INCLUDE 'TOTAL'  
       INCLUDE 'NEKUSE' 
+
+C Set user forcing function for the energy and species
+
       
       qvol = 0.0
 
@@ -58,9 +58,9 @@ C Set user forcing function for the energy and species
 C=======================================================================
 
       SUBROUTINE USERCHK
-
       INCLUDE 'SIZE'
       INCLUDE 'TOTAL'
+
 
       ifusermv = .true.                  ! define our own mesh velocity
       if (istep.eq.0) call opzero(wx,wy,wz)
@@ -74,15 +74,15 @@ C=======================================================================
 C=======================================================================
 
       SUBROUTINE USERBC (IX,IY,IZ,ISIDE,ieg)                
+      INCLUDE 'SIZE'
+      INCLUDE 'TSTEP'
+      INCLUDE 'NEKUSE'
 c     NOTE ::: This subroutine MAY NOT be called by every process
 
       common /c_mybc/ omega, v_piston
 
 C  Set user boundary conditions
 
-      INCLUDE 'SIZE'
-      INCLUDE 'TSTEP'
-      INCLUDE 'NEKUSE'
 
       pi    = 4.*atan(1.0)
       omega = pi
@@ -102,12 +102,12 @@ C  Set user boundary conditions
 C=======================================================================
 
       SUBROUTINE USERIC (IX,IY,IZ,ieg)
-
-C   Set initial conditions
-
       INCLUDE 'SIZE'
       INCLUDE 'TOTAL'
       INCLUDE 'NEKUSE'
+
+C   Set initial conditions
+
 
       gamma0 = 1.4
       p0th   = 1.0
@@ -147,9 +147,9 @@ C=======================================================================
       end
 C=======================================================================
       subroutine user_mvel (time_)
-
       include 'SIZE'
       include 'TOTAL'
+
 
       common /c_mybc/ omega, v_piston
 
@@ -196,9 +196,9 @@ C-----------------------------------------------------------------------
       end
 c =======================================================================
       subroutine user_print_err
-c
       include 'SIZE'
       include 'TOTAL'
+c
 
       real glcflux
 

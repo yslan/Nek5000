@@ -16,6 +16,9 @@ C     - general purpose routine for checking errors etc.
 C
 c-----------------------------------------------------------------------
       SUBROUTINE USERVP (IX,IY,IZ,ieg)
+      INCLUDE 'SIZE'
+      INCLUDE 'TOTAL'
+      INCLUDE 'NEKUSE'
 
 C Set user variable properties
 
@@ -23,9 +26,6 @@ C Set user variable properties
       
       integer ix,iy,iz,ieg
 
-      INCLUDE 'SIZE'   
-      INCLUDE 'TOTAL'  
-      INCLUDE 'NEKUSE' 
 
       UDIFF = 1.
       UTRANS= 1./TEMP
@@ -34,14 +34,14 @@ C Set user variable properties
       END
 C-----------------------------------------------------------------------
       SUBROUTINE USERF  (IX,IY,IZ,ieg)                
+      INCLUDE 'SIZE'
+      INCLUDE 'TSTEP'
+      INCLUDE 'NEKUSE'
 
       implicit none
 
       integer ix,iy,iz,ieg
 
-      INCLUDE 'SIZE'   
-      INCLUDE 'TSTEP'  
-      INCLUDE 'NEKUSE' 
 
       FFY = 0.0
       FFX = 0.0
@@ -52,14 +52,14 @@ C-----------------------------------------------------------------------
 C-----------------------------------------------------------------------
 
       SUBROUTINE USERQ  (IX,IY,IZ,ieg)                
+      INCLUDE 'SIZE'
+      INCLUDE 'TOTAL'
+      INCLUDE 'NEKUSE'
 
       implicit none
 
       integer ix,iy,iz,ieg
 
-      INCLUDE 'SIZE'   
-      INCLUDE 'TOTAL'  
-      INCLUDE 'NEKUSE' 
 
       real delta,sech,XD
       parameter(delta=0.2)
@@ -73,11 +73,11 @@ C-----------------------------------------------------------------------
       END
 C-----------------------------------------------------------------------
       SUBROUTINE USERCHK
+      INCLUDE 'SIZE'
+      INCLUDE 'TOTAL'
 
       implicit none
 
-      INCLUDE 'SIZE'
-      INCLUDE 'TOTAL'
 
       COMMON /SCRNS/ w1     (LX1,LY1,LZ1,LELT)
      $              ,T_err  (LX1,LY1,LZ1,LELT)
@@ -135,14 +135,14 @@ C-----------------------------------------------------------------------
       END
 C-----------------------------------------------------------------------
       SUBROUTINE USERBC (IX,IY,IZ,ISIDE,ieg)                
+      INCLUDE 'SIZE'
+      INCLUDE 'TSTEP'
+      INCLUDE 'NEKUSE'
 
       implicit none
 
       integer ix,iy,iz,iside,ieg
 
-      INCLUDE 'SIZE'
-      INCLUDE 'TSTEP'
-      INCLUDE 'NEKUSE'
 
       REAL xd,delta
       parameter(delta=0.2)
@@ -164,6 +164,9 @@ C-----------------------------------------------------------------------
       END   
 C-----------------------------------------------------------------------
       SUBROUTINE USERIC (IX,IY,IZ,ieg)
+      INCLUDE 'SIZE'
+      INCLUDE 'TSTEP'
+      INCLUDE 'NEKUSE'
 
 C   Set initial conditions
 
@@ -171,9 +174,6 @@ C   Set initial conditions
 
       integer ix,iy,iz,ieg
 
-      INCLUDE 'SIZE'
-      INCLUDE 'TSTEP'
-      INCLUDE 'NEKUSE'
 
       real delta,xd
       parameter(delta=0.2)

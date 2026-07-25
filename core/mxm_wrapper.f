@@ -1,14 +1,15 @@
       subroutine mxm(a,n1,b,n2,c,n3)
+      include 'SIZE'
+      include 'CTIMER'
+      include 'OPCTR'
+      include 'TOTAL'
+
 c
 c     Compute matrix-matrix product C = A*B
 c     for contiguously packed matrices A,B, and C.
 c
       real a(n1,n2),b(n2,n3),c(n1,n3)
 c
-      include 'SIZE'
-      include 'CTIMER'
-      include 'OPCTR'
-      include 'TOTAL'
 c
       integer*8 tt
       parameter(tt = 32) 

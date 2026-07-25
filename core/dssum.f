@@ -50,11 +50,6 @@ c     write(6,*) ifldt,ifield,gsh_fld(ifldt),imesh,' ifldt'
       if (ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) then
-         tdsmx=0.
-         tdsmn=0.
-      endif
-      icalld=icalld+1
       etime1=dnekclock()
 #endif
 
@@ -89,7 +84,7 @@ c
 #ifdef TIMER
       timee=(dnekclock()-etime1)
       tdsum=tdsum+timee
-      ndsum=icalld
+      ndsum=ndsum+1
       tdsmx=max(timee,tdsmx)
       tdsmn=min(timee,tdsmn)
 #endif
@@ -179,10 +174,7 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) tvdss=0.0d0
-      if (icalld.eq.0) tgsum=0.0d0
-      icalld=icalld+1
-      nvdss=icalld
+      nvdss=nvdss+1
       etime1=dnekclock()
 #endif
 
@@ -270,8 +262,7 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      icalld=icalld+1
-      nvdss=icalld
+      nvdss=nvdss+1
       etime1=dnekclock()
 #endif
       call fgslib_gs_op_fields(gs_handle,u,stride,n,1,1,0)
@@ -578,11 +569,6 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) then
-         tdsmx=0.
-         tdsmn=0.
-      endif
-      icalld=icalld+1
       etime1=dnekclock()
 #endif
 c
@@ -617,7 +603,7 @@ c
 #ifdef TIMER
       timee=(dnekclock()-etime1)
       tdsum=tdsum+timee
-      ndsum=icalld
+      ndsum=ndsum+1
       tdsmx=max(timee,tdsmx)
       tdsmn=min(timee,tdsmn)
 #endif
@@ -640,11 +626,6 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) then
-         tdsmx=0.
-         tdsmn=0.
-      endif
-      icalld=icalld+1
       etime1=dnekclock()
 #endif
 c
@@ -682,7 +663,7 @@ c
 #ifdef TIMER
       timee=(dnekclock()-etime1)
       tdsum=tdsum+timee
-      ndsum=icalld
+      ndsum=ndsum+1
       tdsmx=max(timee,tdsmx)
       tdsmn=min(timee,tdsmn)
 #endif
@@ -705,11 +686,6 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) then
-         tdsmx=0.
-         tdsmn=0.
-      endif
-      icalld=icalld+1
       etime1=dnekclock()
 #endif
 
@@ -749,7 +725,7 @@ c
 #ifdef TIMER
       timee=(dnekclock()-etime1)
       tdsum=tdsum+timee
-      ndsum=icalld
+      ndsum=ndsum+1
       tdsmx=max(timee,tdsmx)
       tdsmn=min(timee,tdsmn)
 #endif
@@ -786,6 +762,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine gtpp_gs_setup(hndl,nelgx,nelgy,nelgz,idir)
+      use c_is1_mod
 
       include 'SIZE'
       include 'TOTAL'
@@ -793,9 +770,11 @@ c-----------------------------------------------------------------------
       integer hndl,nelgx,nelgy,nelgz,idir
 
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
-      common /c_is1/ glo_num(lx1,ly1,lz1,lelv)
+      integer*8, pointer :: glo_num(:,:,:,:)
       integer e,ex,ey,ez,eg
-      integer*8 glo_num,ex_g
+      integer*8 ex_g
+
+      glo_num(1:lx1,1:ly1,1:lz1,1:lelv) => cb_c_is1(1:lx1*ly1*lz1*lelv)
 
       nelgxyz = nelgx*nelgy*nelgz
       if (nelgxyz .ne. nelgv)
@@ -858,6 +837,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine gs_setup_ms(hndl,nel,nx,ny,nz)
+      use c_is1_mod
 
       include 'SIZE'
       include 'TOTAL'
@@ -866,8 +846,9 @@ c-----------------------------------------------------------------------
       integer hndl
       integer e,eg
 
-      common /c_is1/ glo_num(lx1*ly1*lz1*lelt)
-      integer*8 glo_num
+      integer*8, pointer :: glo_num(:)
+
+      glo_num(1:lx1*ly1*lz1*lelt) => cb_c_is1(1:lx1*ly1*lz1*lelt)
 
       do e=1,nel
          eg = lglel(e)

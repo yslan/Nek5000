@@ -21,6 +21,7 @@ c-----------------------------------------------------------------------
       subroutine getflops_papi(flpops,mflops)
 #ifdef PAPI
       include 'f77papi.h'
+
       real*4 rtime,ptime,mflops
       integer*8 flpops
 

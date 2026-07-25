@@ -137,30 +137,31 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine get_vert_map(nlv)
+      use scrns_mod
+      use ctmp0_mod
+      use scrcg_mod
+      use ivrtx_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'TOTAL'
 
       parameter(mdw=2+2**ldim)
       parameter(ndw=7*lx1*ly1*lz1*lelv/mdw)
-      common /scrns/ wk(mdw*ndw)
-      integer*8 wk
+      integer*8, pointer :: wk(:)
 
-      integer     wk4(2*mdw*ndw)
-      equivalence (wk4,wk)
+      integer,   pointer :: wk4(:)
 
-      common /ivrtx/ vertex ((2**ldim),lelt)
-      integer*8 vertex
+      integer*8, pointer :: vertex(:,:)
 
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
 
       integer ibuf(2)
 
-      integer*8 eid8(lelt), vtx8(lelt*2**ldim)
-      integer   iwork(lelt)
-      common /ctmp0/ eid8, vtx8, iwork
+      integer*8, pointer :: eid8(:), vtx8(:)
+      integer,   pointer :: iwork(:)
 
-      common /scrcg/ xyz(ldim*lelt*2**ldim)
+      real, pointer :: xyz(:)
 
       integer cnt, algo
       integer opt_parrsb(3)
@@ -168,6 +169,16 @@ c-----------------------------------------------------------------------
       logical ifbswap, ifread_con
 
       real tol
+
+      call c_f_pointer(c_loc(cb_scrns(1)), wk,  [mdw*ndw])
+      call c_f_pointer(c_loc(cb_scrns(1)), wk4, [2*mdw*ndw])
+
+      call c_f_pointer(c_loc(cb_ctmp0(1)), eid8, [lelt])
+      call c_f_pointer(c_loc(cb_ctmp0(lelt+1)), vtx8, [lelt*2**ldim])
+      call c_f_pointer(c_loc(cb_ctmp0(lelt+lelt*2**ldim+1)), iwork,
+     $                  [lelt])
+      xyz(1:ldim*lelt*2**ldim) => cb_scrcg(1 : ldim*lelt*2**ldim)
+      vertex(1:(2**ldim),1:lelt) => cb_ivrtx(1:(2**ldim)*lelt)
 
 #if !defined(PARRSB)
 #if defined(DPROCMAP)
@@ -337,10 +348,10 @@ c solid elements
 c-----------------------------------------------------------------------
       subroutine read_con(wk,nwk,nelr,nv,ierr)
 
-      include 'mpif.h'
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
+      include 'mpif.h'
 
       integer nwk,nelr,nv,ierr
       integer wk(nwk)
@@ -471,8 +482,11 @@ c-----------------------------------------------------------------------
 
       end
 c-----------------------------------------------------------------------
-#if defined(PARRSB)      
+#if defined(PARRSB)
       subroutine find_con(wk,nwk,tol,ierr)
+      use ctmp0_mod
+      use scrcg_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'INPUT'
@@ -483,10 +497,14 @@ c-----------------------------------------------------------------------
       real tol
 
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
-      common /scrcg/ xyz(ldim*(2**ldim)*lelt)
+      real, pointer :: xyz(:)
 
-      integer*8 eid8(4*lelt),vtx8(lelt*(2**ldim+1))
-      common /ctmp0/ eid8, vtx8, iwork
+      integer*8, pointer :: eid8(:), vtx8(:)
+
+      call c_f_pointer(c_loc(cb_ctmp0(1)), eid8, [4*lelt])
+      call c_f_pointer(c_loc(cb_ctmp0(4*lelt+1)), vtx8,
+     $                  [lelt*(2**ldim+1)])
+      xyz(1:ldim*(2**ldim)*lelt) => cb_scrcg(1 : ldim*(2**ldim)*lelt)
 
       ierr = 0
 
@@ -649,8 +667,10 @@ c        write(6,*) 'map2 ieg:',ieg,nelv,nelt,nelgv,nelgt
       end
 c-----------------------------------------------------------------------
       subroutine set_proc_map_legacy()
+      use ctmp0_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 C
-C     Compute element to processor distribution according to (weighted) 
+C     Compute element to processor distribution according to (weighted)
 C     physical distribution in an attempt to minimize exposed number of
 C     element interfaces.
 C
@@ -660,9 +680,11 @@ C
       include 'SOLN'
       include 'SCRCT'
       include 'TSTEP'
-      common /ctmp0/ iwork(lelt)
+      integer, pointer :: iwork(:)
 
       REAL*8 dnekclock,t0
+
+      call c_f_pointer(c_loc(cb_ctmp0(1)), iwork, [lelt])
 
 #if defined(PARRSB) || defined(DPROCMAP)
       call exitti(' DPROCMAP/PARRSB not supported for rea files$',0)
@@ -711,10 +733,10 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine read_map(vertex,nlv,wk,mdw,ndw)
 
-      include 'mpif.h'
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
+      include 'mpif.h'
 
       integer*8 vertex(nlv,1)
       integer wk(mdw,ndw)

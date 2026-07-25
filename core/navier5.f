@@ -1,5 +1,7 @@
 c-----------------------------------------------------------------------
       subroutine q_filter(wght)
+      use ctmp0_mod
+      use scruz_mod
 c
 c     filter vx,vy,vz, and p by simple interpolation
 c
@@ -25,19 +27,14 @@ c
       save intv
       save intp
 
-      common /ctmp0/ intw,intt
-     $             , wk1,wk2
-     $             , zgmv,wgtv,zgmp,wgtp,tmax(100),omax(103)
-
-      real intw(lx1,lx1)
-      real intt(lx1,lx1)
-      real wk1  (lx1,lx1,lx1,lelt)
-      real wk2  (lx1,lx1,lx1)
-      real zgmv(lx1),wgtv(lx1),zgmp(lx1),wgtp(lx1)
+      real, pointer :: intw(:,:), intt(:,:)
+      real, pointer :: wk1(:,:,:,:), wk2(:,:,:)
+      real, pointer :: zgmv(:),wgtv(:),zgmp(:),wgtp(:)
+      real, pointer :: tmax(:),omax(:)
 c
 c     outpost arrays
       parameter (lt=lx1*ly1*lz1*lelv)
-      common /scruz/ w1(lt),w2(lt),w3(lt),wt(lt)
+      real, pointer :: w1(:), w2(:), w3(:), wt(:)
 
       character*18 sfmt
 
@@ -46,6 +43,36 @@ c     outpost arrays
       data    icalld /0/
 
       logical if_fltv
+
+      intw(1:lx1,1:lx1) => cb_ctmp0(0*lx1*lx1+1 : 1*lx1*lx1)
+      intt(1:lx1,1:lx1) => cb_ctmp0(1*lx1*lx1+1 : 2*lx1*lx1)
+      wk1(1:lx1,1:lx1,1:lx1,1:lelt) => cb_ctmp0(2*lx1*lx1+1
+     $                               : 2*lx1*lx1+lx1*lx1*lx1*lelt)
+      wk2(1:lx1,1:lx1,1:lx1) => cb_ctmp0(
+     $     2*lx1*lx1+lx1*lx1*lx1*lelt+1
+     $   : 2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1)
+      zgmv(1:lx1) => cb_ctmp0(
+     $     2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+1
+     $   : 2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+lx1)
+      wgtv(1:lx1) => cb_ctmp0(
+     $     2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+lx1+1
+     $   : 2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+2*lx1)
+      zgmp(1:lx1) => cb_ctmp0(
+     $     2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+2*lx1+1
+     $   : 2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+3*lx1)
+      wgtp(1:lx1) => cb_ctmp0(
+     $     2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+3*lx1+1
+     $   : 2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+4*lx1)
+      tmax(1:100) => cb_ctmp0(
+     $     2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+4*lx1+1
+     $   : 2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+4*lx1+100)
+      omax(1:103) => cb_ctmp0(
+     $     2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+4*lx1+100+1
+     $   : 2*lx1*lx1+lx1*lx1*lx1*lelt+lx1*lx1*lx1+4*lx1+203)
+      w1(1:lt) => cb_scruz(0*lt+1 : 1*lt)
+      w2(1:lt) => cb_scruz(1*lt+1 : 2*lt)
+      w3(1:lt) => cb_scruz(2*lt+1 : 3*lt)
+      wt(1:lt) => cb_scruz(3*lt+1 : 4*lt)
 
       ncut = param(101)+1
 
@@ -460,6 +487,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine gradm1(ux,uy,uz,u)
+      use ctmp1_mod
 c
 c     Compute gradient of T -- mesh 1 to mesh 1 (vel. to vel.)
 c
@@ -472,9 +500,13 @@ c
       parameter (lxyz=lx1*ly1*lz1)
       real ux(lxyz,1),uy(lxyz,1),uz(lxyz,1),u(lxyz,1)
 
-      common /ctmp1/ ur(lxyz),us(lxyz),ut(lxyz)
+      real, pointer :: ur(:),us(:),ut(:)
 
       integer e
+
+      ur(1:lxyz) => cb_ctmp1(0*lxyz+1 : 1*lxyz)
+      us(1:lxyz) => cb_ctmp1(1*lxyz+1 : 2*lxyz)
+      ut(1:lxyz) => cb_ctmp1(2*lxyz+1 : 3*lxyz)
 
       nxyz = lx1*ly1*lz1
       ntot = nxyz*nelt
@@ -510,6 +542,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine comp_vort3(vort,work1,work2,u,v,w)
+      use ctmp0_mod
 
       include 'SIZE'
       include 'TOTAL'
@@ -518,14 +551,23 @@ c-----------------------------------------------------------------------
       real vort(lt,3),work1(1),work2(1),u(1),v(1),w(1)
 
       parameter(lx=lx1*ly1*lz1)
-      real ur(lx),us(lx),ut(lx)
-     $    ,vr(lx),vs(lx),vt(lx)
-     $    ,wr(lx),ws(lx),wt(lx)
-      common /ctmp0/ ur,us,ut,vr,vs,vt,wr,ws,wt
+      real, pointer :: ur(:),us(:),ut(:)
+     $    ,vr(:),vs(:),vt(:)
+     $    ,wr(:),ws(:),wt(:)
 
       integer e
       real jacmil
- 
+
+      ur(1:lx) => cb_ctmp0(0*lx+1 : 1*lx)
+      us(1:lx) => cb_ctmp0(1*lx+1 : 2*lx)
+      ut(1:lx) => cb_ctmp0(2*lx+1 : 3*lx)
+      vr(1:lx) => cb_ctmp0(3*lx+1 : 4*lx)
+      vs(1:lx) => cb_ctmp0(4*lx+1 : 5*lx)
+      vt(1:lx) => cb_ctmp0(5*lx+1 : 6*lx)
+      wr(1:lx) => cb_ctmp0(6*lx+1 : 7*lx)
+      ws(1:lx) => cb_ctmp0(7*lx+1 : 8*lx)
+      wt(1:lx) => cb_ctmp0(8*lx+1 : 9*lx)
+
       ntot  = lx1*ly1*lz1*nelt
       nxyz  = lx1*ly1*lz1
       nx    = lx1 - 1      ! Polynomial degree
@@ -1622,6 +1664,10 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine torque_calc(scale,x0,ifdout,iftout)
+      use scrns_mod
+      use scrsf_mod
+      use scrcg_mod
+      use scruz_mod
 c
 c     Compute torque about point x0
 c
@@ -1639,17 +1685,35 @@ c
       real x0(3),w1(0:maxobj)
       logical ifdout,iftout
 c
-      common /scrns/         sij (lx1*ly1*lz1*6*lelv)
-      common /scrcg/         pm1 (lx1,ly1,lz1,lelv)
-      common /scrsf/         xm0(lx1,ly1,lz1,lelt)
-     $,                      ym0(lx1,ly1,lz1,lelt)
-     $,                      zm0(lx1,ly1,lz1,lelt)
+      real, pointer ::         sij(:)
+      real, pointer ::        pm1(:,:,:,:)
+      real, pointer ::        xm0(:,:,:,:), ym0(:,:,:,:), zm0(:,:,:,:)
 c
       parameter (lr=lx1*ly1*lz1)
-      common /scruz/         ur(lr),us(lr),ut(lr)
-     $                     , vr(lr),vs(lr),vt(lr)
-     $                     , wr(lr),ws(lr),wt(lr)
+      real, pointer :: ur(:),us(:),ut(:)
+     $               , vr(:),vs(:),vt(:)
+     $               , wr(:),ws(:),wt(:)
 c
+      sij(1:lx1*ly1*lz1*6*lelv) =>
+     $   cb_scrns(1 : lx1*ly1*lz1*6*lelv)
+      ur(1:lr) => cb_scruz(0*lr+1 : 1*lr)
+      us(1:lr) => cb_scruz(1*lr+1 : 2*lr)
+      ut(1:lr) => cb_scruz(2*lr+1 : 3*lr)
+      vr(1:lr) => cb_scruz(3*lr+1 : 4*lr)
+      vs(1:lr) => cb_scruz(4*lr+1 : 5*lr)
+      vt(1:lr) => cb_scruz(5*lr+1 : 6*lr)
+      wr(1:lr) => cb_scruz(6*lr+1 : 7*lr)
+      ws(1:lr) => cb_scruz(7*lr+1 : 8*lr)
+      wt(1:lr) => cb_scruz(8*lr+1 : 9*lr)
+      xm0(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      ym0(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      zm0(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      pm1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrcg(1 : lx1*ly1*lz1*lelv)
+
       n = lx1*ly1*lz1*nelv
 c
       call mappr(pm1,pr,xm0,ym0) ! map pressure onto Mesh 1
@@ -1957,6 +2021,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine auto_averager(fname127) ! simple average of files
+      use scrsf_mod
 
 c     This routine reads files specificed of file.list and averages
 c     them with uniform weight
@@ -1971,11 +2036,18 @@ c
       character*1   f1(127)
 
       parameter (lt=lx1*ly1*lz1*lelt)
-      common /scravg/ ua(lt),va(lt),wa(lt),pa(lt)
-      common /scrsf/  ta(lt,ldimt)
+      real, allocatable, target, save :: cb_scravg(:)
+      real, pointer :: ua(:),va(:),wa(:),pa(:)
+      real, pointer :: ta(:,:)
 
       character*1 s1(127)
-      equivalence (s1,initc) ! equivalence to initial condition
+
+      if (.not. allocated(cb_scravg)) allocate(cb_scravg(4*lt))
+      ua(1:lt) => cb_scravg(0*lt+1 : 1*lt)
+      va(1:lt) => cb_scravg(1*lt+1 : 2*lt)
+      wa(1:lt) => cb_scravg(2*lt+1 : 3*lt)
+      pa(1:lt) => cb_scravg(3*lt+1 : 4*lt)
+      ta(1:lt,1:ldimt) => cb_scrsf(1 : lt*ldimt)
 
       if (nid.eq.0) then
          ib=indx1(fname127,' ',1)-1
@@ -2009,6 +2081,7 @@ c
   127    format(a127)
 
          iblank = indx1(initc,' ',1)-1
+         call chcopy(s1,initc,127)   ! was equivalence(s1,initc)
          if (nio.eq.0) write(6,1) ipass,(s1(k),k=1,iblank)
     1    format(i8,'Reading: ',127a1)
 
@@ -2131,6 +2204,10 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine shear_calc_max(strsmx,scale,x0,ifdout,iftout)
+      use scrns_mod
+      use scrsf_mod
+      use scrcg_mod
+      use scruz_mod
 c
 c     Compute maximum shear stress on objects
 c
@@ -2148,17 +2225,34 @@ c
      $                , scale_vf(3)
 
 
-      common /scrns/         sij (lx1*ly1*lz1*6*lelv)
-      common /scrcg/         pm1 (lx1,ly1,lz1,lelv)
-      common /scrsf/         xm0(lx1,ly1,lz1,lelt)
-     $,                      ym0(lx1,ly1,lz1,lelt)
-     $,                      zm0(lx1,ly1,lz1,lelt)
+      real, pointer ::         sij(:)
+      real, pointer ::        pm1(:,:,:,:)
+      real, pointer ::        xm0(:,:,:,:), ym0(:,:,:,:), zm0(:,:,:,:)
 
       parameter (lr=lx1*ly1*lz1)
-      common /scruz/         ur(lr),us(lr),ut(lr)
-     $                     , vr(lr),vs(lr),vt(lr)
-     $                     , wr(lr),ws(lr),wt(lr)
+      real, pointer :: ur(:),us(:),ut(:)
+     $               , vr(:),vs(:),vt(:)
+     $               , wr(:),ws(:),wt(:)
 
+      sij(1:lx1*ly1*lz1*6*lelv) =>
+     $   cb_scrns(1 : lx1*ly1*lz1*6*lelv)
+      ur(1:lr) => cb_scruz(0*lr+1 : 1*lr)
+      us(1:lr) => cb_scruz(1*lr+1 : 2*lr)
+      ut(1:lr) => cb_scruz(2*lr+1 : 3*lr)
+      vr(1:lr) => cb_scruz(3*lr+1 : 4*lr)
+      vs(1:lr) => cb_scruz(4*lr+1 : 5*lr)
+      vt(1:lr) => cb_scruz(5*lr+1 : 6*lr)
+      wr(1:lr) => cb_scruz(6*lr+1 : 7*lr)
+      ws(1:lr) => cb_scruz(7*lr+1 : 8*lr)
+      wt(1:lr) => cb_scruz(8*lr+1 : 9*lr)
+      xm0(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      ym0(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      zm0(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      pm1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrcg(1 : lx1*ly1*lz1*lelv)
 
       n = lx1*ly1*lz1*nelv
 
@@ -2320,16 +2414,26 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine fix_geom ! fix up geometry irregularities
+      use scrns_mod
+      use scruz_mod
 
       include 'SIZE'
       include 'TOTAL'
 
       parameter (lt = lx1*ly1*lz1)
-      common /scrns/ xb(lt,lelt),yb(lt,lelt),zb(lt,lelt)
-      common /scruz/ tmsk(lt,lelt),tmlt(lt,lelt),w1(lt),w2(lt)
+      real, pointer :: xb(:,:),yb(:,:),zb(:,:)
+      real, pointer :: tmsk(:,:),tmlt(:,:),w1(:),w2(:)
 
       integer e,f
       character*3 cb
+
+      tmsk(1:lt,1:lelt) => cb_scruz(0*lt*lelt+1 : 1*lt*lelt)
+      tmlt(1:lt,1:lelt) => cb_scruz(1*lt*lelt+1 : 2*lt*lelt)
+      w1(1:lt) => cb_scruz(2*lt*lelt+1 : 2*lt*lelt+lt)
+      w2(1:lt) => cb_scruz(2*lt*lelt+lt+1 : 2*lt*lelt+2*lt)
+      xb(1:lt,1:lelt) => cb_scrns(0*lt*lelt+1 : 1*lt*lelt)
+      yb(1:lt,1:lelt) => cb_scrns(1*lt*lelt+1 : 2*lt*lelt)
+      zb(1:lt,1:lelt) => cb_scrns(2*lt*lelt+1 : 3*lt*lelt)
 
       n      = lx1*ly1*lz1*nelt
       nxyz   = lx1*ly1*lz1
@@ -2776,6 +2880,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine g_filter(u,diag,ifld)
+      use ctmp0_mod
 c
 c     Generalized filter: F(u) with F = J^T D J, where D=diag(diag)
 c
@@ -2785,7 +2890,12 @@ c
       real u(1),diag(1)
 
       parameter (lxx=lx1*lx1,lxyz=lx1*ly1*lz1)
-      common /ctmp0/ f(lxx),wk1(lxyz),wk2(lxyz),wk3(lxyz)
+      real, pointer :: f(:),wk1(:),wk2(:),wk3(:)
+
+      f  (1:lxx)  => cb_ctmp0(0*lxx+1 : 1*lxx)
+      wk1(1:lxyz) => cb_ctmp0(1*lxx+1 : 1*lxx+1*lxyz)
+      wk2(1:lxyz) => cb_ctmp0(1*lxx+1*lxyz+1 : 1*lxx+2*lxyz)
+      wk3(1:lxyz) => cb_ctmp0(1*lxx+2*lxyz+1 : 1*lxx+3*lxyz)
 
       ifldt = ifield
       ifield = ifld
@@ -2799,6 +2909,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine cut_off_filter(u,mx,ifld) ! mx=max saved mode
+      use ctmp0_mod
 c
 c     Generalized filter: F(u) with F = J^T D J, where D=diag(diag)
 c
@@ -2808,7 +2919,13 @@ c
       real u(1)
 
       parameter (lxx=lx1*lx1,lxyz=lx1*ly1*lz1)
-      common /ctmp0/ f(lxx),wk1(lxyz),wk2(lxyz),wk3(lxyz),diag(lx1)
+      real, pointer :: f(:),wk1(:),wk2(:),wk3(:),diag(:)
+
+      f   (1:lxx)  => cb_ctmp0(0*lxx+1 : 1*lxx)
+      wk1 (1:lxyz) => cb_ctmp0(1*lxx+1 : 1*lxx+1*lxyz)
+      wk2 (1:lxyz) => cb_ctmp0(1*lxx+1*lxyz+1 : 1*lxx+2*lxyz)
+      wk3 (1:lxyz) => cb_ctmp0(1*lxx+2*lxyz+1 : 1*lxx+3*lxyz)
+      diag(1:lx1)  => cb_ctmp0(1*lxx+3*lxyz+1 : 1*lxx+3*lxyz+lx1)
 
       ifldt = ifield
       ifield = ifld
@@ -2827,6 +2944,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine filter_d2(v,nx,nz,wgt,ifd4)
+      use ctmp1_mod
 
       include 'SIZE'
       include 'TOTAL'
@@ -2835,9 +2953,15 @@ c-----------------------------------------------------------------------
       real v(lt,nelt)
       logical ifd4
 
-      common /ctmp1/ w(lt,lelt),ur(lt),us(lt),ut(lt),w1(2*lt)
+      real, pointer :: w(:,:),ur(:),us(:),ut(:),w1(:)
 
       integer e
+
+      w (1:lt,1:lelt) => cb_ctmp1(0*lt*lelt+1 : 1*lt*lelt)
+      ur(1:lt) => cb_ctmp1(1*lt*lelt+1 : 1*lt*lelt+lt)
+      us(1:lt) => cb_ctmp1(1*lt*lelt+lt+1 : 1*lt*lelt+2*lt)
+      ut(1:lt) => cb_ctmp1(1*lt*lelt+2*lt+1 : 1*lt*lelt+3*lt)
+      w1(1:2*lt) => cb_ctmp1(1*lt*lelt+3*lt+1 : 1*lt*lelt+5*lt)
 
       n   = lx1*ly1*lz1*nelt
       nn  = nx-1
@@ -3217,6 +3341,7 @@ c     call filter_d2(d,lx1,lz1,wgt,.true.)
       end
 c-----------------------------------------------------------------------
       subroutine turb_outflow(d,m1,rq,uin)
+      use ctmp1_mod
 
 c     . Set div U > 0 in elements with 'O  ' bc.
 c
@@ -3246,7 +3371,7 @@ c
       real d(lx2,ly2,lz2,lelt),m1(lx1*ly1*lz1,lelt)
 
       parameter (lw = 3*lx1*ly1*lz1)
-      common /ctmp1/ w(lw)
+      real, pointer :: w(:)
 
       integer icalld,noutf,e,f
       save    icalld,noutf
@@ -3257,6 +3382,8 @@ c
       logical ifout
 
       character*3 b
+
+      w(1:lw) => cb_ctmp1(1 : lw)
 
       n     = lx1*ly1*lz1*nelv
       n2    = lx2*ly2*lz2*nelv
@@ -3438,13 +3565,16 @@ c     call planar_avg(uavg_xz,uavg,igs_z)
 c    
 c     Note, mesh has to be extruded in idir (tensor product)
 c 
+      use scrcg_mod
       include 'SIZE'
       include 'TOTAL'
 
       real ua(*)
       real u (*)
 
-      common /scrcg/ wrk(lx1*ly1*lz1*lelv)
+      real, pointer :: wrk(:)
+
+      wrk(1:lx1*ly1*lz1*lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
 
       n = nx1*ny1*nz1*nelv
 

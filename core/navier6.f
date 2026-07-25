@@ -28,6 +28,17 @@ c
 c===============================================================================
 c
       subroutine set_overlap
+      use scrns_mod
+      use ctmp1_mod
+      use ctmp0_mod
+      use scrch_mod
+      use scrcg_mod
+      use scrvh_mod
+      use scrmg_mod
+      use scruz_mod
+      use screv_mod
+      use fastd_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 c
 c     Set up arrays for overlapping Schwartz algorithm *for pressure solver*
 c
@@ -40,29 +51,51 @@ c
       REAL*8 dnekclock,t0
 c
       parameter (          n_tri = 7*ltotd )
-      common /scrns/  tri (n_tri)
-      integer         tri,elem
+      integer, pointer :: tri(:)
+      integer         elem
 c
-      common /screv/ x(2*ltotd)
-      common /scrvh/ y(2*ltotd)
-      common /scrch/ z(2*ltotd)
+      real, pointer :: x(:)
+      real, pointer :: y(:)
+      real, pointer :: z(:)
 c
-      common /ctmp0/ nv_to_t(2*ltotd)
+      integer, pointer :: nv_to_t(:)
 c
       parameter (lia = ltotd - 2 - 2*lelt)
-      common /scrcg/ ntri(lelt+1),nmask(lelt+1)
-     $             , ia(lia)
+      integer, pointer :: ntri(:), nmask(:), ia(:)
 c
-      common /scruz/ color   (4*ltotd)
-      common /scrmg/ ddmask  (4*ltotd)
-      common /ctmp1/ mask    (4*ltotd)
+      real, pointer :: color(:)
+      real, pointer :: ddmask(:)
+      integer, pointer :: mask(:)
 
       parameter(lxx=lx1*lx1, levb=lelv+lbelv)
-      common /fastd/  df(lx1*ly1*lz1,levb)
-     $             ,  sr(lxx*2,levb),ss(lxx*2,levb),st(lxx*2,levb)
+      real, pointer :: df(:,:), sr(:,:), ss(:,:), st(:,:)
 
 
       integer e
+
+      df(1:lx1*ly1*lz1,1:levb) =>
+     $   cb_fastd(0*lx1*ly1*lz1*levb+1 : 1*lx1*ly1*lz1*levb)
+      sr(1:lxx*2,1:levb) =>
+     $   cb_fastd(1*lx1*ly1*lz1*levb+1
+     $          : 1*lx1*ly1*lz1*levb+lxx*2*levb)
+      ss(1:lxx*2,1:levb) =>
+     $   cb_fastd(1*lx1*ly1*lz1*levb+lxx*2*levb+1
+     $          : 1*lx1*ly1*lz1*levb+2*lxx*2*levb)
+      st(1:lxx*2,1:levb) =>
+     $   cb_fastd(1*lx1*ly1*lz1*levb+2*lxx*2*levb+1
+     $          : 1*lx1*ly1*lz1*levb+3*lxx*2*levb)
+
+      call c_f_pointer(c_loc(cb_scrns(1)), tri, [n_tri])
+      call c_f_pointer(c_loc(cb_ctmp1(1)), mask, [4*ltotd])
+      call c_f_pointer(c_loc(cb_ctmp0(1)), nv_to_t, [2*ltotd])
+      z(1:2*ltotd) => cb_scrch(1 : 2*ltotd)
+      y(1:2*ltotd) => cb_scrvh(1 : 2*ltotd)
+      x(1:2*ltotd) => cb_screv(1 : 2*ltotd)
+      ddmask(1:4*ltotd) => cb_scrmg(1 : 4*ltotd)
+      color(1:4*ltotd) => cb_scruz(1 : 4*ltotd)
+      call c_f_pointer(c_loc(cb_scrcg(1)), ntri, [lelt+1])
+      call c_f_pointer(c_loc(cb_scrcg(lelt+2)), nmask, [lelt+1])
+      call c_f_pointer(c_loc(cb_scrcg(2*lelt+3)), ia, [lia])
 
       if (lx1.eq.2) param(43)=1.
       if (lx1.eq.2.and.nid.eq.0) write(6,*) 'No mgrid for lx1=2!'
@@ -147,6 +180,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine set_fem_data_l2(nep,nd,no,x,y,z,p)
+      use ctmp0_mod
       include 'SIZE'
       include 'DOMAIN'
       include 'NONCON'
@@ -156,7 +190,10 @@ c
       real p(lx1,ly1,lz1,1)
       integer ce,cf
 c
-      common /ctmp0/ w1(lx1,ly1),w2(lx1,ly1)
+      real, pointer :: w1(:,:),w2(:,:)
+c
+      w1(1:lx1,1:ly1) => cb_ctmp0(0*lx1*ly1+1 : 1*lx1*ly1)
+      w2(1:lx1,1:ly1) => cb_ctmp0(1*lx1*ly1+1 : 2*lx1*ly1)
 c
 c     First, copy local geometry to temporary, expanded, arrays
 c

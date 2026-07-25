@@ -6,6 +6,8 @@ c-----------------------------------------------------------------------
       include 'RESTART'
       include 'CTIMER'
 
+      real*8 etime_t     ! etime0/dnekclock_sync come from CTIMER
+
       logical ifbswap
       logical ifxyz, ifcur, ifbc
       integer idummy(100)
@@ -40,8 +42,8 @@ c-----------------------------------------------------------------------
         if (nelgt.gt.nelgv) nfldt = max(nfldt,2) 
       endif
 
-      call blank(cbc,3*size(cbc))
-      call rzero(bc ,size(bc))
+      call blank(cbc, 3*6*lelt*(ldimt1+1))
+      call rzero(bc, 5*6*lelt*(ldimt1+1))
       
       call fgslib_crystal_setup(cr_re2,nekcomm,np)
       call nek_file_open(nekcomm,re2fle,0,0,np_io,re2_h,ierr)
@@ -66,6 +68,9 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine readp_re2_mesh(re2_h,ifbswap,ifread) ! version 2 of .re2 reader
+      use scrns_mod
+      use ctmp1_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'TOTAL'
@@ -73,19 +78,23 @@ c-----------------------------------------------------------------------
       logical ifbswap
       logical ifread
 
+      real*8 etime0,etime_s1,etime_s2,etime_t1,etime_t2,etime_t3
+      real*8 dnekclock_sync
+
       parameter(nrmax = lelt)             ! maximum number of records
       parameter(lrs   = 1+ldim*(2**ldim)) ! record size: group x(:,c) ...
       parameter(li    = 2*lrs+2)
 
-      integer         bufr(li-2,nrmax)
-      common /scrns/  bufr
+      integer, pointer :: bufr(:,:)
 
-      integer         vi  (li  ,nrmax)
-      common /ctmp1/  vi
+      integer, pointer :: vi(:,:)
 
       integer*8       lre2off_b,dtmp8
       integer*8       nrg
       integer*8       count_b
+
+      call c_f_pointer(c_loc(cb_scrns(1)), bufr, [li-2,nrmax])
+      call c_f_pointer(c_loc(cb_ctmp1(1)), vi, [li,nrmax])
 
       nrg       = nelgt
       nr        = nelt
@@ -157,6 +166,9 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine readp_re2_curve(re2_h,ifbswap,ifread)
+      use scrns_mod
+      use ctmp1_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'TOTAL'
@@ -166,28 +178,32 @@ c-----------------------------------------------------------------------
 
       common /nekmpi/ nidd,npp,nekcomm,nekgroup,nekreal
 
+      real*8 etime0,etime_s1,etime_s2,etime_s3,etime_t1,etime_t2,etime_t3
+      real*8 dnekclock_sync
+
       parameter(nrmax = 12*lelt) ! maximum number of records
       parameter(lrs   = 2+1+5)   ! record size: eg iside curve(5) ccurve
       parameter(li    = 2*lrs+1)
 
-      integer         bufr(li-1,nrmax)
-      common /scrns/  bufr
+      integer, pointer :: bufr(:,:)
 
-      integer         vi  (li  ,nrmax)
-      common /ctmp1/  vi
+      integer, pointer :: vi(:,:)
 
       integer*8       lre2off_b,dtmp8
       integer*8       nrg,nr
       integer*4       nrg4(2)
       integer*8       count_b
-     
-      integer*8       i8gl_running_sum 
+
+      integer*8       i8gl_running_sum
+
+      call c_f_pointer(c_loc(cb_scrns(1)), bufr, [li-1,nrmax])
+      call c_f_pointer(c_loc(cb_ctmp1(1)), vi, [li,nrmax])
 
       ! read total number of records
       nwds4r    = 1*wdsizi/4
       lre2off_b = re2off_b
       ierr = 0
-      
+
       count_b = int(nwds4r,8)*4
       if (nid.ne.0) count_b = 0
       etime0 = dnekclock_sync()
@@ -286,6 +302,9 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine readp_re2_bc(cbl,bl,re2_h,ifbswap,ifread)
+      use scrns_mod
+      use ctmp1_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 
       include 'SIZE'
       include 'TOTAL'
@@ -295,22 +314,26 @@ c-----------------------------------------------------------------------
       logical      ifbswap
       logical      ifread
 
+      real*8 etime0,etime_s1,etime_s2,etime_s3,etime_t1,etime_t2,etime_t3
+      real*8 dnekclock_sync
+
       parameter(nrmax = 6*lelt) ! maximum number of records
       parameter(lrs   = 2+1+5)  ! record size: eg iside bl(5) cbl
       parameter(li    = 2*lrs+1)
 
-      integer         bufr(li-1,nrmax)
-      common /scrns/  bufr
+      integer, pointer :: bufr(:,:)
 
-      integer         vi  (li  ,nrmax)
-      common /ctmp1/  vi
+      integer, pointer :: vi(:,:)
 
       integer*8       lre2off_b,dtmp8,nbcs
       integer*8       nrg, nr
       integer*4       nrg4(2)
       integer*8       count_b
 
-      integer*8       i8gl_running_sum 
+      integer*8       i8gl_running_sum
+
+      call c_f_pointer(c_loc(cb_scrns(1)), bufr, [li-1,nrmax])
+      call c_f_pointer(c_loc(cb_ctmp1(1)), vi, [li,nrmax])
 
       ! read total number of records
       nwds4r    = 1*wdsizi/4
@@ -541,10 +564,9 @@ c  1   format(2i8,i4,2x,a3,a4,i8)
       end
 c-----------------------------------------------------------------------
       subroutine read_re2_hdr(ifbswap, ifverbose) ! open file & chk for byteswap
-
-      include 'mpif.h'
       include 'SIZE'
       include 'TOTAL'
+      include 'mpif.h'
 
       logical ifbswap, ifverbose
       logical if_byte_swap_test

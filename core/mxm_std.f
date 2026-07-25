@@ -3920,21 +3920,28 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mxmtest(s,nn,cn,mxmt,name,k,ivb)
+      use scrns_mod
+      use scrmg_mod
+      use scruz_mod
+      include 'SIZE'
 
       real        s(nn,2)   ! MFLOPS
       character*5 cn        ! name
       character*5 name
       external mxmt
 
-      include 'SIZE'
       parameter (lt=4*lx1*ly1*lz1*lelt)
-      common /scrns/ a(lt)
-      common /scruz/ b(lt)
-      common /scrmg/ c(lt)
+      real, pointer :: a(:)
+      real, pointer :: b(:)
+      real, pointer :: c(:)
 
       integer ll,icalld
       save    ll,icalld
       data    ll,icalld  /1,0/
+
+      a(1:lt) => cb_scrns(1 : lt)
+      b(1:lt) => cb_scruz(1 : lt)
+      c(1:lt) => cb_scrmg(1 : lt)
 
       if (icalld.eq.0) then    !     Initialize matrices:
          icalld = icalld + 1
@@ -4115,6 +4122,10 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mxma(a,n1,b,n2,c,n3)
+      include 'SIZE'
+      include 'OPCTR'
+      include 'TOTAL'
+
 C
 C     Compute  C = A*B , for contiguously packed matrices A,B, and C.
 C
@@ -4124,9 +4135,6 @@ c     to real*8
 c
       real a(n1,n2),b(n2,n3),c(n1,n3)
 c
-      include 'SIZE'
-      include 'OPCTR'
-      include 'TOTAL'
 c
 #ifdef TIMER
       if (isclld.eq.0) then

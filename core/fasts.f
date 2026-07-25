@@ -1,5 +1,7 @@
 c-----------------------------------------------------------------------
       subroutine local_solves_fdm(u,v)
+      use scrpre_mod
+      use fastd_mod
 c
 c     Given an input vector v, this returns the additive Schwarz solution
 c
@@ -23,19 +25,35 @@ c
       include 'CTIMER'
 c
       real u(lx2,ly2,lz2,lelv),v(lx2,ly2,lz2,lelv)
-      common /scrpre/ v1(lx1,ly1,lz1,lelv)
-     $               ,w1(lx1,ly1,lz1),w2(lx1,ly1,lz1)
+      real, pointer :: v1(:,:,:,:), w1(:,:,:), w2(:,:,:)
       common /scrover/ ar(lelv)
 
       parameter(lxx=lx1*lx1, levb=lelv+lbelv)
-      common /fastd/  df(lx1*ly1*lz1,levb)
-     $             ,  sr(lxx*2,levb),ss(lxx*2,levb),st(lxx*2,levb)
+      real, pointer :: df(:,:), sr(:,:), ss(:,:), st(:,:)
       integer e,eb,eoff
 
+      v1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrpre(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      w1(1:lx1,1:ly1,1:lz1) =>
+     $   cb_scrpre(1*lx1*ly1*lz1*lelv+1
+     $           : 1*lx1*ly1*lz1*lelv+lx1*ly1*lz1)
+      w2(1:lx1,1:ly1,1:lz1) =>
+     $   cb_scrpre(1*lx1*ly1*lz1*lelv+lx1*ly1*lz1+1
+     $           : 1*lx1*ly1*lz1*lelv+2*lx1*ly1*lz1)
+      df(1:lx1*ly1*lz1,1:levb) =>
+     $   cb_fastd(0*lx1*ly1*lz1*levb+1 : 1*lx1*ly1*lz1*levb)
+      sr(1:lxx*2,1:levb) =>
+     $   cb_fastd(1*lx1*ly1*lz1*levb+1
+     $          : 1*lx1*ly1*lz1*levb+lxx*2*levb)
+      ss(1:lxx*2,1:levb) =>
+     $   cb_fastd(1*lx1*ly1*lz1*levb+lxx*2*levb+1
+     $          : 1*lx1*ly1*lz1*levb+2*lxx*2*levb)
+      st(1:lxx*2,1:levb) =>
+     $   cb_fastd(1*lx1*ly1*lz1*levb+2*lxx*2*levb+1
+     $          : 1*lx1*ly1*lz1*levb+3*lxx*2*levb)
+
 c
-      if (icalld.eq.0) tsolv=0.0
-      icalld=icalld+1
-      nsolv=icalld
+      nsolv=nsolv+1
 c
       ntot1 = lx1*ly1*lz1*nelv
       ntot2 = lx2*ly2*lz2*nelv
@@ -311,16 +329,19 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine init_weight_op
+      use swaplengths_mod
+      use weightop_mod
 
       include 'SIZE'
       include 'INPUT'
       include 'TSTEP'
       parameter(levb=lelv+lbelv)
-      common /swaplengths/ l(lx1,ly1,lz1,lelv)
-      common /weightop/ w(lx2,lz2,2,3,levb)
-      real l
-      real w
+      real, pointer :: l(:,:,:,:)
+      real, pointer :: w(:,:,:,:,:)
       integer e,e0,eb
+
+      l(1:lx1,1:ly1,1:lz1,1:lelv) => cb_swaplengths(1:lx1*ly1*lz1*lelv)
+      w(1:lx2,1:lz2,1:2,1:3,1:levb) => cb_weightop(1:lx2*lz2*2*3*levb)
 
       e0  = 0
       if (ifield.gt.1) e0 = nelv
@@ -407,15 +428,17 @@ c     l now holds the count matrix C on the outer pressure nodes
       end
 c-----------------------------------------------------------------------
       subroutine do_weight_op(x)
+      use weightop_mod
       include 'SIZE'
       include 'INPUT'
       include 'TSTEP'
       parameter(levb=lelv+lbelv)
-      common /weightop/ w(lx2,lz2,2,3,levb)
-      real w
+      real, pointer :: w(:,:,:,:,:)
 
       real x(0:lx1-1,0:ly1-1,0:lz1-1,1)
       integer e,e0,eb
+
+      w(1:lx2,1:lz2,1:2,1:3,1:levb) => cb_weightop(1:lx2*lz2*2*3*levb)
 
       e0  = 0
       if (ifield.gt.1) e0 = nelv

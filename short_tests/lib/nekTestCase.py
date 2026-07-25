@@ -287,7 +287,13 @@ class NekTestCase(unittest.TestCase):
         if not infile:
             infile = os.path.join(self.source_root, "core", "SIZE.template")
         if not outfile:
-            outfile = os.path.join(self.examples_root, cls.example_subdir, "SIZE")
+            case_dir = os.path.join(self.examples_root, cls.example_subdir)
+            outfile = os.path.join(case_dir, "SIZE.usr") # new
+            # Remove any stale legacy SIZE left by earlier runs so it can't
+            # shadow SIZE.usr or trip makenek's both-exist check.
+            stale = os.path.join(case_dir, "SIZE")
+            if os.path.exists(stale):
+                os.remove(stale)
         if not params:
             params = self.size_params
 

@@ -1,2 +1,1 @@
-      integer nelx,nely,nelz
-      common /gfdmic/  nelx,nely,nelz
+      use zper_mod

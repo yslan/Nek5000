@@ -3,11 +3,11 @@ c
 c     Compute Jacobian Vetor product FJV
 c     approximated by 1st-order fd quotient 
 c
-      real v(*), fjv(*), tt, y(*), fy(*), h, rpar(1), work(*)
-
       INCLUDE 'SIZE'
       INCLUDE 'INPUT'
       INCLUDE 'CVODE'
+
+      real v(*), fjv(*), tt, y(*), fy(*), h, rpar(1), work(*)
 
       integer*8 ipar(1)
 

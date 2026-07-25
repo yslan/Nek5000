@@ -774,6 +774,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine fixcurs(mltc,gshlc)
+      use ctmp0_mod
       include 'SIZE'
       include 'TOTAL'
 c     This routine fixes the curved edges post smoothing
@@ -783,7 +784,7 @@ c     This routine fixes the curved edges post smoothing
      $     zmc(lxc,lyc,lzc,lelv)
       common /coarsemesh/ xmc,ymc,zmc
 
-      common /ctmp0/ zg(3)
+      real, pointer :: zg(:)
       real w1(lxc*lyc*lzc*lelv),w2(lxc*lyc*lzc*lelv)
       real vcmask(lxc,lyc,lzc,lelv)
       integer f,e,nedge,n,nfaces,gshlc
@@ -800,6 +801,8 @@ c     This routine fixes the curved edges post smoothing
      $           , 19,20,21,   21,24,27,   27,26,25,   25,22,19
      $           ,  1,10,19,    3,12,21,    9,18,27,    7,16,25 /
        integer kin(7)
+
+      zg(1:3) => cb_ctmp0(1 : 3)
 
 c     START BY LOOPING OVER EACH ELEMENT AND THEN OVER EACH EDGE
       nedge = 4 + 8*(ldim-2)
@@ -1709,6 +1712,7 @@ C-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine laplaceh
      $     (name,u,h1,h2,mask,mult,ifld,tli,maxi,approx,napprox)
+      use scruz_mod
       include 'SIZE'
       include 'TOTAL'
       include 'CTIMER'
@@ -1718,13 +1722,16 @@ c
       integer   napprox(1)
 
       parameter (lt=lx1*ly1*lz1*lelv)
-      common /scruz/ r (lt),ub(lt)
+      real, pointer :: r(:), ub(:)
 
       logical ifstdh
       character*4  cname
       character*6  name6
 
       logical ifwt,ifvec
+
+      r (1:lt) => cb_scruz(0*lt+1 : 1*lt)
+      ub(1:lt) => cb_scruz(1*lt+1 : 2*lt)
 
       call chcopy(cname,name,4)
       call capit (cname,4)

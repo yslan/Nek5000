@@ -206,12 +206,12 @@ if (lelg*lx1**ldim)/lpmin > 2**19:
      print("<INFO> You may have to increase GENERAL:minNumProcesses to reduce memory usage")
 
 # generate SIZE file ###
-if os.path.exists('./SIZE'):
-  size_params_old = getSizeParams('./SIZE') 
+if os.path.exists('./SIZE.usr'):
+  size_params_old = getSizeParams('./SIZE.usr')
   added, removed, modified, same = dictCompare(size_params_old, size_params)
 
   if modified == {} and err == 0:
-    print("<Info> Do not overwrite existing SIZE as no changes are required")
+    print("<Info> Do not overwrite existing SIZE.usr as no changes are required")
     sys.exit(0)
 
 if not os.path.exists(size_template):
@@ -221,9 +221,9 @@ else:
   print('Found {0}'.format(size_template))
 
 if err == 0:
-  print("Generating SIZE ...")
-  writeSize(size_params,size_template,'./SIZE')
+  print("Generating SIZE.usr ...")
+  writeSize(size_params,size_template,'./SIZE.usr')
   sys.exit(0)
 else:
-  print("An error occured. Unable to generate SIZE file!")
+  print("An error occured. Unable to generate SIZE.usr file!")
   sys.exit(1)

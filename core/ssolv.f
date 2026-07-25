@@ -477,6 +477,9 @@ C
       END
 C
       SUBROUTINE CHKSSV
+      use scrvh_mod
+      use scrmg_mod
+      use scruz_mod
 C--------------------------------------------------------------------
 C
 C     Check steady state for velocity
@@ -493,19 +496,42 @@ C--------------------------------------------------------------------
       COMMON /CPRINT/ IFPRINT
       LOGICAL         IFPRINT
 C
-      COMMON /SCRSS2/ DV1 (LX1,LY1,LZ1,LELV)
-     $ ,              DV2 (LX1,LY1,LZ1,LELV)
-     $ ,              DV3 (LX1,LY1,LZ1,LELV)
-      COMMON /SCRUZ/  W1  (LX1,LY1,LZ1,LELV)
-     $ ,              W2  (LX1,LY1,LZ1,LELV)
-     $ ,              W3  (LX1,LY1,LZ1,LELV)
-     $ ,              BDIVV(LX2,LY2,LZ2,LELV)
-      COMMON /SCRMG/  T1  (LX1,LY1,LZ1,LELV)
-     $ ,              T2  (LX1,LY1,LZ1,LELV)
-     $ ,              T3  (LX1,LY1,LZ1,LELV)
-     $ ,              DIVV(LX2,LY2,LZ2,LELV)
-      COMMON /SCRVH/  H1  (LX1,LY1,LZ1,LELV)
-     $ ,              H2  (LX1,LY1,LZ1,LELV)
+      real, allocatable, target, save :: cb_scrss2(:)
+      real, pointer :: DV1(:,:,:,:), DV2(:,:,:,:), DV3(:,:,:,:)
+      real, pointer :: W1(:,:,:,:), W2(:,:,:,:), W3(:,:,:,:)
+     $               , BDIVV(:,:,:,:)
+      real, pointer :: T1(:,:,:,:), T2(:,:,:,:), T3(:,:,:,:)
+     $               , DIVV(:,:,:,:)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
+C
+      H1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      H2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      T1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      T2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      T3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      DIVV(1:lx2,1:ly2,1:lz2,1:lelv) => cb_scrmg(
+     $   3*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
+      W1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      W2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      W3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      BDIVV(1:lx2,1:ly2,1:lz2,1:lelv) => cb_scruz(
+     $   3*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv+lx2*ly2*lz2*lelv)
+      if (.not. allocated(cb_scrss2))
+     $   allocate(cb_scrss2(3*lx1*ly1*lz1*lelv))
+      DV1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrss2(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      DV2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrss2(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      DV3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrss2(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
 C
       CALL OPSUB3 (DV1,DV2,DV3,VX,VY,VZ,VXLAG,VYLAG,VZLAG)
       CALL NORMVC (DVNNH1,DVNNSM,DVNNL2,DVNNL8,DV1,DV2,DV3)
@@ -566,7 +592,9 @@ C
       RETURN
       END
 C
-      SUBROUTINE CHKSST 
+      SUBROUTINE CHKSST
+      use scrvh_mod
+      use scruz_mod
 C----------------------------------------------------------------------
 C
 C     Check for steady state for temperature/passive scalar
@@ -577,13 +605,21 @@ C----------------------------------------------------------------------
       INCLUDE 'MASS'
       INCLUDE 'TSTEP'
       INCLUDE 'STEADY'
-      COMMON /SCRUZ/  DELTAT (LX1,LY1,LZ1,LELT)
-     $ ,              WA     (LX1,LY1,LZ1,LELT)
-     $ ,              WB     (LX1,LY1,LZ1,LELT)
-      COMMON /SCRVH/  H1     (LX1,LY1,LZ1,LELT)
-     $ ,              H2     (LX1,LY1,LZ1,LELT)
+      real, pointer :: DELTAT(:,:,:,:), WA(:,:,:,:), WB(:,:,:,:)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
       COMMON /CPRINT/ IFPRINT
       LOGICAL         IFPRINT
+C
+      DELTAT(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      WA(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      WB(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      H1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      H2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 C
       NTOT = lx1*ly1*lz1*NELT
       CALL SUB3 (DELTAT(1,1,1,1),T(1,1,1,1,IFIELD-1),
@@ -721,12 +757,16 @@ C
       END
 C
       SUBROUTINE CHKTOLP (TOLMIN)
+      use scrmg_mod
       INCLUDE 'SIZE'
       INCLUDE 'SOLN'
       INCLUDE 'MASS'
       INCLUDE 'TSTEP'
-      COMMON /SCRMG/ DIVFLD (LX2,LY2,LZ2,LELV)
-     $ ,             WORK   (LX2,LY2,LZ2,LELV)
+      real, pointer :: DIVFLD(:,:,:,:), WORK(:,:,:,:)
+      DIVFLD(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrmg(0*lx2*ly2*lz2*lelv+1 : 1*lx2*ly2*lz2*lelv)
+      WORK  (1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrmg(1*lx2*ly2*lz2*lelv+1 : 2*lx2*ly2*lz2*lelv)
       NTOT2 = lx2*ly2*lz2*NELV
       CALL OPDIV   (DIVFLD,VX,VY,VZ)
       CALL COL3    (WORK,DIVFLD,BM2INV,NTOT2)
@@ -775,6 +815,8 @@ C
       END
 C
       SUBROUTINE PROJECT
+      use scrns_mod
+      use scrvh_mod
 C--------------------------------------------------------------------
 C
 C     Project current solution onto the closest incompressible field
@@ -782,18 +824,34 @@ C
 C--------------------------------------------------------------------
       INCLUDE 'SIZE'
       INCLUDE 'TOTAL'
-      COMMON /SCRNS/ W1    (LX1,LY1,LZ1,LELV)
-     $ ,             W2    (LX1,LY1,LZ1,LELV)
-     $ ,             W3    (LX1,LY1,LZ1,LELV)
-     $ ,             DV1   (LX1,LY1,LZ1,LELV)
-     $ ,             DV2   (LX1,LY1,LZ1,LELV)
-     $ ,             DV3   (LX1,LY1,LZ1,LELV)
-     $ ,             RESPR (LX2,LY2,LZ2,LELV)
-      COMMON /SCRVH/ H1    (LX1,LY1,LZ1,LELV)
-     $ ,             H2    (LX1,LY1,LZ1,LELV)
+      real, pointer :: W1(:,:,:,:), W2(:,:,:,:), W3(:,:,:,:)
+     $               , DV1(:,:,:,:), DV2(:,:,:,:), DV3(:,:,:,:)
+     $               , RESPR(:,:,:,:)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
+C
+      H1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      H2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
 C
       IF (NIO.EQ.0) WRITE(6,5)
     5 FORMAT(/,'  Project',/)
+C
+      W1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      W2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      W3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      DV1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      DV2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      DV3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
+      RESPR(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrns(6*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv
+     $                                 + lx2*ly2*lz2*lelv)
 C
       NTOT1  = lx1*ly1*lz1*NELV
       NTOT2  = lx2*ly2*lz2*NELV
