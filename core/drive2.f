@@ -861,6 +861,7 @@ C
       nsett=0
       ncdtp=0
       npres=0
+      neslv=0
       nmltd=0
       ngsum=0
       nprep=0

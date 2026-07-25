@@ -25,12 +25,9 @@ c
       wk3(1:lx2*ly2*lz2*lelv) => cb_scruz(2*lx2*ly2*lz2*lelv+1
      $                                   : 3*lx2*ly2*lz2*lelv)
 
-      if (icalld.eq.0) teslv=0.0
-
       call ortho(res) !Ensure that residual is orthogonal to null space
 
-      icalld=icalld+1
-      neslv=icalld
+      neslv=neslv+1
       etime1=dnekclock()
 
       if (.not. ifsplit) then
