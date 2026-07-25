@@ -21,6 +21,7 @@ c        resbc(lx1*ly1*lz1*lelv,ldim+1))
          n = sz
 
          allocate(cb_cbplan_vol_ms(n), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_cbplan_vol_ms$',ierr)
 
       end subroutine init
       end module cbplan_vol_ms_mod

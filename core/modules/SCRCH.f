@@ -18,6 +18,7 @@ c        LELV<=LELT
          nscrch = 2*lx1*ly1*lz1*lelt
 
          allocate(cb_scrch(nscrch), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scrch$',ierr)
 
       end subroutine init
       end module scrch_mod

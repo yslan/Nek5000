@@ -24,6 +24,7 @@ c        df(lxs*lys*lzs,lelv); lxss=lxs*lxs, lxs=lys=lzs=1
          n = sz
 
          allocate(cb_fastg(n), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_fastg$',ierr)
 
       end subroutine init
       end module fastg_mod

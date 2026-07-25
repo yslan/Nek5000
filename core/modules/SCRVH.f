@@ -24,6 +24,7 @@
          nscrvh = max(sz_lelt2, sz_lelv3, sz_lelv4, sz_fix)
 
          allocate(cb_scrvh(nscrvh), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scrvh$',ierr)
 
       end subroutine init
       end module scrvh_mod

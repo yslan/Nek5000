@@ -25,8 +25,10 @@ c
 c        --- allocate backing arrays ---
 
          allocate(cb_wrthoi(2*6), stat=ierr)             ! ivproj
+         if (ierr.ne.0) call exitti('alloc cb_wrthoi$',ierr)
 
          allocate(cb_wrthov(ktop*mxprev*2*ldim), stat=ierr) ! vproj
+         if (ierr.ne.0) call exitti('alloc cb_wrthov$',ierr)
 
 c        Group 1: /wrthoi/
          ioff = 1

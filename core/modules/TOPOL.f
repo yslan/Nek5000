@@ -52,13 +52,21 @@ C
          integer ierr
 
          allocate(numscn(lelt,0:ldimt1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc numscn$',ierr)
          allocate(numsed(lelt,0:ldimt1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc numsed$',ierr)
          allocate(gcnnum(8,lelt,0:ldimt1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc gcnnum$',ierr)
          allocate(lcnnum(8,lelt,0:ldimt1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc lcnnum$',ierr)
          allocate(gednum(12,lelt,0:ldimt1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc gednum$',ierr)
          allocate(lednum(12,lelt,0:ldimt1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc lednum$',ierr)
          allocate(gedtyp(12,lelt,0:ldimt1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc gedtyp$',ierr)
          allocate(ngcomm(2,0:ldimt1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc ngcomm$',ierr)
 
       end subroutine init
       end module topol_mod

@@ -82,6 +82,7 @@ c        genxyz.f (xyzquad: w(4*lx1*ly1*lz1,2),zg(3))
      $                sz_navier8, sz_hsmg_lxm, sz_map2, sz_genxyz)
 
          allocate(cb_ctmp0(nctmp0), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_ctmp0$',ierr)
 
       end subroutine init
       end module ctmp0_mod

@@ -44,6 +44,7 @@ c        --- allocate backing arrays ---
      $      + lx1*ly1*lz1*lelt              ! bm1ms
      $      + lx1*ly1*lz1*lelt              ! upf
      $      + 1), stat=ierr)                ! volvm1ms
+         if (ierr.ne.0) call exitti('alloc cb_mass$',ierr)
 
 c        Group 1: /mass/
          ioff = 1

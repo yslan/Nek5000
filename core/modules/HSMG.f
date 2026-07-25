@@ -124,6 +124,7 @@ c        --- allocate backing arrays ---
      $      + lmgx*(lmgs+1)         ! mg_schwarz_wt_index
      $      + lmgx*(lmgs+1)         ! mg_g_index
      $      + 1), stat=ierr)        ! mg_fld
+         if (ierr.ne.0) call exitti('alloc cb_mghs$',ierr)
 
          allocate(cb_mghr(
      $        lxm*lxm*lmgn                   ! mg_jh
@@ -149,6 +150,7 @@ c        --- allocate backing arrays ---
      $      + 2*lxm*lym*lzm*lelt             ! mg_work
      $      + lxm*lym*lzm*lelt               ! mg_work2
      $      + lxm*lym*lzm*6), stat=ierr)     ! mg_worke
+         if (ierr.ne.0) call exitti('alloc cb_mghr$',ierr)
 
          allocate(cb_mgh1i(
      $        1                     ! mg_h1_lmax
@@ -158,6 +160,7 @@ c        --- allocate backing arrays ---
      $      + lmgx*ldimt1           ! p_mg_b
      $      + lmgx*ldimt1           ! p_mg_g
      $      + lmgx*ldimt1), stat=ierr) ! p_mg_msk
+         if (ierr.ne.0) call exitti('alloc cb_mgh1i$',ierr)
 
 c        Group 1: /mghs/
          ioff = 1

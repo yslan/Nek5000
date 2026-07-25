@@ -24,6 +24,7 @@ c          postpro.f filter_s0 wk1+wk2           : lx1*lx1*lx1*lelt + lx1*lx1*lx
      $               , lx1*lx1*lx1*lelt + lx1*lx1*lx1 )
 
          allocate(cb_screv(nscrev), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_screv$',ierr)
 
       end subroutine init
       end module screv_mod

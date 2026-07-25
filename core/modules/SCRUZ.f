@@ -30,6 +30,7 @@ c                           postpro.f RE2 tools igr(1000), icurve(12,500)=6000 i
          nscruz = max(sz_sij, sz_ur, sz_mid, sz_b, sz_fix)
 
          allocate(cb_scruz(nscruz), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scruz$',ierr)
 
       end subroutine init
       end module scruz_mod

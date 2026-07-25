@@ -43,16 +43,20 @@ c        --- allocate backing arrays ---
      $      + (lgmres+1)             ! gamma_gmres
      $      + lgmres                 ! c_gmres
      $      + lgmres), stat=ierr)    ! s_gmres
+         if (ierr.ne.0) call exitti('alloc cb_gmres$',ierr)
 
          allocate(cb_gmre1(lx2*ly2*lz2*lelv*lgmres), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_gmre1$',ierr)
                                                        ! v_gmres
 
          allocate(cb_gmre2(lx2*ly2*lz2*lelv*lgmres), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_gmre2$',ierr)
                                                        ! z_gmres
 
          allocate(cb_spltprec(
      $        lx2*ly2*lz2*lelv       ! ml_gmres
      $      + lx2*ly2*lz2*lelv), stat=ierr) ! mu_gmres
+         if (ierr.ne.0) call exitti('alloc cb_spltprec$',ierr)
 
 c        Group 1: /gmres/
          ioff = 1

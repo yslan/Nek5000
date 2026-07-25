@@ -24,6 +24,7 @@
          nscrmg = max(sz_lelt4, sz_avg, sz_geom, sz_edge)
 
          allocate(cb_scrmg(nscrmg), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scrmg$',ierr)
 
       end subroutine init
       end module scrmg_mod

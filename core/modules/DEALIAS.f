@@ -24,8 +24,10 @@ c
 c        --- allocate backing arrays ---
 
          allocate(cb_solnd(lxd*lyd*lzd*lelv * 3), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_solnd$',ierr)
 
          allocate(cb_interpd(lx1*lxd * 6), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_interpd$',ierr)
 
 c        Group 1: /solnd/
          ioff = 1

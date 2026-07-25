@@ -21,6 +21,7 @@ c        (uc(lcr*lelt),w(2*lx1*ly1*lz1)) and crs_solve_h1 (uc(lcr*lelt))
          n = sz
 
          allocate(cb_scrpre(n), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scrpre$',ierr)
 
       end subroutine init
       end module scrpre_mod

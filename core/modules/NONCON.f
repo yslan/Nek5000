@@ -49,6 +49,7 @@ c        --- allocate backing arrays ---
      $      + lx1                       ! stwid
      $      + ldim                      ! dtrk
      $      + 2*2*2), stat=ierr)        ! rs
+         if (ierr.ne.0) call exitti('alloc cb_allr$',ierr)
 
          allocate(cb_alli(
      $        maxmor                    ! noncon_f
@@ -57,11 +58,13 @@ c        --- allocate backing arrays ---
      $      + 6*lelt                    ! mortar
      $      + 3*2                       ! imin
      $      + 1), stat=ierr)            ! mort_m
+         if (ierr.ne.0) call exitti('alloc cb_alli$',ierr)
 
          allocate(cb_logg(
      $        1                         ! ifnc
      $      + 1                         ! ifhalf
      $      + maxmor), stat=ierr)       ! ifjt
+         if (ierr.ne.0) call exitti('alloc cb_logg$',ierr)
 
 c        Group 1: /allr/
          ioff = 1
