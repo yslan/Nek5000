@@ -12,9 +12,9 @@
 
          integer ierr, nscrcg
 
-c        hmholtz.f (hmh_flex_cg: r,z,p,w, each LX1*LY1*LZ1*LELT);
-c        dominates every other SCRCG site in the source
-         nscrcg = 4*lx1*ly1*lz1*lelt
+c        hmholtz.f (hmh_flex_cg: r,z,p,w, each LX1*LY1*LZ1*LELT)
+c        comm_mpi.f gop_test uses nwd(500)
+         nscrcg = max(4*lx1*ly1*lz1*lelt, 500)
 
          allocate(cb_scrcg(nscrcg), stat=ierr)
 
