@@ -95,9 +95,7 @@ c
       include 'TSTEP'
       include 'CTIMER'
 
-      if (icalld.eq.0) tbmhd=0.0
-      icalld = icalld+1
-      nbmhd  = icalld
+      nbmhd  = nbmhd+1
       etime1 = dnekclock()
 c
       ifield = 1
@@ -388,9 +386,7 @@ c
       istart=param(95)  
       if (istep.ge.istart.and.istart.ne.0) ifprjp=.true.
 
-      if (icalld.eq.0) tpres=0.0
-      icalld = icalld+1
-      npres  = icalld
+      npres  = npres+1
       etime1 = dnekclock()
 
       ntot1  = lx1*ly1*lz1*nelv

@@ -882,11 +882,11 @@ C
       nadvc=0
       nspro=0
       ncvf =0
+      nbmhd=0
 c
       tmxmf=0.0
       tmxms=0.0
       tdsum=0.0
-      tvdss=0.0
       tvdss=0.0
       tdsmn=9.9e9
       tdsmx=0.0
@@ -908,6 +908,11 @@ c
       tcopy=0.0
       tinvc=0.0
       tinv3=0.0
+      tcol2=0.0
+      tcol3=0.0
+      tadd2=0.0
+      tadc3=0.0
+      ta2s2=0.0
       tsolv=0.0
       tslvb=0.0
       tddsl=0.0
@@ -923,6 +928,7 @@ c
       tuchk=0.0
       tmakf=0.0
       tmakq=0.0
+      tbmhd=0.0
 C
       return
       end

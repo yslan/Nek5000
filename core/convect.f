@@ -969,9 +969,7 @@ c
       hmsk(1:lx1*ly1*lz1*lelt) => cb_scruz(3*lx1*ly1*lz1*lelt+1
      $                                    : 4*lx1*ly1*lz1*lelt)
 
-      if (icalld.eq.0) tadvc=0.0
-      icalld=icalld+1
-      nadvc=icalld
+      nadvc = nadvc + 1
       etime1=dnekclock()
 
       dti = 1./dt
@@ -1032,9 +1030,7 @@ c     operator-integrator-factor method (characteristics).
       hmsk(1:lx1*ly1*lz1*lelt) => cb_scruz(1*lx1*ly1*lz1*lelt+1
      $                                    : 2*lx1*ly1*lz1*lelt)
 
-      if (icalld.eq.0) tadvc=0.0
-      icalld=icalld+1
-      nadvc=icalld
+      nadvc=nadvc+1
       etime1=dnekclock()
 
       n   = lx1*ly1*lz1*nelv
@@ -1589,9 +1585,6 @@ c-----------------------------------------------------------------------
       real, allocatable, target, save :: cb_cfbinv(:)
       real, pointer :: qn(:), s1(:,:), bnv(:), tmp(:)
       real, pointer :: alpha_n, beta_n
-      integer icalld
-      save    icalld
-      data    icalld /0/
 
       integer e
 

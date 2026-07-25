@@ -79,13 +79,7 @@ c
      $   allocate(cb_scrprc(lx1*ly1*lz1*lelt))
       uc(1:lx1*ly1*lz1*lelt) => cb_scrprc(1:lx1*ly1*lz1*lelt)
 c
-      if (icalld.eq.0) then
-         tddsl=0.0
-         tcrsl=0.0
-         nddsl=0
-         ncrsl=0
-      endif
-      icalld = icalld + 1
+c     timer accumulators (tddsl,tcrsl,nddsl,ncrsl) are zeroed once in time00
       nddsl  = nddsl  + 1
       ncrsl  = ncrsl  + 1
 

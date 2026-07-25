@@ -1373,12 +1373,6 @@ c
       save    n_crs_tot
       data    n_crs_tot /0/
 c
-      if (icalld.eq.0) then ! timer info
-         ncrsl=0
-         tcrsl=0.0
-      endif
-      icalld = 1
-
       if (ifsync) call nekgsync()
 
       ncrsl  = ncrsl  + 1
@@ -1423,6 +1417,10 @@ c----------------------------------------------------------------------
       include 'TSTEP'
       include 'CTIMER'
       include 'PARALLEL'
+
+      integer icalld
+      save    icalld
+      data    icalld /0/
 
       real e(1),r(1)
       

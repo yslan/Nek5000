@@ -989,9 +989,7 @@ c
      $                                 + lx2*ly2*lz2*lelv)
 
 c
-      if (icalld.eq.0) tpres=0.0
-      icalld=icalld+1
-      npres=icalld
+      npres=npres+1     ! counter zeroed in time00
 c
       ntot1  = lx1*ly1*lz1*nelv
       ntot2  = lx2*ly2*lz2*nelv

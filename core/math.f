@@ -79,10 +79,7 @@ C
       REAL A(1),B(1)
 
 #ifdef TIMER2
-      if (icalld.eq.0) then
-         tinvc=0.0
-         icalld=icalld+1
-      endif
+      ninvc=ninvc+1
       etime1=dnekclock()
 #endif
 
@@ -104,9 +101,7 @@ C
       REAL A(1),B(1),C(1)
 
 #ifdef TIMER2
-      if (icalld.eq.0) tinv3=0.0
-      icalld=icalld+1
-      ninv3=icalld
+      ninv3=ninv3
       etime1=dnekclock()
 #endif
 C
@@ -578,10 +573,6 @@ c-----------------------------------------------------------------------
       real a(1),b(1)
 
 #ifdef TIMER2
-      if (icalld.eq.0) then
-          icalld=1
-          tcol2=0
-      endif
       etime1=dnekclock()
 #endif
 
@@ -612,10 +603,6 @@ c-----------------------------------------------------------------------
       real a(1),b(1),c(1)
 
 #ifdef TIMER2
-      if (icalld.eq.0) then
-          icalld=1
-          tcol3=0
-      endif
       etime1=dnekclock()
 #endif
 
@@ -636,10 +623,6 @@ c-----------------------------------------------------------------------
       real a(1),b(1)
 
 #ifdef TIMER2
-      if (icalld.eq.0) then
-          icalld=1
-          tadd2=0
-      endif
       etime1=dnekclock()
 #endif
       do i=1,n
@@ -668,10 +651,6 @@ c-----------------------------------------------------------------------
       real a(1),b(1),c(1)
 
 #ifdef TIMER2
-      if (icalld.eq.0) then
-          icalld=1
-          tadc3=0
-      endif
       etime1=dnekclock()
 #endif
 
@@ -707,10 +686,6 @@ C
 
 C
 #ifdef TIMER2
-      if (icalld.eq.0) then
-          icalld=1
-          ta2s2=0
-      endif
       etime1=dnekclock()
 #endif
 C

@@ -123,8 +123,7 @@ c
       if (prefix.eq.'his') prefix = '   '
 
       if (ifdoin) then
-         icalld=icalld+1
-         nprep=icalld
+         nprep=nprep+1
 
          call prepost_map(0) ! map pr and axisymm. arrays
          call outfld(prefix)

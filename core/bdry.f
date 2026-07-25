@@ -616,11 +616,6 @@ c
 c
       ifonbc = .false.
 c
-      if (icalld.eq.0) then
-         tusbc=0.0
-         nusbc=0
-         icalld=icalld+1
-      endif
       nusbc=nusbc+1
       etime1=dnekclock()
 C
@@ -744,11 +739,6 @@ C
       SMU(1:lx1,1:ly1,1:lz1,1:lelt) =>
      $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 
-      if (icalld.eq.0) then
-         tusbc=0.0
-         nusbc=0
-         icalld=icalld+1
-      endif
       nusbc=nusbc+1
       etime1=dnekclock()
 C
@@ -822,11 +812,6 @@ C
       common  /nekcb/ cb
       CHARACTER CB*3
 C
-      if (icalld.eq.0) then
-         tusbc=0.0
-         nusbc=0
-         icalld=icalld+1
-      endif
       nusbc=nusbc+1
       etime1=dnekclock()
 C
