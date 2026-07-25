@@ -2049,8 +2049,6 @@ c
       pa(1:lt) => cb_scravg(3*lt+1 : 4*lt)
       ta(1:lt,1:ldimt) => cb_scrsf(1 : lt*ldimt)
 
-      s1 = transfer(s1, initc)
-
       if (nid.eq.0) then
          ib=indx1(fname127,' ',1)-1
          call chcopy(f1,fname127,ib)
@@ -2083,6 +2081,7 @@ c
   127    format(a127)
 
          iblank = indx1(initc,' ',1)-1
+         call chcopy(s1,initc,127)   ! was equivalence(s1,initc)
          if (nio.eq.0) write(6,1) ipass,(s1(k),k=1,iblank)
     1    format(i8,'Reading: ',127a1)
 
