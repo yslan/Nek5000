@@ -183,6 +183,7 @@ C
       iflomach  = .false. 
       ifmvbd    = .false.
       ifchar    = .false.  
+      ifadj     = .false.
       ifmhd     = .false. 
       ifuservp  = .false.  
       ifcyclic  = .false.
