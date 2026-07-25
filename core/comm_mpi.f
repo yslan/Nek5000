@@ -683,10 +683,13 @@ c-----------------------------------------------------------------------
       subroutine nek_die(ierr)
       include 'SIZE'
       include 'mpif.h'
+      logical mpi_is_init
 
-      call mpi_finalize (ierr_)
+c     Only call mpi_finalize if MPI is actually up for pre-MPI check
+      call mpi_initialized(mpi_is_init, ierr_)
+      if (mpi_is_init) call mpi_finalize (ierr_)
       call cexit(ierr)
- 
+
       return
       end
 c-----------------------------------------------------------------------
