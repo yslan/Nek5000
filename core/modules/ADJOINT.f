@@ -102,6 +102,8 @@ c        Group 2: /adj_integer/
 
 c        Group 3: /adj_logical/
          ifadj => cb_adj_logical(1)
+         ifadj = .false.     ! was BSS-zero as common /adj_logical/; reader_par
+c                            ! only sets it for INCOMPLINADJNS
 
 c        Group 4: /dTgrad/
          ioff = 1
