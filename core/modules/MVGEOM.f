@@ -38,8 +38,6 @@ c        --- allocate backing arrays ---
 
          allocate(cb_eigvec(lx1m*ly1m*lz1m*lelv * 3), stat=ierr)
 
-         write(6,*) 'memory allocated'
-
 c        Group 1: /wsol/
          ioff = 1
          wx(1:lx1m,1:ly1m,1:lz1m,1:lelt) =>

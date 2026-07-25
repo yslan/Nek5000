@@ -159,8 +159,6 @@ c        --- allocate backing arrays ---
      $      + lmgx*ldimt1           ! p_mg_g
      $      + lmgx*ldimt1), stat=ierr) ! p_mg_msk
 
-         write(6,*) 'memory allocated'
-
 c        Group 1: /mghs/
          ioff = 1
          mg_lmax => cb_mghs(ioff)

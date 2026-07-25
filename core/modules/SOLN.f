@@ -125,8 +125,6 @@ c        --- allocate backing arrays ---
 
          allocate(cb_ppointr(1), stat=ierr)
 
-         write(6,*) 'memory allocated'
-
 c        Group 1: /bqcb/
          ioff = 1
          bq(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt) =>
