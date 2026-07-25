@@ -210,9 +210,16 @@ nek5000: ${LIB} $(USRF)
 	fi
 	@rm -f $(CASEDIR)/${CASENAME}.f drive.o *.i
 
-lib: ${LIB} 
+lib: ${LIB}
 
 mods: ${MODS}
+
+# libtest: link a caller-supplied driver ($(LIBTEST_DRV)) against ONLY the
+# library archive + case object + 3rd-party libs to test libnek5000.a is
+# self-contained for embedding applications.
+libtest: ${LIB} $(USRF)
+	$(FC) -c $(FL2) -I$(CASEDIR) $(LIBTEST_DRV) -o $(OBJDIR)/libtest_drv.o
+	$(LD) $(FL2) -o nek_libtest $(OBJDIR)/libtest_drv.o $(USRF) ${LIB} $(USR_LFLAGS) $(LDFLAGS)
 
 ${LIB}: $(SMOD) $(MODS) $(NOBJS)
 	@$(AR) cr ${LIB} $(SMOD) $(MODS) $(NOBJS)
@@ -228,7 +235,7 @@ ${LIB}: $(SMOD) $(MODS) $(NOBJS)
 clean::
 	@rm -rf ${LIB}  ${CASENAME}.f obj ${BINNAME}
 
-.PHONY: all clean lib usr 
+.PHONY: all clean lib usr libtest mods
 
 # NEK CORE     ##################################################################
 $(OBJDIR)/drive1.o	:$S/core/drive1.f $(SMOD) $(MODS);	$(FC) -c $(FL2) $< -o $@

@@ -31,6 +31,87 @@ class Tools(NekTestCase):
 ###############################################################################
 
 
+class LibLink(NekTestCase):
+    # Verify libnek5000.a is a self-contained embedding library: a driver that
+    # calls nek_init/nek_end directly must link against the archive alone (no
+    # separate *_mod.o) and reach initialization.
+    example_subdir = "eddy"
+    case_name = "eddy_uv"
+
+    def setUp(self):
+        self.size_params = dict(
+            ldim="2", lx1="8", lxd="12", lx2="lx1-2",
+            lelg="500", lx1m="1",
+        )
+        self.build_tools(["genmap"])
+        self.run_genmap(rea_file="eddy_uv", tol="0.05")
+
+    @pn_pn_2_parallel
+    def test_PnPn2_Parallel(self):
+        import os
+        from lib.nekBinBuild import build_libtest
+        from lib.nekBinRun import run_nek
+
+        cls = self.__class__
+        case_dir = os.path.join(self.examples_root, cls.example_subdir)
+
+        # 1) build the case normally -> produces obj/libnek5000.a + modules
+        self.size_params["lx2"] = "lx1-2"
+        self.config_size()
+        self.build_nek()
+
+        # 2) write a minimal embedding driver on the fly (no core/driver.f)
+        driver = os.path.join(case_dir, "libtest_drv.f")
+        with open(driver, "w") as f:
+            f.write(
+                "      program nek_libtest\n"
+                "      include 'mpif.h'\n"
+                "      integer comm\n"
+                "      comm = MPI_COMM_WORLD\n"
+                "      call nek_init(comm)\n"
+                "      call nek_end()\n"
+                "      end\n"
+            )
+
+        # 3) link driver + case.o against libnek5000.a ONLY (no $(MODS))
+        build_libtest(
+            source_root=self.source_root,
+            driver_path=driver,
+            cwd=case_dir,
+            f77=self.f77,
+            verbose=self.verbose,
+        )
+
+        self.assertTrue(
+            os.path.isfile(os.path.join(case_dir, "nek_libtest")),
+            "library link failed: nek_libtest not produced",
+        )
+
+        # 4) run the library-linked binary; it must initialize (allocations
+        #    happen via nek_init->nek_mem_init) without crashing.
+        run_nek(
+            cwd=case_dir,
+            rea_file=cls.case_name,
+            ifmpi=self.ifmpi,
+            log_suffix=self.log_suffix,
+            n_procs=self.mpi_procs,
+            step_limit=0,
+            verbose=self.verbose,
+            bin="nek_libtest",
+        )
+
+        phrase = self.get_phrase_from_log(
+            "Initialization successfully completed"
+        )
+        self.assertIsNotNullDelayed(phrase, label="library init")
+        self.assertDelayedFailures()
+
+        os.remove(driver)
+
+
+###############################################################################
+
+
 class FsHydro(NekTestCase):
     example_subdir = "fs_hydro"
     case_name = "fs_hydro"
