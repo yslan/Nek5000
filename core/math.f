@@ -101,7 +101,7 @@ C
       REAL A(1),B(1),C(1)
 
 #ifdef TIMER2
-      ninv3=ninv3
+      ninv3=ninv3+1
       etime1=dnekclock()
 #endif
 C
