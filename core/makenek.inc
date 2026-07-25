@@ -542,13 +542,48 @@ fi
 \rm .makefile 2>/dev/null
 
 # backward support SIZE and SIZEu
+# Transition aid: legacy SIZE -> canonical SIZE.usr.
+#   - lone SIZE            : auto-migrate (mv SIZE SIZE.usr).
+#   - both, identical      : drop the duplicate SIZE (warn, no prompt).
+#   - both, differ, TTY    : prompt y/N (y=overwrite SIZE.usr with SIZE; N=keep).
+#   - both, differ, no TTY : FATAL, ask the user to resolve (CI/scripted builds
+#     never silently pick one -- a leftover case-dir SIZE also SHADOWS core/SIZE
+#     at compile time, so an unresolved SIZE must not remain).
 if [ -f SIZE ]; then
   if [ -f SIZE.usr ]; then
-    NEK_WARN+="WARNING: SIZE detected. Renaming SIZE to SIZE.usr (overwriting SIZE.usr)\n"
+    if cmp -s SIZE SIZE.usr; then
+      rm -f SIZE
+      NEK_WARN+="WARNING: removed duplicate legacy SIZE (identical to SIZE.usr)\n"
+    else
+      ans=N
+      if [ -t 0 ]; then
+        printf "\n"
+        printf "SIZE and SIZE.usr both exist and DIFFER.\n"
+        printf "  SIZE.usr is canonical; SIZE is legacy.\n"
+        printf "  y = overwrite SIZE.usr with legacy SIZE\n"
+        printf "  N = keep SIZE.usr (default)\n"
+        read -r -p "Overwrite SIZE.usr with legacy SIZE? [y/N] " ans </dev/tty
+      fi
+      case "$ans" in
+        y|Y)
+          mv -f SIZE SIZE.usr
+          NEK_WARN+="WARNING: SIZE.usr overwritten by legacy SIZE (user choice)\n"
+          ;;
+        *)
+          echo ""
+          echo "FATAL ERROR: SIZE and SIZE.usr both exist and differ."
+          echo "  Resolve the conflict before continuing. Options:"
+          echo "    - keep SIZE.usr : rm SIZE      (or mv SIZE SIZE.bak)"
+          echo "    - use SIZE      : mv SIZE SIZE.usr"
+          echo "    - Merge changes : port changes from SIZE into SIZE.usr"
+          return 11
+          ;;
+      esac
+    fi
   else
     NEK_WARN+="WARNING: SIZE is renamed to SIZE.usr\n"
+    mv SIZE SIZE.usr
   fi
-  mv SIZE SIZE.usr
 fi
 if [ ! -f SIZEu.usr ] && [ -f SIZEu ]; then
   NEK_WARN+="WARNING: SIZEu is renamed to SIZE.usru\n"
@@ -706,6 +741,11 @@ mkdir -p "$CASEDIR/obj"
 \rm -f "$CASEDIR/obj/.nekwarn"
 if [ -n "$NEK_WARN" ]; then
    printf '%b' "$NEK_WARN" > "$CASEDIR/obj/.nekwarn"
+   # Also echo now (before make runs) so warnings are visible even if the
+   # compilation fails; on success they are shown again before the banner.
+   echo ""
+   printf '%b' "$NEK_WARN"
+   echo ""
 fi
 
 return 0
