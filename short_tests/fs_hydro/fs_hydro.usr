@@ -178,7 +178,9 @@ c-----------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
       include 'ZPER'   ! nely
-      include 'CTIMER' ! icalld
+      integer icalld
+      save    icalld
+      data    icalld /0/
 
       common /fsparam/ eps,alpha,Re,Pg,We,gamma_r,gamma_i
       common /fsarray/ ub(lx1,ly1,lz1,lelt),vb(lx1,ly1,lz1,lelt)
@@ -334,7 +336,6 @@ c-----------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
       include 'ZPER'   ! nely
-      include 'CTIMER' ! icalld
 
       call quickmv2d   ! Use affine map provided for tensor-product meshes
 
