@@ -6,6 +6,8 @@ c-----------------------------------------------------------------------
       include 'RESTART'
       include 'CTIMER'
 
+      real*8 etime_t     ! etime0/dnekclock_sync come from CTIMER
+
       logical ifbswap
       logical ifxyz, ifcur, ifbc
       integer idummy(100)
@@ -75,6 +77,9 @@ c-----------------------------------------------------------------------
 
       logical ifbswap
       logical ifread
+
+      real*8 etime0,etime_s1,etime_s2,etime_t1,etime_t2,etime_t3
+      real*8 dnekclock_sync
 
       parameter(nrmax = lelt)             ! maximum number of records
       parameter(lrs   = 1+ldim*(2**ldim)) ! record size: group x(:,c) ...
@@ -172,6 +177,9 @@ c-----------------------------------------------------------------------
       logical ifread
 
       common /nekmpi/ nidd,npp,nekcomm,nekgroup,nekreal
+
+      real*8 etime0,etime_s1,etime_s2,etime_s3,etime_t1,etime_t2,etime_t3
+      real*8 dnekclock_sync
 
       parameter(nrmax = 12*lelt) ! maximum number of records
       parameter(lrs   = 2+1+5)   ! record size: eg iside curve(5) ccurve
@@ -305,6 +313,9 @@ c-----------------------------------------------------------------------
       real         bl (5,6,lelt)
       logical      ifbswap
       logical      ifread
+
+      real*8 etime0,etime_s1,etime_s2,etime_s3,etime_t1,etime_t2,etime_t3
+      real*8 dnekclock_sync
 
       parameter(nrmax = 6*lelt) ! maximum number of records
       parameter(lrs   = 2+1+5)  ! record size: eg iside bl(5) cbl

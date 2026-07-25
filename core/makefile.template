@@ -195,7 +195,7 @@ $(USRF): ./SIZE.usr ${CASENAME}.usr $(SMOD) $(MODS)
 
 nek5000: ${LIB} $(USRF) 
 	$(FC) -c $(FL2) $S/core/drive.f
-	$(LD) $(FL2) -o ${BINNAME} drive.o $(USRF) $(MODS) ${LIB} $(USR_LFLAGS) $(LDFLAGS)
+	$(LD) $(FL2) -o ${BINNAME} drive.o $(USRF) ${LIB} $(USR_LFLAGS) $(LDFLAGS)
 	@if test -f ${BINNAME}; then \
         echo ""; \
         if [ -s $(OBJDIR)/.nekwarn ]; then cat $(OBJDIR)/.nekwarn; echo ""; fi; \
