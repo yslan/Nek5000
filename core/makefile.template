@@ -215,7 +215,7 @@ lib: ${LIB}
 mods: ${MODS}
 
 ${LIB}: $(SMOD) $(MODS) $(NOBJS)
-	@$(AR) cr ${LIB} $(NOBJS)
+	@$(AR) cr ${LIB} $(SMOD) $(MODS) $(NOBJS)
 	@ranlib ${LIB}
 	@if test -f ${LIB}; then \
 	printf "done\n"; \
