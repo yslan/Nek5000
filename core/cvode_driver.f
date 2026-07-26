@@ -384,6 +384,7 @@ c
       end
 c----------------------------------------------------------------------
       subroutine cv_upd_coor
+      use scrsf_mod
 c
       include 'SIZE'
       include 'TSTEP'
@@ -402,7 +403,9 @@ c
      &                ,wy_ (lx1,ly1,lz1,lelv)
      &                ,wz_ (lx1,ly1,lz1,lelv)
 
-      COMMON /SCRSF/ dtmp(lx1*ly1*lz1*lelv)
+      real, pointer :: dtmp(:)
+
+      dtmp(1:lx1*ly1*lz1*lelv) => cb_scrsf(1 : lx1*ly1*lz1*lelv)
 
       ntot = lx1*ly1*lz1*nelv
 

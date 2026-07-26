@@ -1,0 +1,195 @@
+      module parallel_mod
+
+      implicit none
+c
+c     Communication information
+c     NOTE: NID is stored in 'SIZE' for greater accessibility
+c
+c     Maximum number of elements (limited to 2**31/12, at least for now)
+
+      integer nelgt_max
+      parameter(nelgt_max = 178956970)
+
+c     gllnid, gllel are external functions (see dprocmap.f), not data;
+c     must be declared EXTERNAL (not a plain data object) so that
+c     USE association exports them as callable functions
+      integer, external :: gllnid, gllel
+
+      integer,   allocatable, target :: cb_cube1(:)
+      integer*8, allocatable, target :: cb_hcglb_i8(:)
+      integer,   allocatable, target :: cb_hcglb(:)
+      logical,   allocatable, target :: cb_diagl(:)
+      integer,   allocatable, target :: cb_precsn(:)
+      integer,   allocatable, target :: cb_comm_handles(:)
+      logical,   allocatable, target :: cb_lcomm_handles(:)
+      integer,   allocatable, target :: cb_xcdg_arrays(:)
+      integer,   allocatable, target :: cb_xcdg_ints(:)
+      integer,   allocatable, target :: cb_nekmpi_global(:)
+      integer,   allocatable, target :: cb_session_info(:)
+
+      integer, pointer :: node, pid, np, nullpid, node0
+
+      integer*8, pointer :: nvtot
+      integer, pointer :: nelg(:)
+      integer, pointer :: lglel(:)
+      integer, pointer :: nelgv, nelgt
+
+      logical, pointer :: ifgprnt
+
+      integer, pointer :: wdsize, isize, isize8, lsize, csize, wdsizi
+
+      integer, pointer :: cr_h, gsh
+      integer, pointer :: gsh_fld(:), xxth(:)
+
+      logical, pointer :: ifgsh_fld_same
+
+      integer, pointer :: dg_face(:)
+
+      integer, pointer :: dg_hndlx, ndg_facex
+
+      integer, pointer :: nid_global, idsess_neighbor
+      integer, pointer :: intracomm, intercomm, iglobalcomm
+      integer, pointer :: npsess(:), np_neighbor, np_global
+
+      integer, pointer :: nsessions
+
+      contains
+
+      subroutine init
+         use size_mod
+         implicit none
+
+         integer ierr, ioff
+
+c        --- allocate backing arrays ---
+
+         allocate(cb_cube1(5), stat=ierr)
+                                     ! node,pid,np,nullpid,node0
+
+         allocate(cb_hcglb_i8(1), stat=ierr) ! nvtot
+
+         allocate(cb_hcglb(
+     $        (ldimt1+1)               ! nelg
+     $      + lelt                     ! lglel
+     $      + 1                        ! nelgv
+     $      + 1), stat=ierr)           ! nelgt
+
+         allocate(cb_diagl(1), stat=ierr)    ! ifgprnt
+
+         allocate(cb_precsn(6), stat=ierr)
+                             ! wdsize,isize,isize8,lsize,csize,wdsizi
+
+         allocate(cb_comm_handles(
+     $        1                        ! cr_h
+     $      + 1                        ! gsh
+     $      + (ldimt3+1)               ! gsh_fld
+     $      + ldimt3), stat=ierr)      ! xxth
+
+         allocate(cb_lcomm_handles(1), stat=ierr) ! ifgsh_fld_same
+
+         allocate(cb_xcdg_arrays(lx1*lz1*2*ldim*lelt), stat=ierr)
+                                                          ! dg_face
+
+         allocate(cb_xcdg_ints(2), stat=ierr) ! dg_hndlx,ndg_facex
+
+         allocate(cb_nekmpi_global(
+     $        1                        ! nid_global
+     $      + 1                        ! idsess_neighbor
+     $      + 1                        ! intracomm
+     $      + 1                        ! intercomm
+     $      + 1                        ! iglobalcomm
+     $      + nsessmax                 ! npsess
+     $      + 1                        ! np_neighbor
+     $      + 1), stat=ierr)           ! np_global
+
+         allocate(cb_session_info(1), stat=ierr) ! nsessions
+
+c        Group 1: /cube1/
+         ioff = 1
+         node => cb_cube1(ioff)
+         ioff = ioff + 1
+         pid => cb_cube1(ioff)
+         ioff = ioff + 1
+         np => cb_cube1(ioff)
+         ioff = ioff + 1
+         nullpid => cb_cube1(ioff)
+         ioff = ioff + 1
+         node0 => cb_cube1(ioff)
+
+c        Group 2: /hcglb/
+         nvtot => cb_hcglb_i8(1)
+
+         ioff = 1
+         nelg(0:ldimt1) => cb_hcglb(ioff : ioff + (ldimt1+1) - 1)
+         ioff = ioff + (ldimt1+1)
+         lglel(1:lelt) => cb_hcglb(ioff : ioff + lelt - 1)
+         ioff = ioff + lelt
+         nelgv => cb_hcglb(ioff)
+         ioff = ioff + 1
+         nelgt => cb_hcglb(ioff)
+
+c        Group 3: /diagl/
+         ifgprnt => cb_diagl(1)
+
+c        Group 4: /precsn/
+         ioff = 1
+         wdsize => cb_precsn(ioff)
+         ioff = ioff + 1
+         isize => cb_precsn(ioff)
+         ioff = ioff + 1
+         isize8 => cb_precsn(ioff)
+         ioff = ioff + 1
+         lsize => cb_precsn(ioff)
+         ioff = ioff + 1
+         csize => cb_precsn(ioff)
+         ioff = ioff + 1
+         wdsizi => cb_precsn(ioff)
+
+c        Group 5: /comm_handles/
+         ioff = 1
+         cr_h => cb_comm_handles(ioff)
+         ioff = ioff + 1
+         gsh => cb_comm_handles(ioff)
+         ioff = ioff + 1
+         gsh_fld(0:ldimt3) =>
+     $         cb_comm_handles(ioff : ioff + (ldimt3+1) - 1)
+         ioff = ioff + (ldimt3+1)
+         xxth(1:ldimt3) => cb_comm_handles(ioff : ioff + ldimt3 - 1)
+
+c        Group 6: /lcomm_handles/
+         ifgsh_fld_same => cb_lcomm_handles(1)
+
+c        Group 7: /xcdg_arrays/
+         dg_face(1:lx1*lz1*2*ldim*lelt) =>
+     $         cb_xcdg_arrays(1 : lx1*lz1*2*ldim*lelt)
+
+c        Group 8: /xcdg_ints/
+         ioff = 1
+         dg_hndlx => cb_xcdg_ints(ioff)
+         ioff = ioff + 1
+         ndg_facex => cb_xcdg_ints(ioff)
+
+c        Group 9: /nekmpi_global/
+         ioff = 1
+         nid_global => cb_nekmpi_global(ioff)
+         ioff = ioff + 1
+         idsess_neighbor => cb_nekmpi_global(ioff)
+         ioff = ioff + 1
+         intracomm => cb_nekmpi_global(ioff)
+         ioff = ioff + 1
+         intercomm => cb_nekmpi_global(ioff)
+         ioff = ioff + 1
+         iglobalcomm => cb_nekmpi_global(ioff)
+         ioff = ioff + 1
+         npsess(0:nsessmax-1) =>
+     $         cb_nekmpi_global(ioff : ioff + nsessmax - 1)
+         ioff = ioff + nsessmax
+         np_neighbor => cb_nekmpi_global(ioff)
+         ioff = ioff + 1
+         np_global => cb_nekmpi_global(ioff)
+
+c        Group 10: /session_info/
+         nsessions => cb_session_info(1)
+
+      end subroutine init
+      end module parallel_mod

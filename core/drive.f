@@ -1,6 +1,7 @@
       program NEKTON
 
       include 'mpif.h'
+
       integer comm
       comm = MPI_COMM_WORLD
 

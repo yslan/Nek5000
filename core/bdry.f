@@ -573,6 +573,8 @@ C
       END
 c-----------------------------------------------------------------------
       SUBROUTINE BCDIRVC(V1,V2,V3,mask1,mask2,mask3)
+      use scrmg_mod
+      use scruz_mod
 C
 C     Apply Dirichlet boundary conditions to surface of vector (V1,V2,V3).
 C     Use IFIELD as a guide to which boundary conditions are to be applied.
@@ -584,12 +586,8 @@ C
       INCLUDE 'SOLN'
       INCLUDE 'TOPOL'
       INCLUDE 'CTIMER'
-      COMMON /SCRUZ/ TMP1(LX1,LY1,LZ1,LELV)
-     $             , TMP2(LX1,LY1,LZ1,LELV)
-     $             , TMP3(LX1,LY1,LZ1,LELV)
-      COMMON /SCRMG/ TMQ1(LX1,LY1,LZ1,LELV)
-     $             , TMQ2(LX1,LY1,LZ1,LELV)
-     $             , TMQ3(LX1,LY1,LZ1,LELV)
+      real, pointer :: TMP1(:,:,:,:), TMP2(:,:,:,:), TMP3(:,:,:,:)
+      real, pointer :: TMQ1(:,:,:,:), TMQ2(:,:,:,:), TMQ3(:,:,:,:)
 C
       REAL V1(lx1,ly1,lz1,LELV),V2(lx1,ly1,lz1,LELV)
      $    ,V3(lx1,ly1,lz1,LELV)
@@ -603,13 +601,21 @@ c
 c
       logical ifonbc
 c
+      TMP1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      TMP2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      TMP3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      TMQ1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      TMQ2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      TMQ3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+c
       ifonbc = .false.
 c
-      if (icalld.eq.0) then
-         tusbc=0.0
-         nusbc=0
-         icalld=icalld+1
-      endif
       nusbc=nusbc+1
       etime1=dnekclock()
 C
@@ -709,6 +715,7 @@ C
       END
 c-----------------------------------------------------------------------
       SUBROUTINE BCDIRSC(S)
+      use scrsf_mod
 C
 C     Apply Dirichlet boundary conditions to surface of scalar, S.
 C     Use IFIELD as a guide to which boundary conditions are to be applied.
@@ -721,17 +728,17 @@ C
       INCLUDE 'CTIMER'
 C
       DIMENSION S(LX1,LY1,LZ1,LELT)
-      COMMON /SCRSF/ TMP(LX1,LY1,LZ1,LELT)
-     $             , TMA(LX1,LY1,LZ1,LELT)
-     $             , SMU(LX1,LY1,LZ1,LELT)
+      real, pointer :: TMP(:,:,:,:), TMA(:,:,:,:), SMU(:,:,:,:)
       common  /nekcb/ cb
       CHARACTER CB*3
 
-      if (icalld.eq.0) then
-         tusbc=0.0
-         nusbc=0
-         icalld=icalld+1
-      endif
+      TMP(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      TMA(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      SMU(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+
       nusbc=nusbc+1
       etime1=dnekclock()
 C
@@ -805,11 +812,6 @@ C
       common  /nekcb/ cb
       CHARACTER CB*3
 C
-      if (icalld.eq.0) then
-         tusbc=0.0
-         nusbc=0
-         icalld=icalld+1
-      endif
       nusbc=nusbc+1
       etime1=dnekclock()
 C
@@ -1120,6 +1122,7 @@ C
       END
 c-----------------------------------------------------------------------
       subroutine nekasgn (ix,iy,iz,e)
+      use screv_mod
 C
 C     Assign NEKTON variables for definition (by user) of
 C     boundary conditions at collocation point (IX,IY,IZ)
@@ -1166,8 +1169,12 @@ C
       common  /nekcb/ cb
       character cb*3
 
-      COMMON /SCREV / SII (LX1,LY1,LZ1,LELT)
-     $              , SIII(LX1,LY1,LZ1,LELT)
+      real, pointer :: SII(:,:,:,:), SIII(:,:,:,:)
+
+      SII (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      SIII(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 
       x     = xm1(ix,iy,iz,e)
       y     = ym1(ix,iy,iz,e)
@@ -1199,21 +1206,29 @@ C
       end
 c-----------------------------------------------------------------------
       SUBROUTINE BCNEUTR
+      use ctmp0_mod
+      use scrsf_mod
 C
       INCLUDE 'SIZE'
       INCLUDE 'SOLN'
       INCLUDE 'GEOM'
       INCLUDE 'INPUT'
-      COMMON /SCRSF/ TRX(LX1,LY1,LZ1)
-     $             , TRY(LX1,LY1,LZ1)
-     $             , TRZ(LX1,LY1,LZ1)
-      COMMON /CTMP0/ STC(LX1,LY1,LZ1)
+      real, pointer :: TRX(:,:,:), TRY(:,:,:), TRZ(:,:,:)
+      real, pointer :: STC(:,:,:)
       REAL SIGST(LX1,LY1)
 C
       LOGICAL IFALGN,IFNORX,IFNORY,IFNORZ
       common  /nekcb/ cb
       CHARACTER CB*3
 C
+      STC(1:lx1,1:ly1,1:lz1) => cb_ctmp0(1 : lx1*ly1*lz1)
+      TRX(1:lx1,1:ly1,1:lz1) => cb_scrsf(0*lx1*ly1*lz1+1
+     $                                  : 1*lx1*ly1*lz1)
+      TRY(1:lx1,1:ly1,1:lz1) => cb_scrsf(1*lx1*ly1*lz1+1
+     $                                  : 2*lx1*ly1*lz1)
+      TRZ(1:lx1,1:ly1,1:lz1) => cb_scrsf(2*lx1*ly1*lz1+1
+     $                                  : 3*lx1*ly1*lz1)
+
       IFLD  = 1
       NFACE = 2*ldim
       NXY1  = lx1*ly1
@@ -1343,6 +1358,7 @@ C
       END
 c-----------------------------------------------------------------------
       SUBROUTINE TRST2D (TRX,TRY,SIGST,IEL,IFC)
+      use ctmp1_mod
 C
 C     Compute taction due to surface tension (2D)
 C
@@ -1351,11 +1367,16 @@ C
       INCLUDE 'DXYZ'
       INCLUDE 'TOPOL'
       INCLUDE 'WZ'
-      COMMON /CTMP1/ A1X(LX1),A1Y(LX1),STX(LX1),STY(LX1)
+      real, pointer :: A1X(:),A1Y(:),STX(:),STY(:)
 C
       DIMENSION TRX(LX1,LY1,LZ1),TRY(LX1,LY1,LZ1),SIGST(LX1,1)
       DIMENSION CANG(2),SANG(2)
       DIMENSION IXN(2),IYN(2),IAN(2)
+C
+      A1X(1:lx1) => cb_ctmp1(0*lx1+1 : 1*lx1)
+      A1Y(1:lx1) => cb_ctmp1(1*lx1+1 : 2*lx1)
+      STX(1:lx1) => cb_ctmp1(2*lx1+1 : 3*lx1)
+      STY(1:lx1) => cb_ctmp1(3*lx1+1 : 4*lx1)
 C
       DO 100 IX=1,lx1
          AA = SIGST(IX,1) * WXM1(IX)
@@ -1408,6 +1429,8 @@ C
       END
 c-----------------------------------------------------------------------
       SUBROUTINE TRSTAX (TRX,TRY,SIGST,IEL,IFC)
+      use ctmp1_mod
+      use ctmp0_mod
 C
 C     Compute taction due to surface tension (axisymmetric)
 C
@@ -1416,14 +1439,26 @@ C
       INCLUDE 'DXYZ'
       INCLUDE 'TOPOL'
       INCLUDE 'WZ'
-      COMMON /CTMP1/ A1X(LX1),A1Y(LX1),A2X(LX1),A2Y(LX1)
-     $             , STX(LX1),STY(LX1),XJM1(LX1)
-      COMMON /CTMP0/ XFM1(LX1),YFM1(LX1),T1XF(LX1),T1YF(LX1)
+      real, pointer :: A1X(:),A1Y(:),A2X(:),A2Y(:)
+     $               , STX(:),STY(:),XJM1(:)
+      real, pointer :: XFM1(:),YFM1(:),T1XF(:),T1YF(:)
 C
       DIMENSION TRX(LX1,LY1,LZ1),TRY(LX1,LY1,LZ1),SIGST(LX1,LY1)
       DIMENSION CANG(2),SANG(2)
       DIMENSION IXN(2),IYN(2),IAN(2)
       LOGICAL IFGLJ
+C
+      XFM1(1:lx1) => cb_ctmp0(0*lx1+1 : 1*lx1)
+      YFM1(1:lx1) => cb_ctmp0(1*lx1+1 : 2*lx1)
+      T1XF(1:lx1) => cb_ctmp0(2*lx1+1 : 3*lx1)
+      T1YF(1:lx1) => cb_ctmp0(3*lx1+1 : 4*lx1)
+      A1X (1:lx1) => cb_ctmp1(0*lx1+1 : 1*lx1)
+      A1Y (1:lx1) => cb_ctmp1(1*lx1+1 : 2*lx1)
+      A2X (1:lx1) => cb_ctmp1(2*lx1+1 : 3*lx1)
+      A2Y (1:lx1) => cb_ctmp1(3*lx1+1 : 4*lx1)
+      STX (1:lx1) => cb_ctmp1(4*lx1+1 : 5*lx1)
+      STY (1:lx1) => cb_ctmp1(5*lx1+1 : 6*lx1)
+      XJM1(1:lx1) => cb_ctmp1(6*lx1+1 : 7*lx1)
 C
       IFGLJ = .FALSE.
       IF ( IFRZER(IEL) .AND. (IFC.EQ.2 .OR. IFC.EQ.4) ) IFGLJ = .TRUE.
@@ -1590,26 +1625,65 @@ C
       END
 c-----------------------------------------------------------------------
       SUBROUTINE TRST3D (TRX,TRY,TRZ,SIGST,IEL,IFC)
+      use scrns_mod
+      use ctmp1_mod
+      use ctmp0_mod
+      use scrmg_mod
+      use scruz_mod
 C
 C     Compute taction due to surface tension (3D)
 C
       INCLUDE 'SIZE'
       INCLUDE 'GEOM'
       INCLUDE 'WZ'
-      COMMON /CTMP0/  XFM1(LX1,LY1),YFM1(LX1,LY1),ZFM1(LX1,LY1)
-      COMMON /CTMP1/  DRM1(LX1,LX1),DRTM1(LX1,LY1)
-     $             ,  DSM1(LX1,LX1),DSTM1(LX1,LY1)
-     $             ,  WGS(LX1,LY1)
-      COMMON /SCRMG/  XRM1(LX1,LY1),YRM1(LX1,LY1),ZRM1(LX1,LY1)
-     $             ,  XSM1(LX1,LY1),YSM1(LX1,LY1),ZSM1(LX1,LY1)
-      COMMON /SCRUZ/  S1X(LX1,LY1),S1Y(LX1,LY1),S1Z(LX1,LY1)
-     $             ,  S2X(LX1,LY1),S2Y(LX1,LY1),S2Z(LX1,LY1)
-      COMMON /SCRNS/  G1X(LX1,LY1),G1Y(LX1,LY1),G1Z(LX1,LY1)
-     $             ,  G2X(LX1,LY1),G2Y(LX1,LY1),G2Z(LX1,LY1)
-     $             ,  GBS(LX1,LY1),GB1L(LX1,LY1),GB2L(LX1,LY1)
+      real, pointer ::  XFM1(:,:),YFM1(:,:),ZFM1(:,:)
+      real, pointer ::  DRM1(:,:),DRTM1(:,:)
+     $               ,  DSM1(:,:),DSTM1(:,:)
+     $               ,  WGS(:,:)
+      real, pointer :: XRM1(:,:),YRM1(:,:),ZRM1(:,:)
+     $               , XSM1(:,:),YSM1(:,:),ZSM1(:,:)
+      real, pointer :: S1X(:,:),S1Y(:,:),S1Z(:,:)
+     $               , S2X(:,:),S2Y(:,:),S2Z(:,:)
+      real, pointer ::  G1X(:,:),G1Y(:,:),G1Z(:,:)
+     $               ,  G2X(:,:),G2Y(:,:),G2Z(:,:)
+     $               ,  GBS(:,:),GB1L(:,:),GB2L(:,:)
 C
       DIMENSION TRX(LX1,LY1,LZ1),TRY(LX1,LY1,LZ1),TRZ(LX1,LY1,LZ1)
       DIMENSION SIGST(LX1,LY1)
+C
+      XFM1(1:lx1,1:ly1) => cb_ctmp0(0*lx1*ly1+1 : 1*lx1*ly1)
+      YFM1(1:lx1,1:ly1) => cb_ctmp0(1*lx1*ly1+1 : 2*lx1*ly1)
+      ZFM1(1:lx1,1:ly1) => cb_ctmp0(2*lx1*ly1+1 : 3*lx1*ly1)
+      DRM1 (1:lx1,1:lx1) => cb_ctmp1(0*lx1*lx1+1 : 1*lx1*lx1)
+      DRTM1(1:lx1,1:ly1) => cb_ctmp1(1*lx1*lx1+1 : 1*lx1*lx1+lx1*ly1)
+      DSM1 (1:lx1,1:lx1) => cb_ctmp1(1*lx1*lx1+lx1*ly1+1
+     $                             : 2*lx1*lx1+lx1*ly1)
+      DSTM1(1:lx1,1:ly1) => cb_ctmp1(2*lx1*lx1+lx1*ly1+1
+     $                             : 2*lx1*lx1+2*lx1*ly1)
+      WGS  (1:lx1,1:ly1) => cb_ctmp1(2*lx1*lx1+2*lx1*ly1+1
+     $                             : 2*lx1*lx1+3*lx1*ly1)
+      XRM1(1:lx1,1:ly1) => cb_scrmg(0*lx1*ly1+1 : 1*lx1*ly1)
+      YRM1(1:lx1,1:ly1) => cb_scrmg(1*lx1*ly1+1 : 2*lx1*ly1)
+      ZRM1(1:lx1,1:ly1) => cb_scrmg(2*lx1*ly1+1 : 3*lx1*ly1)
+      XSM1(1:lx1,1:ly1) => cb_scrmg(3*lx1*ly1+1 : 4*lx1*ly1)
+      YSM1(1:lx1,1:ly1) => cb_scrmg(4*lx1*ly1+1 : 5*lx1*ly1)
+      ZSM1(1:lx1,1:ly1) => cb_scrmg(5*lx1*ly1+1 : 6*lx1*ly1)
+      S1X(1:lx1,1:ly1) => cb_scruz(0*lx1*ly1+1 : 1*lx1*ly1)
+      S1Y(1:lx1,1:ly1) => cb_scruz(1*lx1*ly1+1 : 2*lx1*ly1)
+      S1Z(1:lx1,1:ly1) => cb_scruz(2*lx1*ly1+1 : 3*lx1*ly1)
+      S2X(1:lx1,1:ly1) => cb_scruz(3*lx1*ly1+1 : 4*lx1*ly1)
+      S2Y(1:lx1,1:ly1) => cb_scruz(4*lx1*ly1+1 : 5*lx1*ly1)
+      S2Z(1:lx1,1:ly1) => cb_scruz(5*lx1*ly1+1 : 6*lx1*ly1)
+C
+      G1X (1:lx1,1:ly1) => cb_scrns(0*lx1*ly1+1 : 1*lx1*ly1)
+      G1Y (1:lx1,1:ly1) => cb_scrns(1*lx1*ly1+1 : 2*lx1*ly1)
+      G1Z (1:lx1,1:ly1) => cb_scrns(2*lx1*ly1+1 : 3*lx1*ly1)
+      G2X (1:lx1,1:ly1) => cb_scrns(3*lx1*ly1+1 : 4*lx1*ly1)
+      G2Y (1:lx1,1:ly1) => cb_scrns(4*lx1*ly1+1 : 5*lx1*ly1)
+      G2Z (1:lx1,1:ly1) => cb_scrns(5*lx1*ly1+1 : 6*lx1*ly1)
+      GBS (1:lx1,1:ly1) => cb_scrns(6*lx1*ly1+1 : 7*lx1*ly1)
+      GB1L(1:lx1,1:ly1) => cb_scrns(7*lx1*ly1+1 : 8*lx1*ly1)
+      GB2L(1:lx1,1:ly1) => cb_scrns(8*lx1*ly1+1 : 9*lx1*ly1)
 C
       NXY1 = lx1*ly1
 C
@@ -1843,14 +1917,22 @@ c-----------------------------------------------------------------------
       END
 c-----------------------------------------------------------------------
       SUBROUTINE CHKZVN (VMAX,IEL,IFC,IVNORL)
+      use scrmg_mod
 C
       INCLUDE 'SIZE'
       INCLUDE 'GEOM'
       INCLUDE 'SOLN'
-      COMMON /SCRMG/ V1(LX1,LY1,LZ1,LELV)
-     $             , V2(LX1,LY1,LZ1,LELV)
-     $             , V3(LX1,LY1,LZ1,LELV)
-     $             , VV(LX1,LY1,LZ1,LELV)
+      real, pointer :: V1(:,:,:,:), V2(:,:,:,:), V3(:,:,:,:)
+     $               , VV(:,:,:,:)
+C
+      V1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      V2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      V3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      VV(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrmg(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
 C
       NXZ1  = lx1*lz1
       TOLV  = 0.01*VMAX
@@ -1928,8 +2010,8 @@ C
 C     Return only Dirichlet boundary values of X
 C
 C-------------------------------------------------------------------
-      REAL  X(1),XMASK(1)
       include 'OPCTR'
+      REAL  X(1),XMASK(1)
 C
       DO 100 I=1,N
          X(I) = X(I)*(1.-XMASK(I))
@@ -1938,14 +2020,20 @@ C
       END
 c-----------------------------------------------------------------------
       subroutine check_cyclic  ! check for cyclic bcs
+      use scrmg_mod
       include 'SIZE'
       include 'TOTAL'
 
-      common /scrmg/ v1(lx1,ly1,lz1,lelt)
-     $             , v2(lx1,ly1,lz1,lelt)
-     $             , v3(lx1,ly1,lz1,lelt)
+      real, pointer :: v1(:,:,:,:), v2(:,:,:,:), v3(:,:,:,:)
 
       integer e,f
+
+      v1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrmg(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      v2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrmg(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      v3(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrmg(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 
       nface = 2*ldim
 

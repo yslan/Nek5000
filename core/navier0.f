@@ -1,4 +1,5 @@
       SUBROUTINE ESOLVER (RES,H1,H2,H2INV,INTYPE)
+      use scruz_mod
 C---------------------------------------------------------------------
 C
 C     Choose E-solver
@@ -7,24 +8,26 @@ C--------------------------------------------------------------------
       INCLUDE 'SIZE'
       INCLUDE 'ESOLV'
       INCLUDE 'INPUT'
-C
+      include 'CTIMER'
+c
       REAL RES   (LX2,LY2,LZ2,LELV)
       REAL H1    (LX1,LY1,LZ1,LELV)
       REAL H2    (LX1,LY1,LZ1,LELV)
       REAL H2INV (LX1,LY1,LZ1,LELV)
-      common /scruz/ wk1(lx2*ly2*lz2*lelv)
-     $             , wk2(lx2*ly2*lz2*lelv)
-     $             , wk3(lx2*ly2*lz2*lelv)
+      real, pointer :: wk1(:), wk2(:), wk3(:)
 
-      include 'CTIMER'
       real kwave2
 
-      if (icalld.eq.0) teslv=0.0
+      wk1(1:lx2*ly2*lz2*lelv) => cb_scruz(0*lx2*ly2*lz2*lelv+1
+     $                                   : 1*lx2*ly2*lz2*lelv)
+      wk2(1:lx2*ly2*lz2*lelv) => cb_scruz(1*lx2*ly2*lz2*lelv+1
+     $                                   : 2*lx2*ly2*lz2*lelv)
+      wk3(1:lx2*ly2*lz2*lelv) => cb_scruz(2*lx2*ly2*lz2*lelv+1
+     $                                   : 3*lx2*ly2*lz2*lelv)
 
       call ortho(res) !Ensure that residual is orthogonal to null space
 
-      icalld=icalld+1
-      neslv=icalld
+      neslv=neslv+1
       etime1=dnekclock()
 
       if (.not. ifsplit) then
@@ -44,18 +47,25 @@ C
       END
 c-----------------------------------------------------------------------
       subroutine dmp_map(imap)
+      use scruz_mod
+      use ivrtx_mod
+      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
 c
 c     Dump map file and element center point
 c
       include 'SIZE'
       include 'TOTAL'
 
-      common /ivrtx/ vertex ((2**ldim)*lelt)
-      common /scruz/ xbar(ldim,lelt),ibar(lelt)
-      integer*8 vertex
+      real,    pointer :: xbar(:,:)
+      integer, pointer :: ibar(:)
+      integer*8, pointer :: vertex(:)
       integer imap(nelgt)
 
       integer e,eg
+
+      xbar(1:ldim,1:lelt) => cb_scruz(1 : ldim*lelt)
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
+      call c_f_pointer(c_loc(cb_scruz(ldim*lelt+1)), ibar, [lelt])
 
       nxb = (lx1+1)/2
       nyb = (ly1+1)/2
@@ -74,12 +84,12 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine p_outvec_ir(ia,a,lda,name9)
+      include 'SIZE'
+      include 'TOTAL'
+
       integer ia(1)
       real    a(lda,1)
       character*9 name9
-
-      include 'SIZE'
-      include 'TOTAL'
 
       parameter (lbuf=50)
       common /scbuf/ buf(lbuf)

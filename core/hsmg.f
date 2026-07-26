@@ -106,9 +106,10 @@ c        call outmat(mg_jhfc(1,l),nc,nf,'MG_JHFC',l)
       end
 c----------------------------------------------------------------------
       subroutine hsmg_setup_intpm(jh,zf,zc,nf,nc)
+      include 'SIZE'
+
       integer nf,nc
       real jh(nf,nc),zf(1),zc(1)
-      include 'SIZE'
       real w(2*lx1+2)
       do i=1,nf
          call fd_weights_full(zf(i),zc,nc-1,1,w)
@@ -120,19 +121,22 @@ c----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------
       subroutine hsmg_setup_dssum
+      use c_is1_mod
+      use ivrtx_mod
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
       include 'HSMG'
       parameter (lxyz=(lx1+2)*(ly1+2)*(lz1+2))
-      common /c_is1/ glo_num(lxyz*lelv)
-      common /ivrtx/ vertex ((2**ldim)*lelt)
+      integer*8, pointer :: glo_num(:)
+      integer*8, pointer :: vertex(:)
 
-      integer*8 glo_num
-      integer*8 vertex
       integer nx,ny,nz
       integer l
-      
+
+      glo_num(1:lxyz*lelv) => cb_c_is1(1:lxyz*lelv)
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
+
 c     set up direct stiffness summation for each level
       ncrnr = 2**ldim
       call get_vert
@@ -203,19 +207,21 @@ c----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------
       subroutine hsmg_intp(uf,uc,l) ! l is coarse level
-      real uf(1),uc(1)
-      integer l
       include 'SIZE'
       include 'HSMG'
+
+      real uf(1),uc(1)
+      integer l
       call hsmg_tnsr(uf,mg_nh(l+1),uc,mg_nh(l),mg_jh(1,l),mg_jht(1,l))
       return
       end
 c----------------------------------------------------------------------
       subroutine hsmg_rstr(uc,uf,l) ! l is coarse level
-      real uf(1),uc(1)
-      integer l
       include 'SIZE'
       include 'HSMG'
+
+      real uf(1),uc(1)
+      integer l
       if(l.ne.mg_lmax-1)
      $   call hsmg_do_wt(uf,mg_rstr_wt(mg_rstr_wt_index(l+1,mg_fld))
      $                     ,mg_nh(l+1),mg_nh(l+1),mg_nhz(l+1))
@@ -225,10 +231,11 @@ c----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------
       subroutine hsmg_rstr_no_dssum(uc,uf,l) ! l is coarse level
-      real uf(1),uc(1)
-      integer l
       include 'SIZE'
       include 'HSMG'
+
+      real uf(1),uc(1)
+      integer l
       if(l.ne.mg_lmax-1)
      $   call hsmg_do_wt(uf,mg_rstr_wt(mg_rstr_wt_index(l+1,mg_fld))
      $                     ,mg_nh(l+1),mg_nh(l+1),mg_nhz(l+1))
@@ -240,10 +247,11 @@ c     computes
 c     v = [A (x) A] u      or
 c     v = [A (x) A (x) A] u 
       subroutine hsmg_tnsr(v,nv,u,nu,A,At)
-      integer nv,nu
-      real v(1),u(1),A(1),At(1)
       include 'SIZE'
       include 'INPUT'
+
+      integer nv,nu
+      real v(1),u(1),A(1),At(1)
       if (.not. if3d) then
          call hsmg_tnsr2d(v,nv,u,nu,A,At)
       else
@@ -256,9 +264,10 @@ c     computes
 c              T
 c     v = A u B
       subroutine hsmg_tnsr2d(v,nv,u,nu,A,Bt)
+      include 'SIZE'
+
       integer nv,nu
       real v(nv*nv,nelv),u(nu*nu,nelv),A(1),Bt(1)
-      include 'SIZE'
       common /hsmgw/ work((lx1+2)*(lx1+2))
       integer ie
       do ie=1,nelv
@@ -272,9 +281,10 @@ c     computes
 c              
 c     v = [C (x) B (x) A] u
       subroutine hsmg_tnsr3d(v,nv,u,nu,A,Bt,Ct)
+      include 'SIZE'
+
       integer nv,nu
       real v(nv*nv*nv,nelv),u(nu*nu*nu,nelv),A(1),Bt(1),Ct(1)
-      include 'SIZE'
       parameter (lwk=(lx1+2)*(ly1+2)*(lz1+2))
       common /hsmgw/ work(0:lwk-1),work2(0:lwk-1)
       integer ie, i
@@ -292,9 +302,10 @@ c     computes
 c              T
 c     v = A u B
       subroutine hsmg_tnsr2d_el(v,nv,u,nu,A,Bt)
+      include 'SIZE'
+
       integer nv,nu
       real v(nv*nv),u(nu*nu),A(1),Bt(1)
-      include 'SIZE'
       common /hsmgw/ work((lx1+2)*(lx1+2))
 c
       call mxm(A,nv,u,nu,work,nu)
@@ -307,9 +318,10 @@ c     computes
 c              
 c     v = [C (x) B (x) A] u
       subroutine hsmg_tnsr3d_el(v,nv,u,nu,A,Bt,Ct)
+      include 'SIZE'
+
       integer nv,nu
       real v(nv*nv*nv),u(nu*nu*nu),A(1),Bt(1),Ct(1)
-      include 'SIZE'
       parameter (lwk=(lx1+2)*(ly1+2)*(lz1+2))
       common /hsmgw/ work(0:lwk-1),work2(0:lwk-1)
       integer i
@@ -699,26 +711,45 @@ c----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------
       subroutine hsmg_setup_fast(s,d,nl,ah,bh,n)
+      use ctmpf_mod
       include 'SIZE'
       include 'INPUT'
       include 'HSMG'
       real s(nl*nl,2,ldim,nelv)
       real d(nl**ldim,nelv)
       real ah(1),bh(1)
-      common /ctmpf/  lr(2*lx1+4),ls(2*lx1+4),lt(2*lx1+4)
-     $              , llr(lelt),lls(lelt),llt(lelt)
-     $              , lmr(lelt),lms(lelt),lmt(lelt)
-     $              , lrr(lelt),lrs(lelt),lrt(lelt)
-      real lr ,ls ,lt
-      real llr,lls,llt
-      real lmr,lms,lmt
-      real lrr,lrs,lrt
-      
+      real, pointer :: lr(:),ls(:),lt(:)
+     $               , llr(:),lls(:),llt(:)
+     $               , lmr(:),lms(:),lmt(:)
+     $               , lrr(:),lrs(:),lrt(:)
+
       integer i,j,k
       integer ie,il,nr,ns,nt
       integer lbr,rbr,lbs,rbs,lbt,rbt,two
       real eps,diag
-      
+
+      lr (1:2*lx1+4) => cb_ctmpf(0*(2*lx1+4)+1 : 1*(2*lx1+4))
+      ls (1:2*lx1+4) => cb_ctmpf(1*(2*lx1+4)+1 : 2*(2*lx1+4))
+      lt (1:2*lx1+4) => cb_ctmpf(2*(2*lx1+4)+1 : 3*(2*lx1+4))
+      llr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+0*lelt+1
+     $                      : 3*(2*lx1+4)+1*lelt)
+      lls(1:lelt) => cb_ctmpf(3*(2*lx1+4)+1*lelt+1
+     $                      : 3*(2*lx1+4)+2*lelt)
+      llt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+2*lelt+1
+     $                      : 3*(2*lx1+4)+3*lelt)
+      lmr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+3*lelt+1
+     $                      : 3*(2*lx1+4)+4*lelt)
+      lms(1:lelt) => cb_ctmpf(3*(2*lx1+4)+4*lelt+1
+     $                      : 3*(2*lx1+4)+5*lelt)
+      lmt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+5*lelt+1
+     $                      : 3*(2*lx1+4)+6*lelt)
+      lrr(1:lelt) => cb_ctmpf(3*(2*lx1+4)+6*lelt+1
+     $                      : 3*(2*lx1+4)+7*lelt)
+      lrs(1:lelt) => cb_ctmpf(3*(2*lx1+4)+7*lelt+1
+     $                      : 3*(2*lx1+4)+8*lelt)
+      lrt(1:lelt) => cb_ctmpf(3*(2*lx1+4)+8*lelt+1
+     $                      : 3*(2*lx1+4)+9*lelt)
+
       two  = 2
       ierr = 0
       do ie=1,nelv
@@ -781,14 +812,19 @@ c    $                         ,eps,diag,lr(i),ls(j),lt(k)
       end
 c----------------------------------------------------------------------
       subroutine hsmg_setup_fast1d(s,lam,nl,lbc,rbc,ll,lm,lr,ah,bh,n,ie)
+      use ctmp0_mod
+      include 'SIZE'
+
       integer nl,lbc,rbc,n
       real s(nl,nl,2),lam(nl),ll,lm,lr
       real ah(0:n,0:n),bh(0:n)
-      
-      include 'SIZE'
+
       parameter(lxm=lx1+2)
-      common /ctmp0/ b(2*lxm*lxm),w(2*lxm*lxm)
-      
+      real, pointer :: b(:),w(:)
+
+      b(1:2*lxm*lxm) => cb_ctmp0(0*2*lxm*lxm+1 : 1*2*lxm*lxm)
+      w(1:2*lxm*lxm) => cb_ctmp0(1*2*lxm*lxm+1 : 2*2*lxm*lxm)
+
       call hsmg_setup_fast1d_a(s,lbc,rbc,ll,lm,lr,ah,n)
       call hsmg_setup_fast1d_b(b,lbc,rbc,ll,lm,lr,bh,n)
       
@@ -1185,10 +1221,11 @@ c     store weight
       end
 c----------------------------------------------------------------------
       subroutine hsmg_setup_schwarz_wt(ifsqrt)
-      logical ifsqrt
       include 'SIZE'
       include 'INPUT'
       include 'HSMG'
+
+      logical ifsqrt
       
       integer l,i,nl,nlz
 
@@ -1215,10 +1252,11 @@ c----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------
       subroutine h1mg_setup_schwarz_wt(ifsqrt)
-      logical ifsqrt
       include 'SIZE'
       include 'INPUT'
       include 'HSMG'
+
+      logical ifsqrt
       
       integer l,i,nl,nlz
 
@@ -1335,12 +1373,6 @@ c
       save    n_crs_tot
       data    n_crs_tot /0/
 c
-      if (icalld.eq.0) then ! timer info
-         ncrsl=0
-         tcrsl=0.0
-      endif
-      icalld = 1
-
       if (ifsync) call nekgsync()
 
       ncrsl  = ncrsl  + 1
@@ -1374,7 +1406,8 @@ c----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------
       subroutine hsmg_solve(e,r)
-      real e(1),r(1)
+      use scrvh_mod
+      use scrhi_mod
       include 'SIZE'
       include 'HSMG'
       include 'GEOM'
@@ -1384,16 +1417,21 @@ c----------------------------------------------------------------------
       include 'TSTEP'
       include 'CTIMER'
       include 'PARALLEL'
+
+      integer icalld
+      save    icalld
+      data    icalld /0/
+
+      real e(1),r(1)
       
       common /quick/ ecrs  (2)  ! quick work array
      $             , ecrs2 (2)  ! quick work array
 c     common /quick/ ecrs  (lx2*ly2*lz2*lelv)  ! quick work array
 c    $             , ecrs2 (lx2*ly2*lz2*lelv)  ! quick work array
 
-      common /scrhi/ h2inv (lx1,ly1,lz1,lelv)
-      common /scrvh/ h1    (lx1,ly1,lz1,lelv),
-     $               h2    (lx1,ly1,lz1,lelv)
-      
+      real, pointer :: h2inv(:,:,:,:)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:)
+
       integer ilstep,iter
       save    ilstep,iter
       data    ilstep,iter /0,0/
@@ -1406,6 +1444,13 @@ c    $             , ecrs2 (lx2*ly2*lz2*lelv)  ! quick work array
       integer*8 ntotg,nxyz2
 
       logical if_hybrid
+
+      h2inv(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrhi(1 : lx1*ly1*lz1*lelv)
+      h1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      h2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
 
       mg_fld = 1
       if (ifield.gt.1) mg_fld = 2
@@ -1853,11 +1898,9 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine h1mg_solve(z,rhs,if_hybrid)  !  Solve preconditioner: Mz=rhs
-      real z(1),rhs(1)
-
-c     Assumes that preprocessing has been completed via h1mg_setup()
-
-
+      use scrvh_mod
+      use scrmg_mod
+      use scrhi_mod
       include 'SIZE'
       include 'HSMG'       ! Same array space as HSMG
       include 'GEOM'
@@ -1867,17 +1910,33 @@ c     Assumes that preprocessing has been completed via h1mg_setup()
       include 'TSTEP'
       include 'CTIMER'
       include 'PARALLEL'
+
+      real z(1),rhs(1)
+
+c     Assumes that preprocessing has been completed via h1mg_setup()
+
+
       
-      common /scrhi/ h2inv (lx1,ly1,lz1,lelv)
-      common /scrvh/ h1    (lx1,ly1,lz1,lelv),
-     $               h2    (lx1,ly1,lz1,lelv)
+      real, pointer :: h2inv(:,:,:,:)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:)
       parameter (lt=lx1*ly1*lz1*lelt)
-      common /scrmg/ e(2*lt),w(lt),r(lt)
+      real, pointer :: e(:), w(:), r(:)
       integer p_msk,p_b
       logical if_hybrid
 
 c     if_hybrid = .true.    ! Control this from gmres, according
 c     if_hybrid = .false.   ! to convergence efficiency
+
+      h2inv(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrhi(1 : lx1*ly1*lz1*lelv)
+      e(1:2*lt) => cb_scrmg(0*2*lt+1 : 1*2*lt)
+      w(1:lt)   => cb_scrmg(2*lt+1 : 3*lt)
+      r(1:lt)   => cb_scrmg(3*lt+1 : 4*lt)
+
+      h1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      h2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
 
       nel   = nelfld(ifield)
 
@@ -2004,6 +2063,7 @@ c
 c-----------------------------------------------------------------------
       subroutine h1mg_axml
      $  (w,p,h1,h2,nx,ny,nz,nel,g,ng,b,mask,ifh2)
+      use ctmp0_mod
 c
 c     w  := aw*w + ap*H*p, level l, with mask and dssum
 c
@@ -2024,9 +2084,13 @@ c
       logical ifh2
 
       parameter (lxyz=lx1*ly1*lz1)
-      common /ctmp0/ ur(lxyz),us(lxyz),ut(lxyz)
+      real, pointer :: ur(:),us(:),ut(:)
 
       integer e
+
+      ur(1:lxyz) => cb_ctmp0(0*lxyz+1 : 1*lxyz)
+      us(1:lxyz) => cb_ctmp0(1*lxyz+1 : 2*lxyz)
+      ut(1:lxyz) => cb_ctmp0(2*lxyz+1 : 3*lxyz)
 
       do e=1,nel
 
@@ -2132,14 +2196,15 @@ c     endif
       end
 c----------------------------------------------------------------------
       subroutine hsmg_tnsr1(v,nv,nu,A,At)
+      include 'SIZE'
+      include 'INPUT'
+
 c
 c     v = [A (x) A] u      or
 c     v = [A (x) A (x) A] u 
 c
       integer nv,nu
       real v(1),A(1),At(1)
-      include 'SIZE'
-      include 'INPUT'
       if (.not. if3d) then
          call hsmg_tnsr1_2d(v,nv,nu,A,At)
       else
@@ -2149,9 +2214,10 @@ c
       end
 c-------------------------------------------------------T--------------
       subroutine hsmg_tnsr1_2d(v,nv,nu,A,Bt) ! u = A u B
+      include 'SIZE'
+
       integer nv,nu
       real v(1),A(1),Bt(1)
-      include 'SIZE'
       common /hsmgw/ work(lx1*lx1)
       integer e
 
@@ -2180,9 +2246,10 @@ c-------------------------------------------------------T--------------
       end
 c----------------------------------------------------------------------
       subroutine hsmg_tnsr1_3d(v,nv,nu,A,Bt,Ct) ! v = [C (x) B (x) A] u
+      include 'SIZE'
+
       integer nv,nu
       real v(1),A(1),Bt(1),Ct(1)
-      include 'SIZE'
       parameter (lwk=(lx1+2)*(ly1+2)*(lz1+2))
       common /hsmgw/ work(0:lwk-1),work2(0:lwk-1)
       integer e,e0,ee,es
@@ -2232,16 +2299,23 @@ c------------------------------------------   T  -----------------------
       end
 c----------------------------------------------------------------------
       subroutine h1mg_setup()
+      use scrvh_mod
+      use scrhi_mod
       include 'SIZE'
       include 'TOTAL'
       include 'HSMG'
 
-      common /scrhi/ h2inv (lx1,ly1,lz1,lelt)
-      common /scrvh/ h1    (lx1,ly1,lz1,lelt),
-     $               h2    (lx1,ly1,lz1,lelt)
+      real, pointer :: h2inv(:,:,:,:)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:)
 
       integer p_h1,p_h2,p_g,p_b,p_msk
 
+      h2inv(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrhi(1 : lx1*ly1*lz1*lelt)
+      h1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      h2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 
       param(59) = 1
       call geom_reset(1)  ! Recompute g1m1 etc. with deformed only
@@ -2359,19 +2433,22 @@ c----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------
       subroutine h1mg_setup_dssum
+      use c_is1_mod
+      use ivrtx_mod
       include 'SIZE'
       include 'INPUT'
       include 'PARALLEL'
       include 'HSMG'
       parameter (lxyz=(lx1+2)*(ly1+2)*(lz1+2))
-      common /c_is1/ glo_num(lxyz*lelt)
-      common /ivrtx/ vertex ((2**ldim)*lelt)
+      integer*8, pointer :: glo_num(:)
+      integer*8, pointer :: vertex(:)
 
-      integer*8 glo_num
-      integer*8 vertex
       integer nx,ny,nz
       integer l
-      
+
+      glo_num(1:lxyz*lelt) => cb_c_is1(1:lxyz*lelt)
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
+
       ncrnr = 2**ldim
       call get_vert
 
@@ -2508,17 +2585,23 @@ c
       end
 c----------------------------------------------------------------------
       subroutine mg_set_h1  (p_h1 ,l0)
+      use scrvh_mod
       include 'SIZE'
       include 'HSMG'
       integer pf,pc
 
 c     As a first pass, rely on the cheesy common-block interface to get h1
 
-      common /scrvh/ h1    (lx1,ly1,lz1,lelv)
-     $             , h2    (lx1,ly1,lz1,lelv)
-     $             , h2inv (lx1,ly1,lz1,lelv)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:), h2inv(:,:,:,:)
 
       integer p_h1
+
+      h1   (1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      h2   (1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      h2inv(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
 
       l                 = mg_h1_lmax
       p_mg_h1(l,mg_fld) = 0
@@ -2548,16 +2631,22 @@ c     As a first pass, rely on the cheesy common-block interface to get h1
       end
 c-----------------------------------------------------------------------
       subroutine mg_set_h2  (p_h2 ,l0)
+      use scrvh_mod
       include 'SIZE'
       include 'HSMG'
 
 c     As a first pass, rely on the cheesy common-block interface to get h2
 
-      common /scrvh/ h1    (lx1,ly1,lz1,lelv)
-     $             , h2    (lx1,ly1,lz1,lelv)
-     $             , h2inv (lx1,ly1,lz1,lelv)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:), h2inv(:,:,:,:)
 
       integer p_h2,pf,pc
+
+      h1   (1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      h2   (1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      h2inv(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
 
       l                 = mg_h1_lmax
       p_mg_h2(l,mg_fld) = 0
@@ -2717,6 +2806,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mg_scale_mass (b,g,wt,ng,nx,ny,nz,wk,ifinv)
+      use ctmp0_mod
       include 'SIZE'
       include 'INPUT'  ! if3d
       include 'HSMG'
@@ -2724,7 +2814,9 @@ c-----------------------------------------------------------------------
       real b(1),g(ng,1),wt(1),wk(1)
       logical ifinv
 
-      common /ctmp0/ wi(2*lx1+4)
+      real, pointer :: wi(:)
+
+      wi(1:2*lx1+4) => cb_ctmp0(1 : 2*lx1+4)
 
       n = nx*ny*nz
 
@@ -2782,13 +2874,16 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine mg_set_gb  (p_g,p_b,l0)
+      use ctmp1_mod
       include 'SIZE'
       include 'HSMG'
       include 'MASS'   ! bm1
       include 'TSTEP'  ! nelfld
 
       integer p_g,p_b,e
-      common /ctmp1/ w(lx1*ly1*lz1*lelt*2)
+      real, pointer :: w(:)
+
+      w(1:lx1*ly1*lz1*lelt*2) => cb_ctmp1(1 : lx1*ly1*lz1*lelt*2)
 
       l                 = mg_h1_lmax
       p_mg_b (l,mg_fld) = 0
@@ -2902,11 +2997,14 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine outgmat(a,ng,nx,ny,name6,k,e)
+      use ctmp0_mod
 
       integer e
       real a(ng,nx,ny)
-      common /ctmp0/ w(100000)
+      real, pointer :: w(:)
       character*6 name6
+
+      w(1:100000) => cb_ctmp0(1 : 100000)
 
 c     do i=1,ng
       do i=1,1

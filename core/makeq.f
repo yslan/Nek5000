@@ -1,5 +1,6 @@
 c-----------------------------------------------------------------------
       subroutine makeq
+      use scruz_mod
 
 C     Generate forcing function for the solution of a passive scalar.
 C     !! NOTE: Do not change the content of the array BQ until the current
@@ -9,7 +10,9 @@ C     !! NOTE: Do not change the content of the array BQ until the current
       include 'CTIMER'
 
       logical  if_conv_std
-      common /SCRUZ/ w1(lx1,ly1,lz1,lelt)
+      real, pointer :: w1(:,:,:,:)
+
+      w1(1:lx1,1:ly1,1:lz1,1:lelt) => cb_scruz(1 : lx1*ly1*lz1*lelt)
 
       nxyz = lx1*ly1*lz1
       ntot = nxyz*nelv

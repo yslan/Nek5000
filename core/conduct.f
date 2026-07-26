@@ -1,5 +1,7 @@
 c-----------------------------------------------------------------------
       subroutine cdscal (igeom)
+      use scrns_mod
+      use scrvh_mod
 C
 C     Solve the convection-diffusion equation for passive scalar IPSCAL
 C
@@ -10,16 +12,23 @@ C
       include 'SOLN'
       include 'MASS'
       include 'TSTEP'
+      include 'ORTHOT'
+
       COMMON  /CPRINT/ IFPRINT
       LOGICAL          IFPRINT
       LOGICAL          IFCONV
 
-      COMMON /SCRNS/ TA(LX1,LY1,LZ1,LELT)
-     $              ,TB(LX1,LY1,LZ1,LELT)
-      COMMON /SCRVH/ H1(LX1,LY1,LZ1,LELT)
-     $              ,H2(LX1,LY1,LZ1,LELT)
+      real, pointer :: TA(:,:,:,:), TB(:,:,:,:)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
 
-      include 'ORTHOT'
+      H1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      H2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      TA(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      TB(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 
       if (ifdgfld(ifield)) then
          call cdscal_dg(igeom)
@@ -205,9 +214,10 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine convab
+      use scruz_mod
 C---------------------------------------------------------------
 C
-C     Eulerian scheme, add convection term to forcing function 
+C     Eulerian scheme, add convection term to forcing function
 C     at current time step.
 C
 C---------------------------------------------------------------
@@ -216,7 +226,9 @@ C---------------------------------------------------------------
       include 'MASS'
       include 'TSTEP'
 
-      common /scruz/ ta (lx1*ly1*lz1*lelt)
+      real, pointer :: ta(:)
+
+      ta(1:lx1*ly1*lz1*lelt) => cb_scruz(1 : lx1*ly1*lz1*lelt)
 
       nel = nelfld(ifield)
       n   = lx1*ly1*lz1*nel
@@ -255,6 +267,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine makebdq
+      use scrns_mod
 C-----------------------------------------------------------------------
 C
 C     Add contributions to F from lagged BD terms.
@@ -264,11 +277,14 @@ C-----------------------------------------------------------------------
       include 'TOTAL'
 
       parameter (lt=lx1*ly1*lz1*lelt)
-      common /scrns/ tb(lt),h2(lt)
+      real, pointer :: tb(:),h2(:)
+
+      tb(1:lt) => cb_scrns(0*lt+1 : 1*lt)
+      h2(1:lt) => cb_scrns(1*lt+1 : 2*lt)
 
       nel   = nelfld(ifield)
       n     = lx1*ly1*lz1*nel
-   
+
       const = 1./dt
       do i=1,n
          h2(i)=const*vtrans(i,1,1,1,ifield)
@@ -295,6 +311,7 @@ C-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine makebdq_solid
+      use scrns_mod
 C-----------------------------------------------------------------------
 C
 C     Add contributions to F from lagged BD terms.
@@ -304,7 +321,10 @@ C-----------------------------------------------------------------------
       include 'TOTAL'
 
       parameter (lt=lx1*ly1*lz1*lelt)
-      common /scrns/ tb(lt),h2(lt)
+      real, pointer :: tb(:),h2(:)
+
+      tb(1:lt) => cb_scrns(0*lt+1 : 1*lt)
+      h2(1:lt) => cb_scrns(1*lt+1 : 2*lt)
 
       nel   = nelfld(ifield)
       n     = lx1*ly1*lz1*nelv
@@ -417,6 +437,8 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine cdscal_expl (igeom)
+      use scrns_mod
+      use scrvh_mod
 C
 C     explicit convection-diffusion equation for passive scalar
 C
@@ -431,11 +453,17 @@ C
       logical          ifprint
       logical          ifconv
 
-      common /scrns/ ta(lx1,ly1,lz1,lelt)
-     $              ,tb(lx1,ly1,lz1,lelt)
-      common /scrvh/ h1(lx1,ly1,lz1,lelt)
-     $              ,h2(lx1,ly1,lz1,lelt)
+      real, pointer :: ta(:,:,:,:), tb(:,:,:,:)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:)
 
+      h1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      h2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      ta(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      tb(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 
 c     QUESTIONABLE support for Robin BC's at this point! (5/15/08)
 
@@ -481,8 +509,9 @@ C        New geometry
       end
 c-----------------------------------------------------------------------
       subroutine diffab  ! explicit treatment of diffusion operator
+      use scruz_mod
 c
-c     Eulerian scheme, add diffusion term to forcing function 
+c     Eulerian scheme, add diffusion term to forcing function
 c     at current time step.
 c
 
@@ -492,8 +521,12 @@ c
       include 'TSTEP'
       include 'INPUT'
 
-      common /scruz/ ta(lx1,ly1,lz1,lelt)
-     $              ,h2(lx1,ly1,lz1,lelt)
+      real, pointer :: ta(:,:,:,:), h2(:,:,:,:)
+
+      ta(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      h2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 
       nel = nelfld(ifield)
       n   = lx1*ly1*lz1*nel
@@ -562,6 +595,7 @@ c           write(6,*) i,j1,j2,e,f,a,etalph(i,f,e)
       end
 c-----------------------------------------------------------------------
       subroutine fwght(msk1,mult)
+      use scrdg_mod
       include 'SIZE'
       include 'TOTAL'
       parameter (lx=lx1*ly1*lz1)
@@ -569,9 +603,9 @@ c-----------------------------------------------------------------------
       integer e,f
 
       parameter(lf=lx1*lz1*2*ldim*lelt)
-      common /scrdg/uf(lx1*lz1,2*ldim,lelt)
+      real, pointer :: uf(:,:,:)
 
-
+      uf(1:lx1*lz1,1:2*ldim,1:lelt) => cb_scrdg(1:lf)
 
       do i=1,lf
          uf(i,1,1)=1.
@@ -590,16 +624,20 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine dg_setup
+      use ctmp1_mod
+      use ivrtx_mod
       include 'SIZE'
       include 'TOTAL'
 
-      common /ivrtx/ vertex ((2**ldim)*lelt)
-      common /ctmp1/ qs(lx1*ly1*lz1*lelt)
-      integer*8 vertex
+      real, pointer :: qs(:)
+      integer*8, pointer :: vertex(:)
 
       logical ifany
       save    ifany
       data    ifany /.false./
+
+      qs(1:lx1*ly1*lz1*lelt) => cb_ctmp1(1 : lx1*ly1*lz1*lelt)
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
 
       do ifield=1,ldimt1
          if (ifdgfld(ifield)) ifany=.true.
@@ -625,15 +663,18 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine dg_setup2(mask)
+      use ctmp0_mod
       include 'SIZE'
       include 'TOTAL'
 
       real mask(1)
-      common /ctmp0/ qs(lx1*ly1*lz1*lelt)
+      real, pointer :: qs(:)
 
       integer ifld_last
       save    ifld_last
       data    ifld_last /0/
+
+      qs(1:lx1*ly1*lz1*lelt) => cb_ctmp0(1 : lx1*ly1*lz1*lelt)
 
       if (ifield.eq.ifld_last) return
       ifld_last = ifield
@@ -645,19 +686,26 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine cdscal_dg (igeom)
+      use scrns_mod
+      use scrvh_mod
 C
 C     Solve the convection-diffusion equation for passive scalar IPSCAL
 C
       include 'SIZE'
       include 'TOTAL'
+      include 'ORTHOT'  ! This must be fixed
+
       common  /cprint/ ifprint
       logical          ifprint,ifconv
 
       parameter (lt=lx1*ly1*lz1*lelt)
-      common /scrns/ ta(lt),tb(lt)
-      common /scrvh/ h1(lt),h2(lt)
+      real, pointer :: ta(:),tb(:)
+      real, pointer :: h1(:),h2(:)
 
-      include 'ORTHOT'  ! This must be fixed
+      ta(1:lt) => cb_scrns(0*lt+1 : 1*lt)
+      tb(1:lt) => cb_scrns(1*lt+1 : 2*lt)
+      h1(1:lt) => cb_scrvh(0*lt+1 : 1*lt)
+      h2(1:lt) => cb_scrvh(1*lt+1 : 2*lt)
 
       call dg_setup2(tmask(1,1,1,1,ifield-1))
 

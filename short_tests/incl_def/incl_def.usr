@@ -4,9 +4,9 @@ c     Tests if all variables in INLCUDE files are defined
 c
 c-----------------------------------------------------------------------
       subroutine uservp (ix,iy,iz,ieg)
-      implicit none
       include 'SIZE'
       include 'NEKUSE'
+      implicit none
 
       integer ix, iy, iz, ieg
 
@@ -17,9 +17,9 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine userf  (ix,iy,iz,ieg)
-      implicit none
       include 'SIZE'
       include 'NEKUSE'
+      implicit none
 
       integer ix, iy, iz, ieg
 
@@ -31,9 +31,9 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine userq  (ix,iy,iz,ieg)
-      implicit none
       include 'SIZE'
       include 'NEKUSE'
+      implicit none
 
       integer ix, iy, iz, ieg
 
@@ -43,10 +43,6 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine userchk
-      implicit none
-
-c     ADD ALL INCLUDE FILES THEN EXIT
-
       include 'SIZE'
       include 'ADJOINT'
       include 'AVG'
@@ -60,7 +56,6 @@ c     ADD ALL INCLUDE FILES THEN EXIT
       include 'FDMH1'
       include 'GEOM'
       include 'GFLDR'
-c      include 'GLOBALCOM' ! already inclued in NEKNEK
       include 'GMRES'
       include 'HSMG'
       include 'INPUT'
@@ -75,7 +70,6 @@ c      include 'GLOBALCOM' ! already inclued in NEKNEK
       include 'ORTHOSTRS'
       include 'ORTHOT'
       include 'PARALLEL'
-      include 'PARDICT'
       include 'RESTART'
       include 'SCRCT'
       include 'SEMHAT'
@@ -88,6 +82,13 @@ c      include 'GLOBALCOM' ! already inclued in NEKNEK
       include 'WZF'
       include 'ZPER'
       include 'OBJDATA'
+      implicit none
+
+c     PARDICT is a textual (parameter) header, not a module use-stub,
+c     so it must come after all 'use' includes and implicit none
+      include 'PARDICT'
+
+c     ADD ALL INCLUDE FILES THEN EXIT
 
       if (nid.eq.0) then
         write(6,*) '-------------------------------------'
@@ -102,13 +103,13 @@ c      include 'GLOBALCOM' ! already inclued in NEKNEK
       end
 c-----------------------------------------------------------------------
       subroutine userbc (ix,iy,iz,iside,ieg)
+      include 'SIZE'
+      include 'NEKUSE'
       implicit none
 c     NOTE ::: This subroutine MAY NOT be called by every process
 
 c     Set boundary conditions
 
-      include 'SIZE'
-      include 'NEKUSE'
 
       integer ix, iy, iz, iside, ieg
 
@@ -122,12 +123,12 @@ c     Set boundary conditions
       end
 c-----------------------------------------------------------------------
       subroutine useric (ix,iy,iz,ieg)
+      include 'SIZE'
+      include 'NEKUSE'
       implicit none
 
 C     Set initial conditions
 
-      include 'SIZE'
-      include 'NEKUSE'
 
       integer ix, iy, iz, ieg
 
@@ -147,9 +148,9 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine usrdat2
+      include 'SIZE'
       implicit none
 
-      include 'SIZE'
 
       return
       end

@@ -375,6 +375,7 @@ C
       END
 C
       subroutine gengeom (igeom)
+      use scruz_mod
 C----------------------------------------------------------------------
 C
 C     Generate geometry data
@@ -386,10 +387,14 @@ C----------------------------------------------------------------------
       include 'GEOM'
       include 'WZ'
 C
-      COMMON /SCRUZ/ XM3 (LX3,LY3,LZ3,LELT)
-     $ ,             YM3 (LX3,LY3,LZ3,LELT)
-     $ ,             ZM3 (LX3,LY3,LZ3,LELT)
+      real, pointer :: XM3(:,:,:,:), YM3(:,:,:,:), ZM3(:,:,:,:)
 C
+      XM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scruz(0*lx3*ly3*lz3*lelt+1 : 1*lx3*ly3*lz3*lelt)
+      YM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scruz(1*lx3*ly3*lz3*lelt+1 : 2*lx3*ly3*lz3*lelt)
+      ZM3(1:lx3,1:ly3,1:lz3,1:lelt) =>
+     $   cb_scruz(2*lx3*ly3*lz3*lelt+1 : 3*lx3*ly3*lz3*lelt)
 
       if (nio.eq.0.and.istep.le.1) write(6,*) 'generate geometry data'
 
@@ -426,9 +431,11 @@ C
 C
       CHARACTER*132 NAME
       CHARACTER*1   SESS1(132),PATH1(132),NAM1(132)
+
+#if 0
       EQUIVALENCE  (SESSION,SESS1)
       EQUIVALENCE  (PATH,PATH1)
-      EQUIVALENCE  (NAME,NAM1)
+#endif
       CHARACTER*1  DMP(4),FLD(4),REA(4),HIS(4),SCH(4) ,ORE(4), NRE(4)
       CHARACTER*1  RE2(4),PAR(4)
       CHARACTER*4  DMP4  ,FLD4  ,REA4  ,HIS4  ,SCH4   ,ORE4  , NRE4
@@ -442,6 +449,10 @@ C
       DATA RE24           /'.re2'       /
       DATA PAR4           /'.par'       /
       CHARACTER*78  STRING
+
+      sess1 = transfer(session, sess1)
+      path1 = transfer(path, path1)
+
 C
 C     Find out the session name:
 C
@@ -851,6 +862,7 @@ C
       nsett=0
       ncdtp=0
       npres=0
+      neslv=0
       nmltd=0
       ngsum=0
       nprep=0
@@ -872,11 +884,11 @@ C
       nadvc=0
       nspro=0
       ncvf =0
+      nbmhd=0
 c
       tmxmf=0.0
       tmxms=0.0
       tdsum=0.0
-      tvdss=0.0
       tvdss=0.0
       tdsmn=9.9e9
       tdsmx=0.0
@@ -898,6 +910,11 @@ c
       tcopy=0.0
       tinvc=0.0
       tinv3=0.0
+      tcol2=0.0
+      tcol3=0.0
+      tadd2=0.0
+      tadc3=0.0
+      ta2s2=0.0
       tsolv=0.0
       tslvb=0.0
       tddsl=0.0
@@ -913,18 +930,19 @@ c
       tuchk=0.0
       tmakf=0.0
       tmakq=0.0
+      tbmhd=0.0
 C
       return
       end
 C
 c-----------------------------------------------------------------------
       subroutine runstat
-
-#ifdef TIMER
-
       include 'SIZE'
       include 'TOTAL'
       include 'CTIMER'
+
+#ifdef TIMER
+
 
       real min_dsum, max_dsum, avg_dsum
       real min_vdss, max_vdss, avg_vdss
@@ -1191,11 +1209,11 @@ c         write(6,*) 'bso2 time',nbso2,tbso2,pbso2
       end
 c-----------------------------------------------------------------------
       subroutine pprint_all(s,n_in,io)
-      character*1 s(n_in)
-      character*1 w(132)
-
       include 'SIZE'
       include 'PARALLEL'
+
+      character*1 s(n_in)
+      character*1 w(132)
 
       n = min(132,n_in)
 
@@ -1290,11 +1308,14 @@ C
 C
 c-----------------------------------------------------------------------
       subroutine dofcnt
+      use scrns_mod
       include 'SIZE'
       include 'TOTAL'
-      COMMON /SCRNS/ WORK(LCTMP1)
+      real, pointer :: WORK(:)
 
       integer*8 ntot,ntotp,ntotv
+
+      WORK(1:LCTMP1) => cb_scrns(1 : LCTMP1)
 
       nxyz  = nx1*ny1*nz1
       nel   = nelv
@@ -1326,6 +1347,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine vol_flow
+      use cvflow_a_mod
 c
 c
 c     Adust flow volume at end of time step to keep flow rate fixed by
@@ -1345,11 +1367,8 @@ c     flow rate for periodic-in-X (or Z) flow problems.
 c
       parameter (kx1=lx1,ky1=ly1,kz1=lz1,kx2=lx2,ky2=ly2,kz2=lz2)
 c
-      common /cvflow_a/ vxc(kx1,ky1,kz1,lelv)
-     $                , vyc(kx1,ky1,kz1,lelv)
-     $                , vzc(kx1,ky1,kz1,lelv)
-     $                , prc(kx2,ky2,kz2,lelv)
-     $                , vdc(kx1*ky1*kz1*lelv,2)
+      real, pointer :: vxc(:,:,:,:), vyc(:,:,:,:), vzc(:,:,:,:)
+     $               , prc(:,:,:,:), vdc(:,:)
       common /cvflow_r/ flow_rate,base_flow,domain_length,xsec
      $                , scale_vf(3)
       common /cvflow_i/ icvflow,iavflow
@@ -1367,6 +1386,18 @@ c     Check list:
 c     param (55) -- volume flow rate, if nonzero
 c     forcing in X? or in Z?
 
+      vxc(1:kx1,1:ky1,1:kz1,1:lelv) =>
+     $   cb_cvflow_a(0*kx1*ky1*kz1*lelv+1 : 1*kx1*ky1*kz1*lelv)
+      vyc(1:kx1,1:ky1,1:kz1,1:lelv) =>
+     $   cb_cvflow_a(1*kx1*ky1*kz1*lelv+1 : 2*kx1*ky1*kz1*lelv)
+      vzc(1:kx1,1:ky1,1:kz1,1:lelv) =>
+     $   cb_cvflow_a(2*kx1*ky1*kz1*lelv+1 : 3*kx1*ky1*kz1*lelv)
+      prc(1:kx2,1:ky2,1:kz2,1:lelv) =>
+     $   cb_cvflow_a(3*kx1*ky1*kz1*lelv+1
+     $             : 3*kx1*ky1*kz1*lelv+kx2*ky2*kz2*lelv)
+      vdc(1:kx1*ky1*kz1*lelv,1:2) =>
+     $   cb_cvflow_a(3*kx1*ky1*kz1*lelv+kx2*ky2*kz2*lelv+1
+     $             : 5*kx1*ky1*kz1*lelv+kx2*ky2*kz2*lelv)
 
       ntot1 = lx1*ly1*lz1*nelv
       ntot2 = lx2*ly2*lz2*nelv
@@ -1502,6 +1533,8 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine plan2_vol(vxc,vyc,vzc,prc)
+      use scrns_mod
+      use scrvh_mod
 c
 c     Compute pressure and velocity using fractional step method.
 c     (classical splitting scheme).
@@ -1515,17 +1548,27 @@ c
      $   , vzc(lx1,ly1,lz1,lelv)
      $   , prc(lx2,ly2,lz2,lelv)
 C
-      COMMON /SCRNS/ RESV1 (LX1,LY1,LZ1,LELV)
-     $ ,             RESV2 (LX1,LY1,LZ1,LELV)
-     $ ,             RESV3 (LX1,LY1,LZ1,LELV)
-     $ ,             RESPR (LX2,LY2,LZ2,LELV)
-      COMMON /SCRVH/ H1    (LX1,LY1,LZ1,LELV)
-     $ ,             H2    (LX1,LY1,LZ1,LELV)
+      real, pointer :: RESV1(:,:,:,:), RESV2(:,:,:,:), RESV3(:,:,:,:)
+     $               , RESPR(:,:,:,:)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
 c
       common /cvflow_i/ icvflow,iavflow
 C
+      H1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      H2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      RESV1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      RESV2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      RESV3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      RESPR(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv
+     $                                 + lx2*ly2*lz2*lelv)
 C
-C     Compute pressure 
+C     Compute pressure
 C
       ntot1  = lx1*ly1*lz1*nelv
 c
@@ -1561,6 +1604,9 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine plan3_vol(vxc,vyc,vzc,prc)
+      use scrns_mod
+      use scrvh_mod
+      use scrhi_mod
 c
 c     Compute pressure and velocity using fractional step method.
 c     (PLAN3).
@@ -1574,20 +1620,36 @@ c
      $   , vzc(lx1,ly1,lz1,lelv)
      $   , prc(lx2,ly2,lz2,lelv)
 C
-      COMMON /SCRNS/ rw1   (LX1,LY1,LZ1,LELV)
-     $ ,             rw2   (LX1,LY1,LZ1,LELV)
-     $ ,             rw3   (LX1,LY1,LZ1,LELV)
-     $ ,             dv1   (LX1,LY1,LZ1,LELV)
-     $ ,             dv2   (LX1,LY1,LZ1,LELV)
-     $ ,             dv3   (LX1,LY1,LZ1,LELV)
-     $ ,             RESPR (LX2,LY2,LZ2,LELV)
-      COMMON /SCRVH/ H1    (LX1,LY1,LZ1,LELV)
-     $ ,             H2    (LX1,LY1,LZ1,LELV)
-      COMMON /SCRHI/ H2INV (LX1,LY1,LZ1,LELV)
+      real, pointer :: rw1(:,:,:,:), rw2(:,:,:,:), rw3(:,:,:,:)
+     $               , dv1(:,:,:,:), dv2(:,:,:,:), dv3(:,:,:,:)
+     $               , RESPR(:,:,:,:)
+      real, pointer :: H1(:,:,:,:), H2(:,:,:,:)
+      real, pointer :: H2INV(:,:,:,:)
       common /cvflow_i/ icvflow,iavflow
 c
+      H2INV(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrhi(1 : lx1*ly1*lz1*lelv)
+      H1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      H2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      rw1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      rw2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      rw3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      dv1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
+      dv2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelv+1 : 5*lx1*ly1*lz1*lelv)
+      dv3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(5*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv)
+      RESPR(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scrns(6*lx1*ly1*lz1*lelv+1 : 6*lx1*ly1*lz1*lelv
+     $                                 + lx2*ly2*lz2*lelv)
 c
-c     Compute velocity, 1st part 
+c     Compute velocity, 1st part
 c
       ntot1  = lx1*ly1*lz1*nelv
       ntot2  = lx2*ly2*lz2*nelv
@@ -1641,6 +1703,8 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine plan4_vol(vxc,vyc,vzc,prc)
+      use scrns_mod
+      use scrvh_mod
 
 c     Compute pressure and velocity using fractional step method.
 c     (Tombo splitting scheme).
@@ -1655,14 +1719,24 @@ c     (Tombo splitting scheme).
      $   , vzc(lx1,ly1,lz1,lelv)
      $   , prc(lx1,ly1,lz1,lelv)
 
-      common /scrns/ resv1 (lx1,ly1,lz1,lelv)
-     $ ,             resv2 (lx1,ly1,lz1,lelv)
-     $ ,             resv3 (lx1,ly1,lz1,lelv)
-     $ ,             respr (lx1,ly1,lz1,lelv)
-      common /scrvh/ h1    (lx1,ly1,lz1,lelv)
-     $ ,             h2    (lx1,ly1,lz1,lelv)
+      real, pointer :: resv1(:,:,:,:), resv2(:,:,:,:), resv3(:,:,:,:)
+     $               , respr(:,:,:,:)
+      real, pointer :: h1(:,:,:,:), h2(:,:,:,:)
 
       common /cvflow_i/ icvflow,iavflow
+
+      h1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      h2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrvh(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      resv1(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelv+1 : 1*lx1*ly1*lz1*lelv)
+      resv2(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelv+1 : 2*lx1*ly1*lz1*lelv)
+      resv3(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelv+1 : 3*lx1*ly1*lz1*lelv)
+      respr(1:lx1,1:ly1,1:lz1,1:lelv) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelv+1 : 4*lx1*ly1*lz1*lelv)
 
       n = lx1*ly1*lz1*nelv
       call invers2  (h1,vtrans,n)
@@ -1703,14 +1777,22 @@ C     Compute velocity
       end
 c-----------------------------------------------------------------------
       subroutine a_dmp
+      use scrns_mod
+      use scruz_mod
 c
       include 'SIZE'
       include 'TOTAL'
-      COMMON /SCRNS/ w(LX1,LY1,LZ1,LELT)
-      COMMON /SCRUZ/ v (LX1,LY1,LZ1,LELT)
-     $             , h1(LX1,LY1,LZ1,LELT)
-     $             , h2(LX1,LY1,LZ1,LELT)
+      real, pointer :: w(:,:,:,:)
+      real, pointer :: v(:,:,:,:), h1(:,:,:,:), h2(:,:,:,:)
 c
+      w(1:lx1,1:ly1,1:lz1,1:lelt) => cb_scrns(1 : lx1*ly1*lz1*lelt)
+      v (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      h1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      h2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scruz(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+
       ntot = lx1*ly1*lz1*nelv
       call rone (h1,ntot)
       call rzero(h2,ntot)
@@ -1740,6 +1822,8 @@ c   6 format(1p12e11.3)
       end
 c-----------------------------------------------------------------------
       subroutine reset_prop
+      use scruz_mod
+      use screv_mod
 C------------------------------------------------------------------------
 C
 C     Set variable property arrays
@@ -1751,13 +1835,18 @@ C
 C     Caution: 2nd and 3rd strainrate invariants residing in scratch
 C              common /SCREV/ are used in STNRINV and NEKASGN
 C
-      COMMON /SCREV/ SII (LX1,LY1,LZ1,LELT)
-     $             , SIII(LX1,LY1,LZ1,LELT)
-      COMMON /SCRUZ/ TA(LX1,LY1,LZ1,LELT)
+      real, pointer :: SII(:,:,:,:), SIII(:,:,:,:)
+      real, pointer :: TA(:,:,:,:)
 C
       real    rstart
       save    rstart
       data    rstart  /1/
+c
+      TA(1:lx1,1:ly1,1:lz1,1:lelt) => cb_scruz(1 : lx1*ly1*lz1*lelt)
+      SII (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      SIII(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_screv(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 c
       rfinal   = 1./param(2) ! Target Re
 c

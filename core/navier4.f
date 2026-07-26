@@ -7,6 +7,8 @@ c                           - line 537 in hmholtz.f
 c
 c-----------------------------------------------------------------------
       subroutine setrhs(p,h1,h2,h2inv)
+      use orthov_mod
+      use orthox_mod
 C
 C     Project rhs onto best fit in the "E" norm.
 C
@@ -26,8 +28,8 @@ C
       data    ifdump /.false./
 C
       PARAMETER (LTOT2=LX2*LY2*LZ2*LELV)
-      COMMON /ORTHOV/ RHS(LTOT2,MXPREV)
-      COMMON /ORTHOX/ Pbar(LTOT2),Pnew(LTOT2)
+      real, pointer :: RHS(:,:)
+      real, pointer :: Pbar(:), Pnew(:)
       COMMON /ORTHOS/ ALPHA(Mxprev), WORK(Mxprev), ALPHAN, DTLAST
       COMMON /ORTHOI/ Nprev,Mprev
       REAL ALPHA,WORK
@@ -36,6 +38,10 @@ C
       integer icalld
       save    icalld
       data    icalld/0/
+C
+      RHS(1:ltot2,1:mxprev) => cb_orthov(1 : ltot2*mxprev)
+      Pbar(1:ltot2) => cb_orthox(0*ltot2+1 : 1*ltot2)
+      Pnew(1:ltot2) => cb_orthox(1*ltot2+1 : 2*ltot2)
 C
 C     First call, we have no vectors to orthogonalize against.
       IF (ICALLD.EQ.0) THEN
@@ -108,6 +114,8 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine gensoln(p,h1,h2,h2inv)
+      use orthov_mod
+      use orthox_mod
 C
 C     Reconstruct the solution to the original problem by adding back
 C     the previous solutions
@@ -115,8 +123,8 @@ C     know the soln.
 C
       include 'SIZE'
       PARAMETER (LTOT2=LX2*LY2*LZ2*LELV)
-      COMMON /ORTHOV/ RHS(LTOT2,MXPREV)
-      COMMON /ORTHOX/ Pbar(LTOT2),Pnew(LTOT2)
+      real, pointer :: RHS(:,:)
+      real, pointer :: Pbar(:), Pnew(:)
       COMMON /ORTHOS/ ALPHA(Mxprev), WORK(Mxprev), ALPHAN, DTLAST
       COMMON /ORTHOI/ Nprev,Mprev
       REAL ALPHA,WORK
@@ -125,6 +133,10 @@ C
       REAL             H1   (LX1,LY1,LZ1,LELV)
       REAL             H2   (LX1,LY1,LZ1,LELV)
       REAL             H2INV(LX1,LY1,LZ1,LELV)
+C
+      RHS(1:ltot2,1:mxprev) => cb_orthov(1 : ltot2*mxprev)
+      Pbar(1:ltot2) => cb_orthox(0*ltot2+1 : 1*ltot2)
+      Pnew(1:ltot2) => cb_orthox(1*ltot2+1 : 2*ltot2)
 C
       NTOT2=lx2*ly2*lz2*NELV
 C
@@ -145,6 +157,8 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine updtset(p,h1,h2,h2inv,IERR)
+      use orthov_mod
+      use orthox_mod
 C
 C     Update the set of rhs's and the corresponding p-set:
 C
@@ -161,8 +175,8 @@ C
       include 'INPUT'
       include 'MASS'
       PARAMETER (LTOT2=LX2*LY2*LZ2*LELV)
-      COMMON /ORTHOV/ RHS(LTOT2,MXPREV)
-      COMMON /ORTHOX/ Pbar(LTOT2),Pnew(LTOT2)
+      real, pointer :: RHS(:,:)
+      real, pointer :: Pbar(:), Pnew(:)
       COMMON /ORTHOS/ ALPHA(Mxprev), WORK(Mxprev), ALPHAN, DTLAST
       COMMON /ORTHOI/ Nprev,Mprev
 
@@ -172,6 +186,10 @@ C
       REAL             H1   (LX1,LY1,LZ1,LELV)
       REAL             H2   (LX1,LY1,LZ1,LELV)
       REAL             H2INV(LX1,LY1,LZ1,LELV)
+C
+      RHS(1:ltot2,1:mxprev) => cb_orthov(1 : ltot2*mxprev)
+      Pbar(1:ltot2) => cb_orthox(0*ltot2+1 : 1*ltot2)
+      Pnew(1:ltot2) => cb_orthox(1*ltot2+1 : 2*ltot2)
 C
       NTOT2=lx2*ly2*lz2*NELV
 C
@@ -198,6 +216,8 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine econj(kprev,h1,h2,h2inv,ierr)
+      use orthov_mod
+      use orthox_mod
 C
 C     Orthogonalize the rhs wrt previous rhs's for which we already
 C     know the soln.
@@ -213,13 +233,17 @@ C
       REAL             H2INV(LX1,LY1,LZ1,LELV)
 C
       PARAMETER (LTOT2=LX2*LY2*LZ2*LELV)
-      COMMON /ORTHOV/ RHS(LTOT2,MXPREV)
-      COMMON /ORTHOX/ Pbar(LTOT2),Pnew(LTOT2),Pbrr(ltot2)
+      real, pointer :: RHS(:,:)
+      real, pointer :: Pbar(:), Pnew(:), Pbrr(:)
       COMMON /ORTHOS/ ALPHA(Mxprev), WORK(Mxprev), ALPHAN, DTLAST
       COMMON /ORTHOI/ Nprev,Mprev
       REAL ALPHA,WORK
       real ALPHAd
 C
+      RHS(1:ltot2,1:mxprev) => cb_orthov(1 : ltot2*mxprev)
+      Pbar(1:ltot2) => cb_orthox(0*ltot2+1 : 1*ltot2)
+      Pnew(1:ltot2) => cb_orthox(1*ltot2+1 : 2*ltot2)
+      Pbrr(1:ltot2) => cb_orthox(2*ltot2+1 : 3*ltot2)
 C
       ierr  = 0
       NTOT2 = lx2*ly2*lz2*NELV
@@ -266,6 +290,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine chkptol
+      use scruz_mod
 C--------------------------------------------------------------------
 C
 C     Check pressure tolerance for transient case.
@@ -284,8 +309,12 @@ C--------------------------------------------------------------------
       COMMON /CPRINT/ IFPRINT
       LOGICAL         IFPRINT
 C
-      COMMON /SCRUZ/  DIVV (LX2,LY2,LZ2,LELV)
-     $ ,              BDIVV(LX2,LY2,LZ2,LELV)
+      real, pointer :: DIVV(:,:,:,:), BDIVV(:,:,:,:)
+C
+      DIVV(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scruz(0*lx2*ly2*lz2*lelv+1 : 1*lx2*ly2*lz2*lelv)
+      BDIVV(1:lx2,1:ly2,1:lz2,1:lelv) =>
+     $   cb_scruz(1*lx2*ly2*lz2*lelv+1 : 2*lx2*ly2*lz2*lelv)
 C
       if (ifsplit) return
       IF (param(102).eq.0.and.(TOLPDF.NE.0. .OR. ISTEP.LE.5)) return
@@ -324,10 +353,9 @@ C
 C
 C     local inner product, with weight
 C
+      include 'OPCTR'
       DIMENSION X(1),Y(1),B(1)
       REAL DT
-C
-      include 'OPCTR'
 C
 #ifdef TIMER
 C
@@ -354,6 +382,8 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine updrhse(p,h1,h2,h2inv,ierr)
+      use orthov_mod
+      use orthox_mod
 C
 C     Update rhs's if E-matrix has changed
 C
@@ -364,8 +394,8 @@ C
       include 'TSTEP'
 C
       PARAMETER (LTOT2=LX2*LY2*LZ2*LELV)
-      COMMON /ORTHOV/ RHS(LTOT2,MXPREV)
-      COMMON /ORTHOX/ Pbar(LTOT2),Pnew(LTOT2)
+      real, pointer :: RHS(:,:)
+      real, pointer :: Pbar(:), Pnew(:)
       COMMON /ORTHOS/ ALPHA(Mxprev), WORK(Mxprev), ALPHAN, DTLAST
       COMMON /ORTHOI/ Nprev,Mprev
       COMMON /ORTHOL/ IFNEWE
@@ -381,6 +411,10 @@ C
       integer icalld
       save    icalld
       data    icalld/0/
+
+      RHS(1:ltot2,1:mxprev) => cb_orthov(1 : ltot2*mxprev)
+      Pbar(1:ltot2) => cb_orthox(0*ltot2+1 : 1*ltot2)
+      Pnew(1:ltot2) => cb_orthox(1*ltot2+1 : 2*ltot2)
 
       ntot2=lx2*ly2*lz2*nelv
 
@@ -511,6 +545,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine hmhzpf(name,u,r,h1,h2,mask,mult,imesh,tli,maxit,isd,bi)
+      use ctmp0_mod
       include 'SIZE'
       include 'INPUT'
       include 'MASS'
@@ -525,8 +560,12 @@ c
       REAL           MASK (LX1,LY1,LZ1,1)
       REAL           MULT (LX1,LY1,LZ1,1)
       REAL           bi   (LX1,LY1,LZ1,1)
-      COMMON /CTMP0/ W1   (LX1,LY1,LZ1,LELT)
-     $ ,             W2   (LX1,LY1,LZ1,LELT)
+      real, pointer :: W1(:,:,:,:), W2(:,:,:,:)
+c
+      W1(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      W2(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_ctmp0(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
 c
       etime1=dnekclock()
 c
@@ -578,7 +617,8 @@ c
       REAL           bi   (LX1,LY1,LZ1,1)
       REAL           approx (1)
       integer        napprox(1)
-      common /ctmp2/ w1   (lx1,ly1,lz1,lelt)
+      real, allocatable, target, save :: cb_ctmp2(:)
+      real, pointer :: w1(:,:,:,:)
       common /ctmp3/ w2   (2+2*mxprev)
 
       logical ifstdh
@@ -586,6 +626,10 @@ c
       character*6  name6
 
       logical ifwt,ifvec
+
+      if (.not. allocated(cb_ctmp2))
+     $   allocate(cb_ctmp2(lx1*ly1*lz1*lelt))
+      w1(1:lx1,1:ly1,1:lz1,1:lelt) => cb_ctmp2(1:lx1*ly1*lz1*lelt)
 
       call chcopy(cname,name,4)
       call capit (cname,4)
@@ -1220,6 +1264,8 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine laplacep(name,u,mask,mult,ifld,tol,maxi,approx,napprox)
+      use scrvh_mod
+      use scruz_mod
 c
 c     Solve Laplace's equation, with projection onto previous solutions.
 c
@@ -1253,14 +1299,19 @@ c
       integer   napprox(1)
 
       parameter (lt=lx1*ly1*lz1*lelt)
-      common /scrvh/ h1(lt),h2(lt)
-      common /scruz/ r (lt),ub(lt)
+      real, pointer :: h1(:), h2(:)
+      real, pointer :: r(:), ub(:)
 
       logical ifstdh
       character*4  cname
       character*6  name6
 
       logical ifwt,ifvec
+
+      h1(1:lt) => cb_scrvh(0*lt+1 : 1*lt)
+      h2(1:lt) => cb_scrvh(1*lt+1 : 2*lt)
+      r (1:lt) => cb_scruz(0*lt+1 : 1*lt)
+      ub(1:lt) => cb_scruz(1*lt+1 : 2*lt)
 
       call chcopy(cname,name,4)
       call capit (cname,4)

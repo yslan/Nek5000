@@ -2,6 +2,9 @@
 *.log
 *.mod
 *.o
+.state
+nek5000
+obj
 
 # tool executables built by running maketools
 bin/cgns2nek

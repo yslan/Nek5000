@@ -1,5 +1,131 @@
 c-----------------------------------------------------------------------
+      subroutine nek_mem_init
+c
+c     Allocate all runtime memory blocks (the module init routines that
+c     replaced the old static common blocks). Lives here in the CORE
+c     archive so BOTH the standalone program (drive.f) and library callers
+c     (who call nek_init directly) get the allocations. Guarded so it runs
+c     only once.
+c
+      use parallel_mod, only : parallel_init => init
+      use scrns_mod, only : scrns_init => init
+      use ctmp0_mod, only : ctmp0_init => init
+      use ctmp1_mod, only : ctmp1_init => init
+      use soln_mod, only : soln_init => init
+      use hsmg_mod, only : hsmg_init => init
+      use mvgeom_mod, only : mvgeom_init => init
+      use vproj_mod, only : vproj_init => init
+      use vrthov_mod, only : vrthov_init => init
+      use orthot_mod, only : orthot_init => init
+      use orthov_mod, only : orthov_init => init
+      use screv_mod, only : screv_init => init
+      use scrcg_mod, only : scrcg_init => init
+      use scrch_mod, only : scrch_init => init
+      use scrmg_mod, only : scrmg_init => init
+      use scrsf_mod, only : scrsf_init => init
+      use scruz_mod, only : scruz_init => init
+      use scrvh_mod, only : scrvh_init => init
+      use orthostrs_mod, only : orthostrs_init => init
+      use orthop_mod, only : orthop_init => init
+      use noncon_mod, only : noncon_init => init
+      use neknek_mod, only : neknek_init => init
+      use mass_mod, only : mass_init => init
+      use gmres_mod, only : gmres_init => init
+      use geom_mod, only : geom_init => init
+      use dealias_mod, only : dealias_init => init
+      use cvode_mod, only : cvode_init => init
+      use avg_mod, only : avg_init => init
+      use adjoint_mod, only : adjoint_init => init
+      use cbplan_vol_ms_mod, only : cbplan_vol_ms_init => init
+      use cvflow_a_mod, only : cvflow_a_init => init
+      use scrdg_mod, only : scrdg_init => init
+      use outtmp_mod, only : outtmp_init => init
+      use orthox_mod, only : orthox_init => init
+      use cvflow_nn_mod, only : cvflow_nn_init => init
+      use c_is1_mod, only : c_is1_init => init
+      use fastd_mod, only : fastd_init => init
+      use scrxxti_mod, only : scrxxti_init => init
+      use fdmh1_mod, only : fdmh1_init => init
+      use scrpre_mod, only : scrpre_init => init
+      use swaplengths_mod, only : swaplengths_init => init
+      use weightop_mod, only : weightop_init => init
+      use scrhi_mod, only : scrhi_init => init
+      use input_mod, only : input_init => init
+      use topol_mod, only : topol_init => init
+      use scrct_mod, only : scrct_init => init
+      use ctmpf_mod, only : ctmpf_init => init
+      use scrxxt_mod, only : scrxxt_init => init
+      use scrpr2_mod, only : scrpr2_init => init
+      use fastg_mod, only : fastg_init => init
+      use ivrtx_mod, only : ivrtx_init => init
+      use domain_mod, only : domain_init => init
+
+      logical icalld
+      save    icalld
+      data    icalld /.false./
+
+      if (icalld) return
+      icalld = .true.
+
+      call parallel_init()
+      call scrns_init()
+      call ctmp0_init()
+      call ctmp1_init()
+      call soln_init()
+      call hsmg_init()
+      call mvgeom_init()
+      call vproj_init()
+      call vrthov_init()
+      call orthot_init()
+      call orthov_init()
+      call screv_init()
+      call scrcg_init()
+      call scrch_init()
+      call scrmg_init()
+      call scrsf_init()
+      call scruz_init()
+      call scrvh_init()
+      call orthostrs_init()
+      call orthop_init()
+      call noncon_init()
+      call neknek_init()
+      call mass_init()
+      call gmres_init()
+      call geom_init()
+      call dealias_init()
+      call cvode_init()
+      call avg_init()
+      call adjoint_init()
+      call cbplan_vol_ms_init()
+      call cvflow_a_init()
+      call scrdg_init()
+      call outtmp_init()
+      call orthox_init()
+      call cvflow_nn_init()
+      call c_is1_init()
+      call fastd_init()
+      call scrxxti_init()
+      call fdmh1_init()
+      call scrpre_init()
+      call swaplengths_init()
+      call weightop_init()
+      call scrhi_init()
+      call input_init()
+      call topol_init()
+      call scrct_init()
+      call ctmpf_init()
+      call scrxxt_init()
+      call scrpr2_init()
+      call fastg_init()
+      call ivrtx_init()
+      call domain_init()
+
+      return
+      end
+c-----------------------------------------------------------------------
       subroutine nek_init(comm)
+      use c_is1_mod
+      use ivrtx_mod
 c
       include 'SIZE'
       include 'TOTAL'
@@ -38,10 +164,15 @@ c      COMMON /SCRCG/ DUMM10(LX1,LY1,LZ1,LELT,1)
       character ctest
       logical ltest 
 
-      common /c_is1/ glo_num(lx1 * ly1 * lz1, lelt)
-      common /ivrtx/ vertex((2 ** ldim) * lelt)
-      integer*8 glo_num, ngv
-      integer*8 vertex
+      integer*8, pointer :: glo_num(:,:)
+      integer*8, pointer :: vertex(:)
+      integer*8 ngv
+
+c     allocate all runtime memory blocks (once) before any cb_* is used.
+      call nek_mem_init
+
+      glo_num(1:lx1*ly1*lz1,1:lelt) => cb_c_is1(1:lx1*ly1*lz1*lelt)
+      vertex(1:(2**ldim)*lelt) => cb_ivrtx(1:(2**ldim)*lelt)
 
       ! set word size for REAL
       wdsize = sizeof(rtest)
@@ -337,11 +468,11 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine nek_end
 
-      include 'mpif.h'
       include 'SIZE'
       include 'TOTAL'
       include 'DPROCMAP'
       include 'RESTART'
+      include 'mpif.h'
 
       if(instep.ne.0) call runstat
 
@@ -357,9 +488,11 @@ c      endif
 #endif
 #endif 
  
-c     rsH (the restart RMA window) is now created+freed per restart inside mfi,
-c     so there is nothing to free here. commrs (the communicator dup) is kept
-c     for possible reuse; MPI_Finalize releases it.
+#ifdef MPI
+      if (commrs .ne. MPI_COMM_NULL) then
+        call MPI_Win_free(rsH, ierr)
+      endif
+#endif
 
       call in_situ_end()
       call exitt0()

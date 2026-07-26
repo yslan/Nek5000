@@ -79,11 +79,11 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       integer function nid_glcount(a,is,n)
 c
-c     returns global nid count in distributed integer array 
+c     returns global nid count in distributed integer array
 c
-      include 'mpif.h'
       include 'SIZE'
       include 'PARALLEL'
+      include 'mpif.h'
 
       integer a(*)
 

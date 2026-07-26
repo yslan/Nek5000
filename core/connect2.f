@@ -107,8 +107,8 @@ C     End of input data, close read file.
      $                             dnekclock()-etime0,' sec'
       endif
 
- 99   call izero(boundaryID, size(boundaryID))
-      call izero(boundaryIDt, size(boundaryIDt))
+  99  call izero(boundaryID, 6*lelv)
+      call izero(boundaryIDt, 6*lelt)
 
       ifld = 2 
       if(ifflow) ifld = 1
@@ -139,6 +139,7 @@ C     End of input data, close read file.
       END
 c-----------------------------------------------------------------------
       subroutine vrdsmsh
+      use scrns_mod
 C
 C=====================================================================
 C     Verify that mesh and dssum are properly defined by performing
@@ -148,9 +149,18 @@ C=====================================================================
 C
       INCLUDE 'SIZE'
       INCLUDE 'TOTAL'
-      COMMON /SCRNS/ TA(LX1,LY1,LZ1,LELT),TB(LX1,LY1,LZ1,LELT)
-     $           ,QMASK(LX1,LY1,LZ1,LELT),tmp(2)
+      real, pointer :: TA(:,:,:,:),TB(:,:,:,:)
+     $               ,QMASK(:,:,:,:),tmp(:)
       CHARACTER*3 CB
+
+      TA   (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      TB   (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      QMASK(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      tmp(1:2) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt+2)
 
 c      call  vrdsmshx  ! verify mesh topology
 
@@ -369,6 +379,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine vrdsmshx  ! verify mesh topology
+      use scrns_mod
 C
 C=====================================================================
 C     Verify that mesh and dssum are properly defined by performing
@@ -378,10 +389,21 @@ C=====================================================================
 C
       INCLUDE 'SIZE'
       INCLUDE 'TOTAL'
-      common /scrns/ tc(lx1,ly1,lz1,lelt),td(lx1,ly1,lz1,lelt)
-     $             , ta(lx1,ly1,lz1,lelt),tb(lx1,ly1,lz1,lelt)
-     $             , qmask(lx1,ly1,lz1,lelt)
+      real, pointer :: tc(:,:,:,:),td(:,:,:,:)
+     $               , ta(:,:,:,:),tb(:,:,:,:)
+     $               , qmask(:,:,:,:)
       CHARACTER*3 CB
+C
+      tc   (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(0*lx1*ly1*lz1*lelt+1 : 1*lx1*ly1*lz1*lelt)
+      td   (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(1*lx1*ly1*lz1*lelt+1 : 2*lx1*ly1*lz1*lelt)
+      ta   (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
+      tb   (1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(3*lx1*ly1*lz1*lelt+1 : 4*lx1*ly1*lz1*lelt)
+      qmask(1:lx1,1:ly1,1:lz1,1:lelt) =>
+     $   cb_scrns(4*lx1*ly1*lz1*lelt+1 : 5*lx1*ly1*lz1*lelt)
 C
       IERR      = 0
       EPS       = 1.0e-04
@@ -555,13 +577,19 @@ c     call exitt
       end
 c-----------------------------------------------------------------------
       subroutine rotat2(xyz,angle,npts)
+      use ctmp0_mod
 C
 C     Rotate NPTS through ANGLE (in two directions IF3D).
 C
       INCLUDE 'SIZE'
       INCLUDE 'INPUT'
       DIMENSION XYZ(3,1)
-      COMMON /CTMP0/ RMTRX(3,3),RX(3,3),RZ(3,3),XYZN(3,10)
+      real, pointer :: RMTRX(:,:),RX(:,:),RZ(:,:),XYZN(:,:)
+C
+      RMTRX(1:3,1:3) => cb_ctmp0(0*9+1 : 1*9)
+      RX   (1:3,1:3) => cb_ctmp0(1*9+1 : 2*9)
+      RZ   (1:3,1:3) => cb_ctmp0(2*9+1 : 3*9)
+      XYZN (1:3,1:10) => cb_ctmp0(3*9+1 : 3*9+30)
 C
       SINA=SIN(ANGLE)
       COSA=COS(ANGLE)
@@ -602,14 +630,21 @@ C
       END
 c-----------------------------------------------------------------------
       subroutine scale(xyzl,nl)
+      use ctmp0_mod
 C
 C     Rescale XYZL such that the mean value of IXX=IYY=IZZ for each element.
 C
       INCLUDE 'SIZE'
       INCLUDE 'INPUT'
       DIMENSION XYZL(3,8,LELT)
-      COMMON /CTMP0/ VO(LELT),XYZI(3,LELT),CG(3,LELT)
-     $              ,TI(6),WORK(6)
+      real, pointer :: VO(:),XYZI(:,:),CG(:,:),TI(:),WORK(:)
+C
+      VO  (1:lelt)   => cb_ctmp0(0*lelt+1 : 1*lelt)
+      XYZI(1:3,1:lelt) => cb_ctmp0(1*lelt+1 : 1*lelt+3*lelt)
+      CG  (1:3,1:lelt) => cb_ctmp0(1*lelt+3*lelt+1 : 1*lelt+6*lelt)
+      TI  (1:6)      => cb_ctmp0(1*lelt+6*lelt+1 : 1*lelt+6*lelt+6)
+      WORK(1:6)      => cb_ctmp0(1*lelt+6*lelt+6+1
+     $                          : 1*lelt+6*lelt+12)
 C
 C     Compute volumes -
 C
@@ -769,6 +804,7 @@ C
       END
 c-----------------------------------------------------------------------
       subroutine divide(list1,list2,nl1,nl2,ifok,list,nl,xyzi,cg,WGT)
+      use ctmp0_mod
 C
 C     Divide the elements associated with this subdomain according to
 C     the direction having the smallest moment of inertia (the "long"
@@ -781,10 +817,14 @@ C
 C
       DIMENSION LIST(LELT),LIST1(LELT),LIST2(LELT)
       DIMENSION XYZI(3),CG(3,LELT),wgt(1)
-      COMMON /CTMP0/ XCG(LELT),YCG(LELT),ZCG(LELT)
+      real, pointer :: XCG(:),YCG(:),ZCG(:)
       REAL IXX,IYY,IZZ
       INTEGER WORK(2),WRK2(2)
       LOGICAL IFOK
+C
+      XCG(1:lelt) => cb_ctmp0(0*lelt+1 : 1*lelt)
+      YCG(1:lelt) => cb_ctmp0(1*lelt+1 : 2*lelt)
+      ZCG(1:lelt) => cb_ctmp0(2*lelt+1 : 3*lelt)
 C
 C     Choose "long" direction:
 C

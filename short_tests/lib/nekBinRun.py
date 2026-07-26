@@ -84,11 +84,12 @@ def run_nek_script(script, rea_file, cwd, log_suffix="", mpi_procs="1"):
 
 
 def run_nek(
-    cwd, rea_file, ifmpi, log_suffix="", n_procs=1, step_limit=None, verbose=False
+    cwd, rea_file, ifmpi, log_suffix="", n_procs=1, step_limit=None, verbose=False,
+    bin="nek5000",
 ):
     # Paths to executables, files
     cwd = Path(cwd)
-    nek5000 = str(cwd / "nek5000")
+    nek5000 = str(cwd / bin)
     logfile = cwd / f"{rea_file}.log.{n_procs}{log_suffix}"
     session_name = cwd / "SESSION.NAME"
     ioinfo = cwd / "ioinfo"
@@ -119,10 +120,12 @@ def run_nek(
 
         if verbose:
             with open(logfile, "w") as file:
-                proc = Popen(command, cwd=cwd, stderr=STDOUT, stdout=PIPE, text=True)
-                for line in proc.stdout:
-                    sys.stdout.write(line)
-                    file.write(line)
+                with Popen(
+                    command, cwd=cwd, stderr=STDOUT, stdout=PIPE, text=True
+                ) as proc:
+                    for line in proc.stdout:
+                        sys.stdout.write(line)
+                        file.write(line)
         else:
             with open(logfile, "w") as file:
                 call(command, cwd=cwd, stdout=file)
@@ -189,10 +192,12 @@ def run_neknek(
 
         if verbose:
             with open(logfile, "w") as file:
-                proc = Popen(command, cwd=cwd, stderr=STDOUT, stdout=PIPE, text=True)
-                for line in proc.stdout:
-                    sys.stdout.write(line)
-                    file.write(line)
+                with Popen(
+                    command, cwd=cwd, stderr=STDOUT, stdout=PIPE, text=True
+                ) as proc:
+                    for line in proc.stdout:
+                        sys.stdout.write(line)
+                        file.write(line)
         else:
             with open(logfile, "w") as file:
                 call(command, cwd=cwd, stdout=file)
