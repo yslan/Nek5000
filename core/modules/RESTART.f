@@ -50,6 +50,6 @@ c
       real*8 rst_etime(4)
       common /rst_tmr/ rst_etime
 
-      integer nhrefrs, hrefcutsrs(lhref)
-      common /hrefinersi/ nhrefrs, hrefcutsrs
+      integer nhrefrs, hrefcutsrs(lhref), nhrefblkrs
+      common /hrefinersi/ nhrefrs, hrefcutsrs, nhrefblkrs
       end module restart_mod

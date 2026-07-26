@@ -413,7 +413,6 @@ C-------------------------------------------------------------
       include 'INPUT'
       include 'ESOLV'
       include 'CTIMER'
-
 C
       real dtx  (lx1*ly1*lz1,lelv)
       real x    (lx2*ly2*lz2,lelv)
@@ -437,9 +436,7 @@ C
      $   cb_ctmp1(3*lx1*ly1*lz1+1 : 4*lx1*ly1*lz1)
 C
 #ifdef TIMER
-      if (icalld.eq.0) tcdtp=0.0
-      icalld=icalld+1
-      ncdtp=icalld
+      ncdtp=ncdtp+1
       etime1=dnekclock()
 #endif
 
@@ -654,9 +651,7 @@ C---------------------------------------------------------------------
       ta3(1:lx1*ly1*lz1) => cb_ctmp1(2*lx1*ly1*lz1+1 : 3*lx1*ly1*lz1)
 C
 #ifdef TIMER
-      if (icalld.eq.0) tmltd=0.0
-      icalld=icalld+1
-      nmltd=icalld
+      nmltd=nmltd+1
       etime1=dnekclock()
 #endif
 
@@ -3387,9 +3382,7 @@ C
      $   write(6,*) 'convop', ifield, ifdeal(ifield)
 
 #ifdef TIMER
-      if (icalld.eq.0) tadvc=0.0
-      icalld=icalld+1
-      nadvc=icalld
+      nadvc=nadvc+1
       etime1=dnekclock()
 #endif
  

@@ -50,16 +50,26 @@ C
          n_scrmg = 8*lelt + 54*lzl*lelt
 
          allocate(cb_scrmg_ct(n_scrmg), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scrmg_ct$',ierr)
          allocate(cb_screv_ct(2*4*6*lelt), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_screv_ct$',ierr)
          allocate(cb_ctmp1_ct(3*3*3*lzl*lelt + 5*6*lelt + 3*8*lelt),
      $            stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_ctmp1_ct$',ierr)
          allocate(cbcs(6,lelt), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cbcs$',ierr)
          allocate(ibrnch(lelt), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc ibrnch$',ierr)
          allocate(nbrnch(lelt), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc nbrnch$',ierr)
          allocate(list(lelt), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc list$',ierr)
          allocate(list1(lelt), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc list1$',ierr)
          allocate(list2(lelt), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc list2$',ierr)
          allocate(ifcnst(6,lelt), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc ifcnst$',ierr)
 
          ioff = 1
          rmxs(1:lelt) => cb_scrmg_ct(ioff : ioff+lelt-1)

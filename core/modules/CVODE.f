@@ -1,10 +1,11 @@
       module cvode_mod
 
+      use size_mod
       implicit none
 c
 c     Variables for the method of characteristics
 c
-      integer cv_lysize   ! depends on SIZE, set in init()
+      integer, parameter :: cv_lysize = lcvx1*lcvy1*lcvz1*lcvelt*ldimt
 
       integer igstype,itmeth
       parameter(
@@ -39,21 +40,21 @@ c
       contains
 
       subroutine init
-         use size_mod
          implicit none
 
          integer ierr, ioff
 
-         cv_lysize = lcvx1*lcvy1*lcvz1*lcvelt*ldimt
-
 c        --- allocate backing arrays ---
 
          allocate(cb_icvode(5), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_icvode$',ierr)
                           ! cv_nfld,cv_iatol,cv_maxl,cv_itask,cv_ipretype
 
          allocate(cb_ilcvode(2), stat=ierr)    ! cv_nlocal, cv_nglobal
+         if (ierr.ne.0) call exitti('alloc cb_ilcvode$',ierr)
 
          allocate(cb_lcvode(3), stat=ierr)   ! ifcvodeinit,ifdqj,ifcvfun
+         if (ierr.ne.0) call exitti('alloc cb_lcvode$',ierr)
 
          allocate(cb_rcvode(
      $        cv_lysize                ! cv_atol
@@ -68,10 +69,13 @@ c        --- allocate backing arrays ---
      $      + 1                        ! cv_timel
      $      + 1                        ! cv_dtnek
      $      + 1), stat=ierr)           ! cv_dtmax
+         if (ierr.ne.0) call exitti('alloc cb_rcvode$',ierr)
 
          allocate(cb_cvrstat(2), stat=ierr)   ! nfe_avg, nli_nni_avg
+         if (ierr.ne.0) call exitti('alloc cb_cvrstat$',ierr)
 
          allocate(cb_cvistat(1 + 21), stat=ierr) ! cv_istep, iout_save
+         if (ierr.ne.0) call exitti('alloc cb_cvistat$',ierr)
 
 c        Group 1: /icvode/
          ioff = 1

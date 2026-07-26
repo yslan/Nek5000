@@ -72,6 +72,7 @@
 c        --- allocate backing arrays ---
 
          allocate(cb_bqcb(lx1*ly1*lz1*lelt*ldimt * 2), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_bqcb$',ierr)
 
          ntotvsol =
      $      (lx1*ly1*lz1*lelv * 6)
@@ -88,6 +89,7 @@ c        --- allocate backing arrays ---
      $    + (lx1*ly1*lz1*lelv*ldim*(lorder+1) * 3)
      $    + (lx1*ly1*lz1*lelv * 3)
          allocate(cb_vptsol(ntotvsol), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_vptsol$',ierr)
 
          allocate(cb_vptsolm(
      $      (lbx1*lby1*lbz1*lbelv * 3)
@@ -95,13 +97,18 @@ c        --- allocate backing arrays ---
      $    + (lbx1*lby1*lbz1*lbelv * 9)
      $    + (lbx1*lby1*lbz1*lbelv*(lorder-1) * 3)
      $    + (lbx2*lby2*lbz2*lbelv*lorder2)), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_vptsolm$',ierr)
 
          allocate(cb_expvis(1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_expvis$',ierr)
          allocate(cb_cbm2(
      $      (lx2*ly2*lz2*lelv)
      $    + (lx2*ly2*lz2*lelv*lorder2)), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_cbm2$',ierr)
          allocate(cb_diverg(lx2*ly2*lz2*lelt * 2), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_diverg$',ierr)
          allocate(cb_p0therm(6), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_p0therm$',ierr)
 
          allocate(cb_vptmsk(
      $      (lx1*ly1*lz1*lelv * 4)
@@ -110,6 +117,7 @@ c        --- allocate backing arrays ---
      $    + (lx1*ly1*lz1*lelv)
      $    + (lx1*ly1*lz1*lelt*ldimt)
      $    + (lbx1*lby1*lbz1*lbelv * 4)), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_vptmsk$',ierr)
 
          ntotvslp =
      $      (lpx1*lpy1*lpz1*lpelv*lpert * 3)
@@ -122,10 +130,10 @@ c        --- allocate backing arrays ---
      $    + (lpx1*lpy1*lpz1*lpelv*lpert * 6)
      $    + (lpx1*lpy1*lpz1*lpelt*ldimt*lpert * 2)
          allocate(cb_pvptsl(ntotvslp), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_pvptsl$',ierr)
 
          allocate(cb_ppointr(1), stat=ierr)
-
-         write(6,*) 'memory allocated'
+         if (ierr.ne.0) call exitti('alloc cb_ppointr$',ierr)
 
 c        Group 1: /bqcb/
          ioff = 1

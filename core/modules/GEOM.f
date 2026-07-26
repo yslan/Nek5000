@@ -75,6 +75,7 @@ c        --- allocate backing arrays ---
      $      + lx2*ly2*lz2*lelv         ! xm2
      $      + lx2*ly2*lz2*lelv         ! ym2
      $      + lx2*ly2*lz2*lelv), stat=ierr) ! zm2
+         if (ierr.ne.0) call exitti('alloc cb_gxyz$',ierr)
 
          allocate(cb_giso1(
      $        lx1*ly1*lz1*lelt         ! rxm1
@@ -88,6 +89,7 @@ c        --- allocate backing arrays ---
      $      + lx1*ly1*lz1*lelt         ! tzm1
      $      + lx1*ly1*lz1*lelt         ! jacm1
      $      + lx1*ly1*lz1*lelt), stat=ierr) ! jacmi
+         if (ierr.ne.0) call exitti('alloc cb_giso1$',ierr)
 
          allocate(cb_giso2(
      $        lx2*ly2*lz2*lelv         ! rxm2
@@ -100,8 +102,10 @@ c        --- allocate backing arrays ---
      $      + lx2*ly2*lz2*lelv         ! szm2
      $      + lx2*ly2*lz2*lelv         ! tzm2
      $      + lx2*ly2*lz2*lelv), stat=ierr) ! jacm2
+         if (ierr.ne.0) call exitti('alloc cb_giso2$',ierr)
 
          allocate(cb_gisod(lxd*lyd*lzd*ldim*ldim*lelv), stat=ierr) ! rx
+         if (ierr.ne.0) call exitti('alloc cb_gisod$',ierr)
 
          allocate(cb_gmfact(
      $        lx1*ly1*lz1*lelt         ! g1m1
@@ -110,6 +114,7 @@ c        --- allocate backing arrays ---
      $      + lx1*ly1*lz1*lelt         ! g4m1
      $      + lx1*ly1*lz1*lelt         ! g5m1
      $      + lx1*ly1*lz1*lelt), stat=ierr) ! g6m1
+         if (ierr.ne.0) call exitti('alloc cb_gmfact$',ierr)
 
          allocate(cb_gsurf(
      $        lx1*lz1*6*lelt           ! unr
@@ -127,6 +132,7 @@ c        --- allocate backing arrays ---
      $      + lx1*lz1*6*lelt           ! area
      $      + lx1*lz1*2*ldim*lelt      ! etalph
      $      + 1), stat=ierr)           ! dlam
+         if (ierr.ne.0) call exitti('alloc cb_gsurf$',ierr)
 
          allocate(cb_gvolm(
      $        lx1m*ly1m*lz1m*lelt      ! vnx
@@ -138,6 +144,7 @@ c        --- allocate backing arrays ---
      $      + lx1m*ly1m*lz1m*lelt      ! v2x
      $      + lx1m*ly1m*lz1m*lelt      ! v2y
      $      + lx1m*ly1m*lz1m*lelt), stat=ierr) ! v2z
+         if (ierr.ne.0) call exitti('alloc cb_gvolm$',ierr)
 
          allocate(cb_glog(
      $        1                        ! ifgeom
@@ -157,10 +164,12 @@ c        --- allocate backing arrays ---
      $      + 8*lelt*2                 ! ifmscr
      $      + 8*lelt                   ! ifnskp
      $      + 1), stat=ierr)           ! ifbcor
+         if (ierr.ne.0) call exitti('alloc cb_glog$',ierr)
 
          allocate(cb_cbbid(
      $        6*lelv                   ! boundaryID
      $      + 6*lelt), stat=ierr)      ! boundaryIDt
+         if (ierr.ne.0) call exitti('alloc cb_cbbid$',ierr)
 
 c        Group 1: /gxyz/
          ioff = 1

@@ -24,7 +24,9 @@ c        ic.f (mfi_gets/mfi_getv: vi(2+lrbs_loc,lelt))
          nvrthov_i = sz_vi
 
          allocate(cb_vrthov(nvrthov), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_vrthov$',ierr)
          allocate(cb_vrthov_i(nvrthov_i), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_vrthov_i$',ierr)
 
       end subroutine init
       end module vrthov_mod

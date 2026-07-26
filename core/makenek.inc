@@ -123,6 +123,7 @@ CASEDIR=`pwd`
 CASENAME=$1
 NODEP=0
 ONLYDEP=0
+NEK_WARN=""
 
 SOURCE_ROOT_BLAS="$NEK_SOURCE_ROOT/3rd_party/blasLapack"
 export SOURCE_ROOT_BLAS
@@ -232,58 +233,67 @@ case $FCcomp in
   *pgf*)       FCPP="-Mpreprocess"
                FR8="-r8"
                FF77="-Mfixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *flang*)
     if is_llvm_flang "$FCcomp"; then
         FCPP="-cpp"
         FR8="-fdefault-real-8 -fdefault-double-8"
         FF77="-w -ffixed-form"
+        MODFLAG='-J$(OBJDIR)'
     else
         # CLASSIC FLANG (Legacy/PGI-based)
         FCPP="-Mpreprocess"
         FR8="-r8"
         FF77="-Mfixed"
+        MODFLAG='-module $(OBJDIR)'
     fi
     ;;
   *nvfortran*) FCPP="-Mpreprocess"
                FR8="-r8"
                FF77="-Mfixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *gfortran*)  FCPP="-cpp"
                FR8="-fdefault-real-8 -fdefault-double-8"
                FF77="-w -std=legacy -ffixed-form"
+               MODFLAG='-J$(OBJDIR)'
                ;;
   *ftn*)       FCPP="-eZ"
                FR8="-sreal64"
                FF77="-fixed"
+               MODFLAG='-J $(OBJDIR)'
                ;;
   *frt*)       FCPP="-Cpp"
                FR8="-CcdRR"
                FF77="-fixed"
+               MODFLAG='-M $(OBJDIR)'
                ;;
   *armflang*)  FCPP="-cpp"
                FR8="-r8"
                FF77="-std=legacy -ffixed-form"
+               MODFLAG='-J$(OBJDIR)'
                ;;
   *ifort*)     FCPP="-fpp"
                FR8="-r8 -fpconstant"
-               F77="-fixed"
+               FF77="-fixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *ifx*)       FCPP="-fpp"
                FR8="-r8 -fpconstant"
-               F77="-fixed"
+               FF77="-fixed"
+               MODFLAG='-module $(OBJDIR)'
                ;;
   *xlf*)       FCPP="-qsuffix=cpp=f"
                FR8="-qrealsize=8 -qdpc=e"
                FF77="-qfixed"
                PPPO="-WF,"
+               MODFLAG='-qmoddir=$(OBJDIR)'
                ;;
   *)  echo "ERROR: Cannot find a supported compiler!"
       echo ""
       read;;
 esac
-
-LONGLONGINT=1
 
 # Check if the compiler adds an underscore to external functions
 UNDERSCORE=0
@@ -411,9 +421,8 @@ export FCPP
 export FR8
 export FF77
 export CC
-export NEK_WARN 
 export MPI
-export MPIO
+export MPIIO
 export UNDERSCORE
 export GSLIB_OPT
 export PARRSB_OPT
@@ -424,15 +433,16 @@ if [ $ONLYDEP -eq 1 ]; then
 fi 
 
 if [ $nargs -eq 0 ]; then
-   NCASEFILES=`find *.usr 2>/dev/null| wc -l`
+   NCASEFILES=$(find *.usr ! -name 'SIZE.usr' 2>/dev/null | wc -l)
    if [ $NCASEFILES == "0" ]; then
      true
    elif [ $NCASEFILES != "1" ]; then
      echo "FATAL ERROR: Found multiple .usr files!"
      echo "Please use makenek [.usr filename]"
+     find *.usr ! -name 'SIZE.usr'
      return 11
    else
-     CASENAME=`find *.usr | sed 's/\.usr$//g'`
+     CASENAME=$(find *.usr ! -name 'SIZE.usr' | sed 's/\.usr$//')
    fi
 fi
 
@@ -452,6 +462,7 @@ sed -e "s:^FC[ ]*=.*:FC=$FC:" \
 -e "s:^LD[ ]*=.*:LD=$LD:" \
 -e "s:^OPT_INCDIR[ ]*=.*:OPT_INCDIR=$OPT_INCDIR:" \
 -e "s:^FFLAGS[ ]*+=.*:FFLAGS+=$FCPP $FR8 $FF77 $FFLAGS:" \
+-e "s:^MODFLAG[ ]*=.*:MODFLAG=$MODFLAG:" \
 -e "s:^CFLAGS[ ]*+=.*:CFLAGS+=$CFLAGS:" \
 -e "s:^LDFLAGS[ ]*+=.*:LDFLAGS+=$LDFLAGS:" \
 -e "s/^PPPO[ ]*=.*/PPPO=$PPPO/" \
@@ -512,7 +523,7 @@ fi
 
 
 if [ "$USR" != "" ]; then
-  echo "###########################################################" >> makefile
+  echo "###########################################################" >> .makefile
   echo "include makefile_usr.inc" >> .makefile
 fi
 
@@ -530,13 +541,62 @@ else
 fi
 \rm .makefile 2>/dev/null
 
+# backward support SIZE and SIZEu
+# Transition aid: legacy SIZE -> canonical SIZE.usr.
+#   - lone SIZE            : auto-migrate (mv SIZE SIZE.usr).
+#   - both, identical      : drop the duplicate SIZE (warn, no prompt).
+#   - both, differ, TTY    : prompt y/N (y=overwrite SIZE.usr with SIZE; N=keep).
+#   - both, differ, no TTY : FATAL, ask the user to resolve (CI/scripted builds
+#     never silently pick one -- a leftover case-dir SIZE also SHADOWS core/SIZE
+#     at compile time, so an unresolved SIZE must not remain).
+if [ -f SIZE ]; then
+  if [ -f SIZE.usr ]; then
+    if cmp -s SIZE SIZE.usr; then
+      rm -f SIZE
+      NEK_WARN+="WARNING: removed duplicate legacy SIZE (identical to SIZE.usr)\n"
+    else
+      ans=N
+      if [ -t 0 ]; then
+        printf "\n"
+        printf "SIZE and SIZE.usr both exist and DIFFER.\n"
+        printf "  SIZE.usr is canonical; SIZE is legacy.\n"
+        printf "  y = overwrite SIZE.usr with legacy SIZE\n"
+        printf "  N = keep SIZE.usr (default)\n"
+        read -r -p "Overwrite SIZE.usr with legacy SIZE? [y/N] " ans </dev/tty
+      fi
+      case "$ans" in
+        y|Y)
+          mv -f SIZE SIZE.usr
+          NEK_WARN+="WARNING: SIZE.usr overwritten by legacy SIZE (user choice)\n"
+          ;;
+        *)
+          echo ""
+          echo "FATAL ERROR: SIZE and SIZE.usr both exist and differ."
+          echo "  Resolve the conflict before continuing. Options:"
+          echo "    - keep SIZE.usr : rm SIZE      (or mv SIZE SIZE.bak)"
+          echo "    - use SIZE      : mv SIZE SIZE.usr"
+          echo "    - Merge changes : port changes from SIZE into SIZE.usr"
+          return 11
+          ;;
+      esac
+    fi
+  else
+    NEK_WARN+="WARNING: SIZE is renamed to SIZE.usr\n"
+    mv SIZE SIZE.usr
+  fi
+fi
+if [ ! -f SIZEu.usr ] && [ -f SIZEu ]; then
+  NEK_WARN+="WARNING: SIZEu is renamed to SIZE.usru\n"
+  mv SIZEu SIZE.usru
+fi
+
 # tweak SIZE.usr file
 if [ -f SIZE.usru ]; then
    if [ -f SIZE.usr ]; then
       echo "FATAL ERROR: found SIZE.usru and SIZE.usr!"
       return 11
    fi
-   NEK_WARN="WARNING: SIZE.usru will be deprecated in a future release!"
+   NEK_WARN+="WARNING: SIZE.usru will be deprecated in a future release!\n"
    mv -v SIZE.usru SIZE.usr
 fi
 
@@ -560,7 +620,7 @@ fi
 
 # tweak leagacy SIZE.usr file
 if ! cat SIZE.usr | grep -q 'SIZE.inc' ; then
-  NEK_WARN="WARNING: Deprecated SIZE.usr will be removed in a future release!"
+  NEK_WARN+="WARNING: Deprecated SIZE.usr will be removed in a future release!\n"
   if ! cat SIZE.usr | grep -qi 'optlevel' ; then
      echo >>SIZE.usr
      echo 'c automatically added by makenek' >>SIZE.usr
@@ -676,8 +736,16 @@ if [ $NODEP -ne 1 ]; then
   build_3rdparty
 fi
 
-if [ -f SIZE ]; then
-    mv SIZE SIZE.usr
+# Collet NEK_WARN to obj/.nekwarn for later echo
+mkdir -p "$CASEDIR/obj"
+\rm -f "$CASEDIR/obj/.nekwarn"
+if [ -n "$NEK_WARN" ]; then
+   printf '%b' "$NEK_WARN" > "$CASEDIR/obj/.nekwarn"
+   # Also echo now (before make runs) so warnings are visible even if the
+   # compilation fails; on success they are shown again before the banner.
+   echo ""
+   printf '%b' "$NEK_WARN"
+   echo ""
 fi
 
 return 0

@@ -50,10 +50,13 @@ c     first time gfldr() is actually called, not at program startup
 c        --- allocate backing arrays ---
 
          allocate(cb_gfldr_r(ltots*(5+ldim)), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_gfldr_r$',ierr)
 
          allocate(cb_gfldr_r4(2*ldim*ltots), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_gfldr_r4$',ierr)
 
          allocate(cb_gfldr_i(3*ltots), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_gfldr_i$',ierr)
 
 c        Group 1: real work arrays
          ioff = 1

@@ -22,6 +22,7 @@ c        lelt>=lelv)
          n = sz
 
          allocate(cb_scrhi(n), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scrhi$',ierr)
 
       end subroutine init
       end module scrhi_mod

@@ -86,13 +86,13 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine userbc (ix,iy,iz,iside,ieg)
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
 c     NOTE ::: This subroutine MAY NOT be called by every process
 
 C     Set boundary conditions
 
-      include 'SIZE'
-      include 'TOTAL'
-      include 'NEKUSE'
 
       ux   = 4.0*y*(1. - y)
       uy   = 0.0
@@ -104,12 +104,12 @@ C     Set boundary conditions
       end
 c-----------------------------------------------------------------------
       subroutine useric (ix,iy,iz,ieg)
-
-C     Set initial conditions
-
       include 'SIZE'
       include 'TOTAL'
       include 'NEKUSE'
+
+C     Set initial conditions
+
 
       ux   = 4.0*y*(1. - y)
       uy   = 0.0

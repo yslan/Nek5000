@@ -20,6 +20,7 @@ c        covers navier4.f's RHS(LTOT2,MXPREV) site since NSET>=1
          northov = lx2*ly2*lz2*lelv*mxprev*nset
 
          allocate(cb_orthov(northov), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_orthov$',ierr)
 
       end subroutine init
       end module orthov_mod

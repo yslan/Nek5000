@@ -59,7 +59,8 @@ $NEK_SOURCE_ROOT/bin/nekconfig $@
 if [[ $1 != "clean" && $1 != "distclean" ]]; then
  $NEK_SOURCE_ROOT/bin/nekconfig -build-dep
  set -o pipefail
- touch $1.usr 
+ CASENAME=`sed -n 's/^CASENAME[ ]*:=[ ]*//p' makefile`
+ touch $CASENAME.usr
  make -j4 2>&1 | tee -a build.log
  set +o pipefail
 fi

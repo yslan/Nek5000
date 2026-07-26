@@ -14,14 +14,14 @@ c
      $               ,tgsmn,tgsmx,teslv,tbbbb,tcccc,tdddd,teeee
      $               ,tvdss,tschw,tadvc,tspro,tgop_sync,tsyc
      $               ,twal,tgp2,tcvf,tproj,tusfq,tuchk
-     $               ,tmakf,tmakq
+     $               ,tmakf,tmakq,tbmhd
       common /ctime2/ tsolv,tgsum,tdsnd,tdadd,tcdtp,tmltd,tprep
      $               ,tpres,thmhz,tgop ,tgop1,tdott,tbsol,tbso2
      $               ,tsett,tslvb,tusbc,tddsl,tcrsl,tdsmx,tdsmn
      $               ,tgsmn,tgsmx,teslv,tbbbb,tcccc,tdddd,teeee
      $               ,tvdss,tschw,tadvc,tspro,tgop_sync,tsyc
      $               ,twal,tgp2,tcvf,tproj,tusfq,tuchk
-     $               ,tmakf,tmakq
+     $               ,tmakf,tmakq,tbmhd
 c
       integer nmxmf,nmxms,ndsum,naxhm,ncopy,ninvc,ninv3
       common /itimer/ nmxmf,nmxms,ndsum,naxhm,ncopy,ninvc,ninv3
@@ -31,13 +31,13 @@ c
      $               ,nsett,nslvb,nusbc,nddsl,ncrsl,ndsmx,ndsmn
      $               ,ngsmn,ngsmx,neslv,nbbbb,ncccc,ndddd,neeee
      $               ,nvdss,nadvc,nspro,ngop_sync,nsyc,nwal,ngp2
-     $               ,ncvf
+     $               ,ncvf,nbmhd
       common /itime2/ nsolv,ngsum,ndsnd,ndadd,ncdtp,nmltd,nprep
      $               ,npres,nhmhz,ngop ,ngop1,ndott,nbsol,nbso2
      $               ,nsett,nslvb,nusbc,nddsl,ncrsl,ndsmx,ndsmn
      $               ,ngsmn,ngsmx,neslv,nbbbb,ncccc,ndddd,neeee
      $               ,nvdss,nadvc,nspro,ngop_sync,nsyc,nwal,ngp2
-     $               ,ncvf
+     $               ,ncvf,nbmhd
 c   
       real*8          pmxmf,pmxms,pdsum,paxhm,pcopy,pinvc,pinv3
      $               ,psolv,pgsum,pdsnd,pdadd,pcdtp,pmltd,pprep
@@ -61,10 +61,6 @@ c
       real*8          etimes,ttotal,tttstp,etims0,ttime
       common /ctime3/ etimes,ttotal,tttstp,etims0,ttime
 c
-      integer icalld
-      save    icalld
-      data    icalld /0/
-
       logical         ifsync
       common /ctimel/ ifsync
       end module ctimer_mod

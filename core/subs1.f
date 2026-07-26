@@ -2834,9 +2834,7 @@ C
      $   write(6,*) 'setprop'
 
 #ifdef TIMER
-      if (icalld.eq.0) tspro=0.0
-      icalld=icalld+1
-      nspro=icalld
+      nspro=nspro+1
       etime1=dnekclock()
 #endif
 

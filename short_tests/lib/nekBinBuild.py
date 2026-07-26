@@ -30,8 +30,10 @@ def build_tools(
     my_env["bin_nek_tools"] = tools_bin
 
     if targets[0] == "core":
-        proc = Popen([maketools_in, "core"], env=my_env, cwd=tools_root, stderr=STDOUT)
-        proc.wait()
+        with Popen(
+            [maketools_in, "core"], env=my_env, cwd=tools_root, stderr=STDOUT
+        ) as proc:
+            proc.wait()
         if proc.returncode != 0:
             targets = [t for t in os.listdir(tools_root) if "maketools" not in t]
             for t in targets:
@@ -52,8 +54,10 @@ def build_tools(
         print("Targets:", targets)
 
     for t in targets:
-        proc = Popen([maketools_in, t], env=my_env, cwd=tools_root, stderr=STDOUT)
-        proc.wait()
+        with Popen(
+            [maketools_in, t], env=my_env, cwd=tools_root, stderr=STDOUT
+        ) as proc:
+            proc.wait()
         logfile = tools_root / t / "build.log"
         if proc.returncode != 0:
             with open(logfile, "r") as file:
@@ -91,16 +95,52 @@ def build_nek(source_root, usr_file, cwd=None, opts=None, verbose=False):
     makenek_in = Path(source_root) / "bin" / "makenek"
     logfile = Path(cwd) / "build.log"
 
-    proc = Popen([makenek_in, "clean"], cwd=cwd, env=my_env, stdin=PIPE, text=True)
-    proc.communicate(input="Y\n")
-    proc.wait()
+    with Popen(
+        [makenek_in, "clean"], cwd=cwd, env=my_env, stdin=PIPE, text=True
+    ) as proc:
+        proc.communicate(input="N\n")
 
-    proc = Popen([makenek_in, usr_file], cwd=cwd, env=my_env, stdin=PIPE, stderr=STDOUT)
-
-    proc.wait()
+    with Popen(
+        [makenek_in, usr_file], cwd=cwd, env=my_env, stderr=STDOUT
+    ) as proc:
+        proc.wait()
 
     if proc.returncode != 0:
         with open(logfile, "r") as file:
             text = file.read()
         print(text)
+        exit(-1)
+
+
+def build_libtest(source_root, driver_path, cwd=None, f77=None, verbose=False):
+    """Link a caller-supplied Fortran driver against libnek5000.a only
+    (no separate *_mod.o), exercising the library/embedding path:
+      make libtest LIBTEST_DRV=<driver.f>
+    Produces ./nek_libtest in cwd. Exits nonzero on link failure so the
+    calling test fails.
+    """
+    print("Linking library test (make libtest)...")
+    print(f'    Using working directory "{cwd}"')
+    print(f'    Using driver "{driver_path}"')
+
+    my_env = os.environ.copy()
+    if source_root:
+        my_env["NEK_SOURCE_ROOT"] = source_root
+    if f77:
+        my_env["FC"] = f77
+
+    logfile = Path(cwd) / "libtest_build.log"
+    with open(logfile, "w") as f:
+        with Popen(
+            ["make", "libtest", f"LIBTEST_DRV={driver_path}"],
+            cwd=cwd,
+            env=my_env,
+            stdout=f,
+            stderr=STDOUT,
+        ) as proc:
+            proc.wait()
+
+    if proc.returncode != 0:
+        with open(logfile, "r") as file:
+            print(file.read())
         exit(-1)

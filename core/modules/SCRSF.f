@@ -20,6 +20,7 @@
          nscrsf = max(sz_stress, sz_avg)
 
          allocate(cb_scrsf(nscrsf), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scrsf$',ierr)
 
       end subroutine init
       end module scrsf_mod

@@ -35,9 +35,13 @@ c
          integer ierr
 
          allocate(na(lelt+1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc na$',ierr)
          allocate(ma(lelt+1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc ma$',ierr)
          allocate(nza(lelt+1), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc nza$',ierr)
          allocate(se_to_gcrs(lcr,lelt), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc se_to_gcrs$',ierr)
 
       end subroutine init
       end module domain_mod

@@ -24,6 +24,7 @@ c        dominates navier8.f (set_up_h1_crs: ia,ja(lcr,lcr,lelv))
          n = sz
 
          allocate(cb_scrxxti(n), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scrxxti$',ierr)
 
       end subroutine init
       end module scrxxti_mod

@@ -80,9 +80,7 @@ c
 
          ! compute pressure
          call copy(prlag,pr,ntot1)
-         if (icalld.eq.0) tpres=0.0
-         icalld=icalld+1
-         npres=icalld
+         npres=npres+1     ! counter zeroed in time00
          etime1=dnekclock()
 
          call crespsp  (respr)
@@ -805,12 +803,7 @@ C
       SMU(1:lx1,1:ly1,1:lz1,1:lelt) =>
      $   cb_scrsf(2*lx1*ly1*lz1*lelt+1 : 3*lx1*ly1*lz1*lelt)
 
-      if (icalld.eq.0) then
-         tusbc=0.0
-         nusbc=0
-         icalld=icalld+1
-      endif
-      nusbc=nusbc+1
+      nusbc=nusbc+1     ! counter/timer zeroed in time00
       etime1=dnekclock()
 C
       IFLD   = 1

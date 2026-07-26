@@ -53,9 +53,7 @@ c
      $          : 1*lx1*ly1*lz1*levb+3*lxx*2*levb)
 
 c
-      if (icalld.eq.0) tsolv=0.0
-      icalld=icalld+1
-      nsolv=icalld
+      nsolv=nsolv+1
 c
       ntot1 = lx1*ly1*lz1*nelv
       ntot2 = lx2*ly2*lz2*nelv

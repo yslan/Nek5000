@@ -26,6 +26,7 @@ c        prepost.f (outpost2: w1,w2,w3(ltot1),wp(ltot2),wt(ltot1,ldimt))
          n = max(sz_hpts, sz_outpost2)
 
          allocate(cb_outtmp(n), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_outtmp$',ierr)
 
       end subroutine init
       end module outtmp_mod

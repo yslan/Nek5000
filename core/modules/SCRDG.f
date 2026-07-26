@@ -32,6 +32,7 @@ c        convect.f (conv_bdry_dg_weak/conv_rhs_dg_weak: + us(lf))
          n = max(sz_fwght, sz_aliased, sz_rhs_dg, sz_dg_weak)
 
          allocate(cb_scrdg(n), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_scrdg$',ierr)
 
       end subroutine init
       end module scrdg_mod

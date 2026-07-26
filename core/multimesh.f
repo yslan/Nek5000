@@ -29,14 +29,12 @@ c-------------------------------------------------------------
 
       include 'SIZE'
       include 'TOTAL'
+      include 'NEKNEK'   ! nfld_neknek
       real dxf,dyf,dzf
 
       integer icalld
       save    icalld
       data    icalld  /0/
-
-      integer nfld_neknek
-      common /inbc/ nfld_neknek
 
       if (icalld.eq.0.and.nid.eq.0) write(6,*) 'setup neknek'
 

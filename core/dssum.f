@@ -50,11 +50,6 @@ c     write(6,*) ifldt,ifield,gsh_fld(ifldt),imesh,' ifldt'
       if (ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) then
-         tdsmx=0.
-         tdsmn=0.
-      endif
-      icalld=icalld+1
       etime1=dnekclock()
 #endif
 
@@ -89,7 +84,7 @@ c
 #ifdef TIMER
       timee=(dnekclock()-etime1)
       tdsum=tdsum+timee
-      ndsum=icalld
+      ndsum=ndsum+1
       tdsmx=max(timee,tdsmx)
       tdsmn=min(timee,tdsmn)
 #endif
@@ -179,10 +174,7 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) tvdss=0.0d0
-      if (icalld.eq.0) tgsum=0.0d0
-      icalld=icalld+1
-      nvdss=icalld
+      nvdss=nvdss+1
       etime1=dnekclock()
 #endif
 
@@ -270,8 +262,7 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      icalld=icalld+1
-      nvdss=icalld
+      nvdss=nvdss+1
       etime1=dnekclock()
 #endif
       call fgslib_gs_op_fields(gs_handle,u,stride,n,1,1,0)
@@ -578,11 +569,6 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) then
-         tdsmx=0.
-         tdsmn=0.
-      endif
-      icalld=icalld+1
       etime1=dnekclock()
 #endif
 c
@@ -617,7 +603,7 @@ c
 #ifdef TIMER
       timee=(dnekclock()-etime1)
       tdsum=tdsum+timee
-      ndsum=icalld
+      ndsum=ndsum+1
       tdsmx=max(timee,tdsmx)
       tdsmn=min(timee,tdsmn)
 #endif
@@ -640,11 +626,6 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) then
-         tdsmx=0.
-         tdsmn=0.
-      endif
-      icalld=icalld+1
       etime1=dnekclock()
 #endif
 c
@@ -682,7 +663,7 @@ c
 #ifdef TIMER
       timee=(dnekclock()-etime1)
       tdsum=tdsum+timee
-      ndsum=icalld
+      ndsum=ndsum+1
       tdsmx=max(timee,tdsmx)
       tdsmn=min(timee,tdsmn)
 #endif
@@ -705,11 +686,6 @@ c
       if(ifsync) call nekgsync()
 
 #ifdef TIMER
-      if (icalld.eq.0) then
-         tdsmx=0.
-         tdsmn=0.
-      endif
-      icalld=icalld+1
       etime1=dnekclock()
 #endif
 
@@ -749,7 +725,7 @@ c
 #ifdef TIMER
       timee=(dnekclock()-etime1)
       tdsum=tdsum+timee
-      ndsum=icalld
+      ndsum=ndsum+1
       tdsmx=max(timee,tdsmx)
       tdsmn=min(timee,tdsmn)
 #endif

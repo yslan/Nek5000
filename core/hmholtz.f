@@ -5,6 +5,10 @@ c=======================================================================
       include 'FDMH1'
       include 'CTIMER'
 
+      integer icalld
+      save    icalld
+      data    icalld /0/
+
       CHARACTER      NAME*4
       REAL           U    (LX1,LY1,LZ1,1)
       REAL           RHS  (LX1,LY1,LZ1,1)
@@ -1519,8 +1523,7 @@ C
       real           h2   (lx1,ly1,lz1,1)
       real           mask (lx1,ly1,lz1,1)
 
-      icalld=icalld+1
-      nhmhz=icalld
+      nhmhz=nhmhz+1
       etime1=dnekclock()
 
       if (ifield.eq.2) then

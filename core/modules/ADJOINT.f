@@ -48,19 +48,24 @@ c        --- allocate backing arrays ---
      $      + lx1*ly1*lz1*lelt         ! tpadj
      $      + lx1*ly1*lz1*lelt         ! tpadjold
      $      + 1), stat=ierr)           ! alpha_max
+         if (ierr.ne.0) call exitti('alloc cb_adj_real$',ierr)
 
          allocate(cb_adj_integer(2), stat=ierr) ! npassadj, maxpassadj
+         if (ierr.ne.0) call exitti('alloc cb_adj_integer$',ierr)
 
          allocate(cb_adj_logical(1), stat=ierr) ! ifadj
+         if (ierr.ne.0) call exitti('alloc cb_adj_logical$',ierr)
 
          allocate(cb_dtgrad(
      $        lx1*ly1*lz1*lelt         ! dTdx
      $      + lx1*ly1*lz1*lelt         ! dTdy
      $      + lx1*ly1*lz1*lelt), stat=ierr) ! dTdz
+         if (ierr.ne.0) call exitti('alloc cb_dtgrad$',ierr)
 
          allocate(cb_gravity_adjoint(
      $        3                        ! g_adj
      $      + lx1*ly1*lz1*lelt), stat=ierr) ! beta_b
+         if (ierr.ne.0) call exitti('alloc cb_gravity_adjoint$',ierr)
 
 c        Group 1: /adj_real/
          ioff = 1

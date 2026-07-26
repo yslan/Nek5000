@@ -34,7 +34,7 @@ c
       real    norm_fac
       save    norm_fac
 c
-      real*8 etime1,dnekclock
+      real*8 etime1,etime2,dnekclock
 c
       wk1(1:lgmres) => cb_ctmp0(0*lgmres+1 : 1*lgmres)
       wk2(1:lgmres) => cb_ctmp0(1*lgmres+1 : 2*lgmres)
@@ -341,7 +341,7 @@ c     data    iflag,if_hyb  /.false. , .true. /
       real    norm_fac
       save    norm_fac
 
-      real*8 etime1,dnekclock
+      real*8 etime1,etime2,dnekclock
 
       wk1(1:lgmres) => cb_ctmp0(0*lgmres+1 : 1*lgmres)
       wk2(1:lgmres) => cb_ctmp0(1*lgmres+1 : 2*lgmres)

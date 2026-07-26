@@ -50,6 +50,7 @@ c        hrefine.f (h_refine_usrdat2: glo_num(lx1*ly1*lz1*lelt))
      $           sz_gmres, sz_convect, sz_hsmg_v, sz_hsmg_t, sz_hrefine)
 
          allocate(cb_c_is1(n), stat=ierr)
+         if (ierr.ne.0) call exitti('alloc cb_c_is1$',ierr)
 
       end subroutine init
       end module c_is1_mod
