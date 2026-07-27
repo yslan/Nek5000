@@ -4,17 +4,16 @@
 
       real*4,  allocatable, target :: cb_vrthov(:)
 
-c     mfi restart: crystal fan-in/fan-out handshake index (CSR), shared by
-c     mfi_redist_plan / mfi_redist_round / mfi_redist_round_rma. Kept a static
-c     common (small, constant in problem size ~56 KB/rank), consolidated into
-c     this restart-scratch module instead of a separate MFI_HS.f.
-      integer, parameter :: lbrst_max = 1024 ! send-side bound: batch elems
-c     handshake recv bound: a dest gets <= its whole local field per batch, so
-c     #contributing sources <= recvcnt <= nelt_hr0 <= lelt (independent of np).
+c     mfi restart: crystal handshake work arrays, shared by
+c     mfi_redist_plan / mfi_redist_round_cr / mfi_redist_round_rma.
+c     All arrays bound by lhs_mx=lelt:
+c       send-side: nb<=lelt elems/batch;
+c       recv-side (it): #rows n1 <= recvcnt <= nelt_hr0 <= lelt (indep. of np)
+c       actual usage << lelt (depends on #dests/#sources per rank)
       integer, parameter :: lhs_mx = lelt
       integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
-      common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
-     $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
+      common /mfi_hs/ kv(2,lhs_mx),ord(lhs_mx),ioff(lhs_mx+1),
+     $               dstlist(lhs_mx),cnt(lhs_mx),boff(lhs_mx),
      $               it(3,lhs_mx),ndest
 
       contains
@@ -32,9 +31,6 @@ c        ic.f (mfi_gets/mfi_getv: w2(lrbs), lrbs=20*lx1*ly1*lz1*lelt)
 
          allocate(cb_vrthov(nvrthov), stat=ierr)
          if (ierr.ne.0) call exitti('alloc cb_vrthov$',ierr)
-
-c        cb_vrthov_i (the pre-fusion CR receive tuple `vi`) is gone: the fused
-c        reader receives into wk (/scrns/), not a dedicated integer buffer.
 
       end subroutine init
       end module vrthov_mod
