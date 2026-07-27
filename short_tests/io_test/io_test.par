@@ -1,6 +1,18 @@
+#
+# io_test -- checkpoint I/O / restart regression case.
+#
+# numsteps=0: userchk runs the I/O read/write tests then exitt (no time
+# stepping), so solver tolerances are unused and omitted here. NekTests.py
+# overrides the userparams and [MESH] hrefine per variant; the values below
+# are the clean defaults for a stand-alone run.
+#
 [GENERAL]
 numsteps = 0
 writeinterval = 0
+# userparam02: redistribution   0 = crystal router (CR), 1 = MPI-RMA
+# userparam03: high-order hio    0 = off, 1 = write FP64 ckpt, 2 = read it
+# userparam06: lbrst  (read-batch size)        0 = default (whole field)
+# userparam07: lrcv   (per-round receive cap)  0 = default (auto)
 userparam02 = 0
 userparam03 = 0
 userparam06 = 0
@@ -8,7 +20,8 @@ userparam07 = 0
 loglevel = 2
 
 [MESH]
-hrefine = 2,2
+# hrefine: 1 = off; 2 / 3 / 2,2 exercised by NekTests
+hrefine = 1
 
 [VELOCITY]
 density = 1
@@ -25,4 +38,3 @@ diffusivity = 0.1
 [SCALAR02]
 density = 1.0
 diffusivity = 0.1
-
