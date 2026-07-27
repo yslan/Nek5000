@@ -1,13 +1,25 @@
       module vrthov_mod
-
+      include 'SIZE'            ! = use size_mod: lelt for the /mfi_hs/ bound
       implicit none
 
       real*4,  allocatable, target :: cb_vrthov(:)
 
+c     mfi restart: crystal fan-in/fan-out handshake index (CSR), shared by
+c     mfi_redist_plan / mfi_redist_round / mfi_redist_round_rma. Kept a static
+c     common (small, constant in problem size ~56 KB/rank), consolidated into
+c     this restart-scratch module instead of a separate MFI_HS.f.
+      integer, parameter :: lbrst_max = 1024 ! send-side bound: batch elems
+c     handshake recv bound: a dest gets <= its whole local field per batch, so
+c     #contributing sources <= recvcnt <= nelt_hr0 <= lelt (independent of np).
+      integer, parameter :: lhs_mx = lelt
+      integer kv,ord,ioff,dstlist,cnt,boff,it,ndest
+      common /mfi_hs/ kv(2,lbrst_max),ord(lbrst_max),ioff(lbrst_max+1),
+     $               dstlist(lbrst_max),cnt(lbrst_max),boff(lbrst_max),
+     $               it(3,lhs_mx),ndest
+
       contains
 
       subroutine init
-         use size_mod
          implicit none
 
          integer ierr, nvrthov

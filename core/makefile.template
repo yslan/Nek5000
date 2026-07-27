@@ -87,7 +87,6 @@ $(OBJDIR)/input_mod.o \
 $(OBJDIR)/ivrtx_mod.o \
 $(OBJDIR)/ixyz_mod.o \
 $(OBJDIR)/mass_mod.o \
-$(OBJDIR)/mfi_hs_mod.o \
 $(OBJDIR)/mvgeom_mod.o \
 $(OBJDIR)/neknek_mod.o \
 $(OBJDIR)/nekuse_mod.o \
@@ -355,7 +354,6 @@ $(OBJDIR)/input_mod.o	:$(MODDIR)/INPUT.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o 
 $(OBJDIR)/ivrtx_mod.o	:$(MODDIR)/IVRTX.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
 $(OBJDIR)/ixyz_mod.o	:$(MODDIR)/IXYZ.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
 $(OBJDIR)/mass_mod.o	:$(MODDIR)/MASS.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
-$(OBJDIR)/mfi_hs_mod.o	:$(MODDIR)/MFI_HS.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
 $(OBJDIR)/mvgeom_mod.o	:$(MODDIR)/MVGEOM.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
 $(OBJDIR)/neknek_mod.o	:$(MODDIR)/NEKNEK.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@
 $(OBJDIR)/nekuse_mod.o	:$(MODDIR)/NEKUSE.f $(SMOD);	$(FC) -c $(FL2) $(FMOD) $< -o $@

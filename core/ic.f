@@ -1953,7 +1953,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine mfi_gets(u,wk,lwk,iskip)
-      use vrthov_mod
+      use vrthov_mod, only : cb_vrthov
 
       include 'SIZE'
       include 'INPUT'
@@ -2170,7 +2170,7 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
       end
 c-----------------------------------------------------------------------
       subroutine mfi_getv(u,v,w,wk,lwk,iskip)
-      use vrthov_mod
+      use vrthov_mod, only : cb_vrthov
 
       include 'SIZE'
       include 'INPUT'
@@ -2390,7 +2390,7 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
       end
 c-----------------------------------------------------------------------
       subroutine mfi_redist_plan(ke,nb,cap,nrounds,recvcnt,ierr)
-      use mfi_hs_mod            ! /mfi_hs/ index (kv,ord,ioff,dstlist,cnt,boff,it,ndest)
+      use vrthov_mod            ! /mfi_hs/ index (kv,ord,ioff,dstlist,cnt,boff,it,ndest)
 c
 c     Plan the bounded-receive redistribution for ONE read batch:
 c     (1) CSR index: group the nb file-order elements er(ke+1..ke+nb)
@@ -2494,7 +2494,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine mfi_redist_round(r,cap,nmx,vi,li,w2,nxyzr,ke,n,ierr)
-      use mfi_hs_mod            ! /mfi_hs/ index (ord,ioff,dstlist,cnt,boff,ndest)
+      use vrthov_mod            ! /mfi_hs/ index (ord,ioff,dstlist,cnt,boff,ndest)
 c
 c     One bounded redistribution round r (0-based) of the current batch:
 c     pack this rank's elements with global stream position in
@@ -2544,7 +2544,7 @@ c
 c-----------------------------------------------------------------------
       subroutine mfi_redist_round_rma(r,cap,nmx,vi,li,w2,nxyzr,
      $                                ke,recvcnt,n,ierr)
-      use mfi_hs_mod            ! /mfi_hs/ index (ord,ioff,dstlist,cnt,boff,ndest)
+      use vrthov_mod            ! /mfi_hs/ index (ord,ioff,dstlist,cnt,boff,ndest)
 c
 c     RMA counterpart of mfi_redist_round: same /mfi_hs/ index + boff, but
 c     MPI_Put each tuple into a compact stream-position window (rsH, bound to
@@ -2558,7 +2558,7 @@ c
       include 'PARALLEL'        ! nid
       include 'RESTART'         ! er, rsH, rst_etime
       include 'mpif.h'
-      parameter(lrcv_mx=min(lbrst_max,lelt)) ! <=lelt (see mfi_gets); lbrst_max from mfi_hs_mod
+      parameter(lrcv_mx=min(lbrst_max,lelt)) ! <=lelt (see mfi_gets); lbrst_max from vrthov_mod
       integer vi(li,1)
       real*4  w2(1)
       integer idst(lrcv_mx),idsp(lrcv_mx)
