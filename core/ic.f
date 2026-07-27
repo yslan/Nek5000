@@ -2546,8 +2546,11 @@ c     id is the dest-local index gllel(er(ke+e)) (gllel: replicated array in the
 c     default build, dProcmapGet function under -DDPROCMAP -- either way a local
 c     read on the sender for the array build). It is STAGED in a local idstage
 c     buffer (not in wk: wk is the exposed window that remote ranks Put into) so
-c     the Put source stays live and distinct through the fence epoch. The
-c     receiver applies ie_map_r2o (h-refine block remap) in mfi_assign_win.
+c     the Put source stays live and distinct through the fence epoch. Staging is
+c     fused into the transport loop: idstage is a private (non-window) buffer, so
+c     writing it inside the epoch is unrestricted, and each slot is written once
+c     just before its own Put and never touched again before the closing fence.
+c     The receiver applies ie_map_r2o (h-refine block remap) in mfi_assign_win.
 c
       include 'SIZE'
       include 'PARALLEL'        ! nid, gllel (global->local elem map)
@@ -2567,24 +2570,7 @@ c
 #ifdef MPI
       ioid = cap*nx              ! id-region base in the remote window (both agree)
 
-      ! ---- stage this round's dest-local ids (payload Puts straight from w2) ----
-      etime0 = dnekclock_sync()
-      nsend = 0
-      do d = 1,ndest
-        jlo = r*cap - boff(d)
-        if (jlo.lt.0) jlo = 0
-        jhi = (r+1)*cap - 1 - boff(d)
-        if (jhi.gt.cnt(d)-1) jhi = cnt(d)-1
-        do j = jlo,jhi
-          e = ord(ioff(d)+1+j)          ! original batch pos (1-based)
-          nsend = nsend + 1
-          idstage(nsend) = gllel(er(ke+e)) ! dest-local id (receiver adds ie_map_r2o)
-        enddo
-      enddo
-      if (nsend.gt.cap) ierr = 1
-      rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
-
-      ! ---- transport: payload (from w2) + id (from idstage) into rsH (fence) ----
+      ! ---- transport: stage id + Put payload (w2) + id, all in one epoch ----
       etime0 = dnekclock_sync()
       call MPI_Win_fence(0,rsH,ierr)
       nsend = 0
@@ -2594,18 +2580,20 @@ c
         jhi = (r+1)*cap - 1 - boff(d)
         if (jhi.gt.cnt(d)-1) jhi = cnt(d)-1
         do j = jlo,jhi
-          e    = ord(ioff(d)+1+j)
+          e     = ord(ioff(d)+1+j)          ! original batch pos (1-based)
           nsend = nsend + 1
-          slot = boff(d)+j - r*cap       ! compact 0-based window slot
-          disp = int(slot,8)*int(nx,8)   ! payload region
+          idstage(nsend) = gllel(er(ke+e))  ! dest-local id (recv adds ie_map_r2o)
+          slot  = boff(d)+j - r*cap          ! compact 0-based window slot
+          disp  = int(slot,8)*int(nx,8)      ! payload region
           call MPI_Put(w2((e-1)*nx+1),nx,MPI_REAL4,dstlist(d),
      $                 disp,nx,MPI_REAL4,rsH,ierr)
-          disp = int(ioid+slot,8)        ! id region
+          disp  = int(ioid+slot,8)           ! id region
           call MPI_Put(idstage(nsend),1,MPI_INTEGER,dstlist(d),
      $                 disp,1,MPI_INTEGER,rsH,ierr)
         enddo
       enddo
       call MPI_Win_fence(0,rsH,ierr)
+      if (nsend.gt.cap) ierr = 1
       rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
 #endif
 
