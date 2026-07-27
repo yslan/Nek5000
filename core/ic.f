@@ -1963,13 +1963,11 @@ c-----------------------------------------------------------------------
 
       real u(lx1*ly1*lz1,1)
 
-c     wk (/scrns/, free during mfi): for CR the whole 2*lwk is the in-place
-c     send+recv buffer; for RMA the 1st half is the send-pack buffer and the 2nd
-c     half (wk(lwk+1..)) is the MPI window (created in mfi). Carved at RUNTIME
-c     tuple width li=2+nxyzr so the common case holds the whole field in one
-c     round. It is an integer tuple buffer viewed through the real*4 dummy
-c     (byte-copy punning); the redist/assign routines declare it integer via
-c     their adjustable (li,1) dummy.
+c     wk (/scrns/, free during mfi): CR uses the whole 2*lwk as the in-place
+c     crystal send+recv tuple buffer (integer tuples viewed via the real*4 dummy,
+c     byte-copy punning). RMA (strategy D) exposes the whole 2*lwk as the MPI
+c     window (created in mfi): payload is Put direct from w2, so wk is receive-
+c     only, split per round into [payload][id] at cap*nxyzr (see mfi_assign_win).
       real*4 wk(2*lwk)
 
 c     w2: file-order read buffer, a pointer into cb_vrthov (GFLDR read buffer;
@@ -1986,7 +1984,7 @@ c     lbrst_max caps a read batch -> 'd' check.
 
       real*8 etime0,dnekclock_sync
 
-      integer r,cap,recvcnt,nrounds,li,mtup,mwin ! redist state + wk sizing
+      integer r,cap,recvcnt,nrounds,li,mtup ! redist state + wk sizing
       integer v_nbat,v_rmn,v_rmx,v_rsum,v_rcvmx ! verbose only (loglevel>2)
       logical iskip,is_reader
       integer*8 i8tmp
@@ -1996,17 +1994,16 @@ c     lbrst_max caps a read batch -> 'd' check.
       nxyzr = nxr*nyr*nzr            ! words per element (x2 if FP64)
       if (wdsizr.eq.8) nxyzr = 2*nxyzr
 
-      li = 2 + nxyzr                 ! runtime tuple width [nid,iel,payload]
-c     wk capacity in tuples. CR routes IN PLACE, so the whole wk (2*lwk) is the
-c     send+recv buffer. RMA needs a send-pack buffer AND the window at once, so
-c     wk is split: 1st half = send (mtup), 2nd half = window (mwin, over wk(lwk+1)
-c     in mfi). One tuple must fit each region (guards 'f'/'g').
+      li = 2 + nxyzr                 ! CR tuple width [nid,iel,payload]
+c     mtup = per-round redistribution capacity (elements) in wk (2*lwk real*4):
+c     CR routes interleaved tuples [nid,iel,payload] in place (width li). RMA
+c     (strategy D) Puts payload direct from w2 into a two-region window
+c     [data...][id...] (width nxyzr+1: nxyzr payload words + 1 id int). Either
+c     way the whole wk is used; one element must fit (guard 'f').
       if (ifcrrs) then
         mtup = (2*lwk)/li
-        mwin = 0
       else
-        mtup = lwk/li
-        mwin = lwk/li
+        mtup = (2*lwk)/(nxyzr+1)
       endif
 
       ! check w2 fits (nelrr = elements per read pass; legacy sizing check)
@@ -2019,15 +2016,17 @@ c     in mfi). One tuple must fit each region (guards 'f'/'g').
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_gets b')
-c     one element must fit the read buffer w2 ('e') and one tuple must fit the
-c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
+c     one element must fit the read buffer w2 ('e') and one element's redist
+c     unit must fit wk ('f'); both broadcast-consistent -> collective abort.
       call lim_chk(nxyzr,lrbs,'     ','     ','mfi_gets e')
       if (np.gt.1) then
-        call lim_chk(li,2*lwk,'     ','     ','mfi_gets f') ! tuple fits wk
+        if (ifcrrs) then
+          call lim_chk(li,2*lwk,'     ','     ','mfi_gets f') ! tuple fits wk
+        else
+          call lim_chk(nxyzr+1,2*lwk,'     ','     ','mfi_gets f') ! data+id fit
+        endif
         call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_gets c') ! payload/elem
         call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_gets d') ! batch
-        if (.not.ifcrrs)
-     $  call lim_chk(li,lwk,'     ','     ','mfi_gets g') ! tuple fits window
       endif
 
       ! read batching: this reader owns nelr file elements; it reads them nbe
@@ -2090,14 +2089,10 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
           else
 
             ! plan the batch: bounded rounds to deliver it. cap = recv per
-            ! round; default = as many as fit (whole field in 1 round when it
-            ! fits): mtup for the wk send/recv buffer, also mwin for the RMA
-            ! window. lrcv>0 lowers it.
-            if (ifcrrs) then
-              cap = mtup
-            else
-              cap = min(mtup,mwin)
-            endif
+            ! round = as many elements as fit wk (whole field in 1 round when it
+            ! fits) = mtup; lrcv>0 lowers it. Same cap for CR and RMA (mtup
+            ! already reflects each path's per-element width).
+            cap = mtup
             if (lrcv.gt.0) cap = min(lrcv,cap)
             call mfi_redist_plan(k,nbe_cur,cap,nrounds,recvcnt,ierr)
             ierr = iglsum(ierr,1)  ! collective: bail uniformly (loop below)
@@ -2110,24 +2105,23 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
             if (recvcnt.gt.v_rcvmx) v_rcvmx=recvcnt
 
             do r = 0,nrounds-1
-              ! redistribute round r into the wk recv buffer (runtime li)
-              if (ifcrrs) then         ! crystal router: wk = send+recv
+              if (ifcrrs) then         ! crystal router: wk = send+recv tuples
                 call mfi_redist_round(r,cap,mtup,wk,li,
      $                                w2,nxyzr,k,n,ierr)
-              else                     ! MPI_Put; send=wk 1st half,win=2nd
-                call mfi_redist_round_rma(r,cap,mtup,wk,li,
-     $                                w2,nxyzr,k,recvcnt,n,ierr)
+              else                     ! RMA: payload Put from w2 + id Put -> wk
+                call mfi_redist_round_rma(r,cap,nxyzr,w2,
+     $                                k,recvcnt,n,ierr)
               endif
               ierr = iglsum(ierr,1)  ! collective: bail uniformly on overflow
               if (ierr.ne.0) goto 100
 
-              ! assign the n received elements (runtime-li adjustable view)
+              ! assign the n received elements
               etime0 = dnekclock_sync()
-              if (ifcrrs) then         ! from wk (crystal recv)
-                call mfi_assign_recv(wk  ,li,n,1,u,u,u,
+              if (ifcrrs) then         ! from wk tuples (crystal recv)
+                call mfi_assign_recv(wk,li,n,1,u,u,u,
      $                    nxr,nyr,nzr,wdsizr,if_byte_sw,nhrefblkrs,ierr)
-              else                     ! from the window (2nd half of wk)
-                call mfi_assign_recv(wk(lwk+1),li,n,1,u,u,u,
+              else                     ! from the wk two-region window [data][id]
+                call mfi_assign_win(wk,nxyzr,cap,n,r*cap,1,u,u,u,
      $                    nxr,nyr,nzr,wdsizr,if_byte_sw,nhrefblkrs,ierr)
               endif
               ! (no nekgsync: next round's crystal transfer / Win_fence syncs)
@@ -2156,7 +2150,7 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
           write(6,*) 'mfi_gets  round: cap=',cap,' bound by lrcv=',lrcv
         else
           write(6,*) 'mfi_gets  round: cap=',cap,
-     $        ' bound by wk default (mtup=',mtup,' mwin=',mwin,')'
+     $        ' bound by wk (mtup=',mtup,' ifcrrs=',ifcrrs,')'
         endif
       endif
 
@@ -2181,9 +2175,9 @@ c-----------------------------------------------------------------------
       real u(lx1*ly1*lz1,1),v(lx1*ly1*lz1,1),w(lx1*ly1*lz1,1)
       logical iskip
 
-c     wk (/scrns/): CR uses the whole 2*lwk in place; RMA splits it (1st half
-c     send-pack, 2nd half wk(lwk+1..) = the MPI window). Runtime tuple width
-c     li=2+nxyzr. (See mfi_gets for the real*4-over-integer punning.)
+c     wk (/scrns/): CR uses the whole 2*lwk as in-place send+recv tuples; RMA
+c     (strategy D) uses the whole 2*lwk as the receive window (payload Put direct
+c     from w2), split per round into [payload][id]. (See mfi_gets.)
       real*4 wk(2*lwk)
 
 c     w2: file-order read buffer, a pointer into cb_vrthov (GFLDR read buffer;
@@ -2199,7 +2193,7 @@ c     lelem_mx = vector payload bound (mapab nxr<=lx1+6, x2 FP64) -> 'c' check.
 
       real*8 etime0,dnekclock_sync
 
-      integer r,cap,recvcnt,nrounds,li,mtup,mwin ! redist state + wk sizing
+      integer r,cap,recvcnt,nrounds,li,mtup ! redist state + wk sizing
       integer v_nbat,v_rmn,v_rmx,v_rsum,v_rcvmx ! verbose only (loglevel>2)
       logical is_reader
       integer*8 i8tmp
@@ -2209,17 +2203,14 @@ c     lelem_mx = vector payload bound (mapab nxr<=lx1+6, x2 FP64) -> 'c' check.
       nxyzr = ldim*nxr*nyr*nzr       ! words per element (all comps, x2 FP64)
       if (wdsizr.eq.8) nxyzr = 2*nxyzr
 
-      li = 2 + nxyzr                 ! runtime tuple width [nid,iel,payload]
-c     wk capacity in tuples. CR routes IN PLACE, so the whole wk (2*lwk) is the
-c     send+recv buffer. RMA needs a send-pack buffer AND the window at once, so
-c     wk is split: 1st half = send (mtup), 2nd half = window (mwin, over wk(lwk+1)
-c     in mfi). One tuple must fit each region (guards 'f'/'g').
+      li = 2 + nxyzr                 ! CR tuple width [nid,iel,payload]
+c     mtup = per-round redist capacity (elements) in wk (see mfi_gets): CR
+c     interleaved tuples (width li); RMA (strategy D) two-region window
+c     [data...][id...] (width nxyzr+1). Whole wk used either way.
       if (ifcrrs) then
         mtup = (2*lwk)/li
-        mwin = 0
       else
-        mtup = lwk/li
-        mwin = lwk/li
+        mtup = (2*lwk)/(nxyzr+1)
       endif
 
       ! check w2 fits (nelrr = elements per read pass; legacy sizing check)
@@ -2232,15 +2223,17 @@ c     in mfi). One tuple must fit each region (guards 'f'/'g').
       endif
       call bcast(nelrr,4)
       call lim_chk(nxyzr*nelrr,lrbs,'     ','     ','mfi_getv b')
-c     one element must fit the read buffer w2 ('e') and one tuple must fit the
-c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
+c     one element must fit w2 ('e') and one element's redist unit must fit wk
+c     ('f'); both broadcast-consistent -> collective abort.
       call lim_chk(nxyzr,lrbs,'     ','     ','mfi_getv e')
       if (np.gt.1) then
-        call lim_chk(li,2*lwk,'     ','     ','mfi_getv f') ! tuple fits wk
+        if (ifcrrs) then
+          call lim_chk(li,2*lwk,'     ','     ','mfi_getv f') ! tuple fits wk
+        else
+          call lim_chk(nxyzr+1,2*lwk,'     ','     ','mfi_getv f') ! data+id fit
+        endif
         call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_getv c') ! payload/elem
         call lim_chk(lbrst,lbrst_max,'     ','     ','mfi_getv d') ! batch
-        if (.not.ifcrrs)
-     $  call lim_chk(li,lwk,'     ','     ','mfi_getv g') ! tuple fits window
       endif
 
       ! read batching: see mfi_gets. nbe elems/batch (bounded by lbrst, w2, and
@@ -2308,15 +2301,10 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
 #ifdef MPI
           else
 
-            ! plan the batch: bounded rounds. cap = recv per round; default =
-            ! as many as fit (whole field in 1 round when it fits): mtup for
-            ! the wk send/recv buffer, also mwin for the RMA window. lrcv>0
-            ! lowers it.
-            if (ifcrrs) then
-              cap = mtup
-            else
-              cap = min(mtup,mwin)
-            endif
+            ! plan the batch: bounded rounds. cap = recv per round = mtup (as
+            ! many elements as fit wk; mtup reflects each path's per-element
+            ! width); lrcv>0 lowers it. Same cap for CR and RMA.
+            cap = mtup
             if (lrcv.gt.0) cap = min(lrcv,cap)
             call mfi_redist_plan(k,nbe_cur,cap,nrounds,recvcnt,ierr)
             ierr = iglsum(ierr,1)  ! collective: bail uniformly (loop below)
@@ -2329,24 +2317,23 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
             if (recvcnt.gt.v_rcvmx) v_rcvmx=recvcnt
 
             do r = 0,nrounds-1
-              ! redistribute round r into the wk recv buffer (runtime li)
-              if (ifcrrs) then         ! crystal router: wk = send+recv
+              if (ifcrrs) then         ! crystal router: wk = send+recv tuples
                 call mfi_redist_round(r,cap,mtup,wk,li,
      $                                w2,nxyzr,k,n,ierr)
-              else                     ! MPI_Put; send=wk 1st half,win=2nd
-                call mfi_redist_round_rma(r,cap,mtup,wk,li,
-     $                                w2,nxyzr,k,recvcnt,n,ierr)
+              else                     ! RMA: payload Put from w2 + id Put -> wk
+                call mfi_redist_round_rma(r,cap,nxyzr,w2,
+     $                                k,recvcnt,n,ierr)
               endif
               ierr = iglsum(ierr,1)  ! collective: bail uniformly on overflow
               if (ierr.ne.0) goto 100
 
-              ! assign the n received elements (u,v,w; runtime-li view)
+              ! assign the n received elements (u,v,w)
               etime0 = dnekclock_sync()
-              if (ifcrrs) then         ! from wk (crystal recv)
-                call mfi_assign_recv(wk  ,li,n,ldim,u,v,w,
+              if (ifcrrs) then         ! from wk tuples (crystal recv)
+                call mfi_assign_recv(wk,li,n,ldim,u,v,w,
      $                    nxr,nyr,nzr,wdsizr,if_byte_sw,nhrefblkrs,ierr)
-              else                     ! from the window (2nd half of wk)
-                call mfi_assign_recv(wk(lwk+1),li,n,ldim,u,v,w,
+              else                     ! from the wk two-region window [data][id]
+                call mfi_assign_win(wk,nxyzr,cap,n,r*cap,ldim,u,v,w,
      $                    nxr,nyr,nzr,wdsizr,if_byte_sw,nhrefblkrs,ierr)
               endif
               ! (no nekgsync: next round's crystal transfer / Win_fence syncs)
@@ -2375,7 +2362,7 @@ c     wk send/recv buffer ('f'); both broadcast-consistent -> collective abort.
           write(6,*) 'mfi_getv  round: cap=',cap,' bound by lrcv=',lrcv
         else
           write(6,*) 'mfi_getv  round: cap=',cap,
-     $        ' bound by wk default (mtup=',mtup,' mwin=',mwin,')'
+     $        ' bound by wk (mtup=',mtup,' ifcrrs=',ifcrrs,')'
         endif
       endif
 
@@ -2542,29 +2529,35 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      subroutine mfi_redist_round_rma(r,cap,nmx,vi,li,w2,nxyzr,
-     $                                ke,recvcnt,n,ierr)
+      subroutine mfi_redist_round_rma(r,cap,nx,w2,ke,recvcnt,n,ierr)
       use vrthov_mod            ! /mfi_hs/ index (ord,ioff,dstlist,cnt,boff,ndest)
 c
-c     RMA counterpart of mfi_redist_round: same /mfi_hs/ index + boff, but
-c     MPI_Put each tuple into a compact stream-position window (rsH, bound to
-c     the 2nd half of wk /scrns/ in mfi) instead of crystal-routing. Global
-c     position p=boff(d)+j lands at the
-c     owner's compact slot p-r*cap; disjoint boff -> no collisions, slots
-c     fill 1..n. n=min(cap,recvcnt-r*cap) (local). Collective MPI_Win_fence
-c     epoch over commrs; np>1 only.
+c     RMA round r (0-based): deliver this batch's payload to owners one-sided,
+c     WITHOUT packing. Payload is MPI_Put straight from the read buffer w2; the
+c     dest-local element id travels as a separate 1-int Put. The remote window
+c     (rsH = the whole wk /scrns/) is split into two regions at cap*nx:
+c       payload: slot s -> disp s*nx        (nx real*4 words)
+c       id     : slot s -> disp cap*nx + s  (1 integer)
+c     Global stream pos p=boff(d)+j -> compact slot p-r*cap; disjoint boff across
+c     senders -> no collisions, slots fill 0..n-1. n=min(cap,recvcnt-r*cap).
+c     Collective MPI_Win_fence epoch; np>1 only.
+c
+c     id is the dest-local index gllel(er(ke+e)) (gllel: replicated array in the
+c     default build, dProcmapGet function under -DDPROCMAP -- either way a local
+c     read on the sender for the array build). It is STAGED in a local idstage
+c     buffer (not in wk: wk is the exposed window that remote ranks Put into) so
+c     the Put source stays live and distinct through the fence epoch. The
+c     receiver applies ie_map_r2o (h-refine block remap) in mfi_assign_win.
 c
       include 'SIZE'
-      include 'PARALLEL'        ! nid
+      include 'PARALLEL'        ! nid, gllel (global->local elem map)
       include 'RESTART'         ! er, rsH, rst_etime
       include 'mpif.h'
-      parameter(lrcv_mx=min(lbrst_max,lelt)) ! <=lelt (see mfi_gets); lbrst_max from vrthov_mod
-      integer vi(li,1)
-      real*4  w2(1)
-      integer idst(lrcv_mx),idsp(lrcv_mx)
+      real*4  w2(1)             ! read buffer (payload source, file order)
+      integer idstage(lbrst_max) ! staged dest-local ids this round (<= cap <= nb)
       real*8  etime0,dnekclock_sync
-      integer d,e,r,cap,nmx,ke,n,recvcnt,nsend,m,jlo,jhi
-      integer li,nxyzr,ierr,j
+      integer d,e,r,cap,nx,ke,n,recvcnt,nsend,jlo,jhi,slot,ioid
+      integer ierr,j
       integer*8 disp
 
       n = recvcnt - r*cap        ! this rank's received count this round
@@ -2572,8 +2565,9 @@ c
       if (n.lt.0)   n = 0
 
 #ifdef MPI
-      ! ---- pack round r (as in CR) + record target rank (idst) and
-      !      compact slot (idsp) per column ----
+      ioid = cap*nx              ! id-region base in the remote window (both agree)
+
+      ! ---- stage this round's dest-local ids (payload Puts straight from w2) ----
       etime0 = dnekclock_sync()
       nsend = 0
       do d = 1,ndest
@@ -2582,25 +2576,34 @@ c
         jhi = (r+1)*cap - 1 - boff(d)
         if (jhi.gt.cnt(d)-1) jhi = cnt(d)-1
         do j = jlo,jhi
-          e = ord(ioff(d)+1+j)     ! original batch pos (1-based)
+          e = ord(ioff(d)+1+j)          ! original batch pos (1-based)
           nsend = nsend + 1
-          vi(1,nsend) = dstlist(d)
-          vi(2,nsend) = er(ke+e)
-          call icopy(vi(3,nsend),w2((e-1)*nxyzr+1),nxyzr)
-          idst(nsend) = dstlist(d)
-          idsp(nsend) = boff(d) + j - r*cap
+          idstage(nsend) = gllel(er(ke+e)) ! dest-local id (receiver adds ie_map_r2o)
         enddo
       enddo
-      if (nsend.gt.nmx) ierr = 1
+      if (nsend.gt.cap) ierr = 1
       rst_etime(2) = rst_etime(2) + dnekclock_sync() - etime0
 
-      ! ---- transport: compact one-sided Put into rsH (fence epoch) ----
+      ! ---- transport: payload (from w2) + id (from idstage) into rsH (fence) ----
       etime0 = dnekclock_sync()
       call MPI_Win_fence(0,rsH,ierr)
-      do m = 1,nsend
-        disp = int(idsp(m),8) * int(li,8)
-        call MPI_Put(vi(1,m),li,MPI_REAL4,idst(m),
-     $               disp,li,MPI_REAL4,rsH,ierr)
+      nsend = 0
+      do d = 1,ndest
+        jlo = r*cap - boff(d)
+        if (jlo.lt.0) jlo = 0
+        jhi = (r+1)*cap - 1 - boff(d)
+        if (jhi.gt.cnt(d)-1) jhi = cnt(d)-1
+        do j = jlo,jhi
+          e    = ord(ioff(d)+1+j)
+          nsend = nsend + 1
+          slot = boff(d)+j - r*cap       ! compact 0-based window slot
+          disp = int(slot,8)*int(nx,8)   ! payload region
+          call MPI_Put(w2((e-1)*nx+1),nx,MPI_REAL4,dstlist(d),
+     $                 disp,nx,MPI_REAL4,rsH,ierr)
+          disp = int(ioid+slot,8)        ! id region
+          call MPI_Put(idstage(nsend),1,MPI_INTEGER,dstlist(d),
+     $                 disp,1,MPI_INTEGER,rsH,ierr)
+        enddo
       enddo
       call MPI_Win_fence(0,rsH,ierr)
       rst_etime(3) = rst_etime(3) + dnekclock_sync() - etime0
@@ -2643,6 +2646,50 @@ c
      $                       nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
         if (nfld.ge.3 .and. if3d)
      $  call mfi_assign_elem(w(1,iel),recv(3+2*nw ,iloc),npts,
+     $                       nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine mfi_assign_win(win,nx,cap,n,ibase,nfld,u,v,w,
+     $                          nxr,nyr,nzr,wdsizr,if_byte_sw,
+     $                          nhrefblkrs,ierr)
+c
+c     RMA assign: the window `win` (= wk, the whole 2*lwk) holds this round's
+c     data in two regions split at cap*nx (see mfi_redist_round_rma):
+c       payload: slot s (0-based) at win(s*nx+1)      (nx real*4 words)
+c       id     : slot s          at win(cap*nx+s+1)   (1 integer, punned)
+c     ibase (=r*cap) is unused for addressing (slots are round-local 0..n-1);
+c     kept for signature symmetry with the CR assign call. Ids are byte-copied
+c     out (icopy) since win is real*4; ie_map_r2o applies the h-refine remap to
+c     the dest-local id the sender already resolved via gllel. nfld: 1 (gets) or
+c     ldim (getv, comps at 0,nw,2*nw). nhrefblkrs/if3d passed in (as
+c     mfi_assign_recv) to avoid the /cmfi_i/ COMMON-vs-DUMMY clash.
+c
+      include 'SIZE'
+      include 'INPUT'           ! if3d
+      real*4  win(1)            ! the window (wk) viewed as real*4
+      real    u(lx1*ly1*lz1,1),v(lx1*ly1*lz1,1),w(lx1*ly1*lz1,1)
+      integer nx,cap,n,ibase,nfld,nhrefblkrs
+      integer nxr,nyr,nzr,wdsizr,ioid,s,idl,ie,nw,npts,l
+      logical if_byte_sw
+
+      npts = nxr*nyr*nzr
+      nw   = npts                      ! word stride between comps in the payload
+      if (wdsizr.eq.8) nw = 2*npts
+      ioid = cap*nx                    ! id-region base within the window
+      do s = 0,n-1
+        call icopy(idl,win(ioid+s+1),1) ! id: byte-copy int out of real*4 window
+        ie = ie_map_r2o(idl,nhrefblkrs) ! h-refine block remap (local<->local)
+        l  = s*nx + 1                   ! payload base for this slot
+        call mfi_assign_elem(u(1,ie),win(l      ),npts,
+     $                       nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+        if (nfld.ge.2)
+     $  call mfi_assign_elem(v(1,ie),win(l+nw   ),npts,
+     $                       nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
+        if (nfld.ge.3 .and. if3d)
+     $  call mfi_assign_elem(w(1,ie),win(l+2*nw ),npts,
      $                       nxr,nyr,nzr,wdsizr,if_byte_sw,ierr)
       enddo
 
@@ -2888,13 +2935,12 @@ c
       character*1    frontc
 
       parameter (lwk = 7*lx1*ly1*lz1*lelt)
-c     wk: real*4 view (2*lwk words) over cb_scrns (/scrns/, real*8, >= 8*lwk
-c     bytes = sz_lelt7). 2*lwk real*4 = lwk real*8 = the same byte span, so it
-c     fits exactly (no cb_scrns widening). Passed to mfi_gets/getv as the CR/RMA
-c     send+recv buffer; for RMA its 2nd half (wk(lwk+1..)) is the MPI window,
-c     created and freed PER RESTART below so /scrns/ is untouched between
-c     restarts (safe for mid-run restart). Bound via c_f_pointer because it is a
-c     real*4 view over a real*8 target (a plain => cannot retype).
+c     wk: real*4 view (2*lwk words) over cb_scrns. CR uses it as the in-place
+c     send+recv tuple buffer. RMA (strategy D) exposes the WHOLE wk as the MPI
+c     window (payload Put direct from w2, no send buffer), created and freed PER
+c     RESTART below so /scrns/ is untouched between restarts (safe for mid-run
+c     restart). Bound via c_f_pointer: a real*4 view over a real*8 target (a
+c     plain => cannot retype).
       real*4, pointer :: wk(:)
       real, pointer :: pm1(:,:)
       integer e
@@ -2919,25 +2965,22 @@ c     real*4 view over a real*8 target (a plain => cannot retype).
       call rzero(rst_etime,4) ! mpiio / pack / transfer / unpack
 
       ! Both paths use the crystal handshake (mfi_redist_plan) to size
-      ! batches/rounds; RMA additionally needs an MPI window. The window is
-      ! the 2nd half of wk (/scrns/), created here and freed at the end of
-      ! mfi (per restart) so /scrns/ is untouched between restarts. The 1st
-      ! half of wk is the RMA send-pack buffer (see mfi_getv).
+      ! batches/rounds; RMA additionally needs an MPI window. The window is the
+      ! WHOLE wk (/scrns/, 2*lwk real*4): RMA (strategy D) Puts payload direct
+      ! from w2 (no send buffer), so all of wk is the receive window, split per
+      ! round into [payload][id] at cap*nxyzr. Created here and freed at the end
+      ! of mfi (per restart) so /scrns/ is untouched between restarts (safe for
+      ! mid-run restart).
       if (np.gt.1) then
         call fgslib_crystal_setup(cr_mfi,nekcomm,np)
         if (.not.ifcrrs) then
           if (commrs .eq. MPI_COMM_NULL)
      $      call mpi_comm_dup(nekcomm,commrs,ierr)
-          win_size = int(lwk,8)*4         ! 2nd half = lwk real*4 = lwk*4 bytes
-          call MPI_Win_create(wk(lwk+1),win_size,4,
+          win_size = int(2*lwk,8)*4       ! whole wk = 2*lwk real*4 = 2*lwk*4 B
+          call MPI_Win_create(wk,win_size,4,
      $                        MPI_INFO_NULL,commrs,rsH,ierr)
           if (ierr .ne. 0 ) call exitti('MPI_Win_create failed!$',0)
-c         rzero takes default real (=real*8): lwk real*8 words == the whole
-c         2*lwk real*4 wk (send half + window half). Zeroing the window half
-c         avoids FE_INVALID; zeroing the whole buffer is the aligned, no-
-c         overflow way to do it (rzero(wk(lwk+1),lwk) would run 4*lwk bytes
-c         past the end since real*8 counts are 2x the real*4 words).
-          call rzero(wk,lwk)
+          call rzero(wk,lwk) ! rzero default-real (8B): lwk words = 2*lwk real*4
         endif
       endif
 #endif
