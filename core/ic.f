@@ -2389,7 +2389,7 @@ c
       key = 1
       call fgslib_crystal_ituple_transfer(cr_mfi,it,3,n1,lhs_mx,key)
       ! n1 = #source ranks routing to this dest this batch
-      ! recvcnt <= nelt_hr0 <= lhs_mx=lelt (NOT by lbrst_max), so large np fits
+      ! recvcnt <= nelt_hr0 <= lhs_mx=lelt (NOT the read-batch cap), so large np fits
       n1max = iglmax(n1,1)
       call lim_chk(n1max,lhs_mx,'     ','     ','mfi hs r')
       recvcnt = 0                    ! at dest: rows (?,srcproc,cnt)
@@ -2492,7 +2492,7 @@ c
       include 'RESTART'         ! er, rsH, rst_etime
       include 'mpif.h'
       real*4  w2(1)             ! read buffer (payload source, file order)
-      integer idstage(lbrst_max) ! local buffer for staged ids this round
+      integer idstage(lidst)    ! local buffer for staged ids this round
       real*8  etime0,dnekclock_sync
       integer d,e,r,cap,nx,ke,n,recvcnt,nsend,jlo,jhi,slot,ioid
       integer ierr,j
@@ -2879,9 +2879,9 @@ c     send+recv tuple buffer. RMA exposes the WHOLE wk as the MPI window
 
       ! Both CR and RMA use crystal handshake (mfi_redist_plan) to size
       ! batches/rounds; RMA additionally needs an MPI window wk split per round
-      ! into [payload][id] at cap*nxyzr. freed at the end of mfi (per restart) 
+      ! into [payload][id] at cap*nxyzr. freed at the end of mfi (per restart)
       if (np.gt.1) then
-        call lim_chk(lbrst,lbrst_max,'     ','     ','mfi      d') ! batch cap
+        call lim_chk(lbrst,lidst,'     ','     ','mfi      d') ! lbrst<=idstage len
         call fgslib_crystal_setup(cr_mfi,nekcomm,np)
         if (.not.ifcrrs) then
           if (commrs .eq. MPI_COMM_NULL)

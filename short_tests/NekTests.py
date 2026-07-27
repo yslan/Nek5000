@@ -1993,8 +1993,8 @@ class IO_Test(NekTestCase):
             for f in glob.glob(os.path.join(d, pat)):
                 try:
                     os.remove(f)
-                except OSError:
-                    pass
+                except FileNotFoundError:
+                    pass  # tolerate a race; any other error must fail loudly
 
     @pn_pn_2_parallel
     def test_PnPn2_Parallel(self):
@@ -2016,7 +2016,8 @@ class IO_Test(NekTestCase):
         self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
         # userparam02=0 -> CR; userparam03=0 -> not hio mode (avoid leak from
         # the RMA/high-order tests' par when the suite runs in sequence).
-        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "0"}})
+        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "0",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
         self.config_parfile({"MESH": {"hrefine": "1"}})
         self.run_nek(step_limit=None)
         phrase = self.get_phrase_from_log("All I/O tests PASSED")
@@ -2224,7 +2225,9 @@ class IO_Test(NekTestCase):
         # userparam02=1 -> RMA; userparam03=0 -> not hio mode (avoid leak from
         # the high-order test's par).
         self.config_parfile(
-            {"GENERAL": {"userparam02": "1", "userparam03": "0"}}
+            {"GENERAL": {"userparam02": "1", "userparam03": "0",
+                         "userparam06": "0", "userparam07": "0",
+                         "loglevel": "2"}}  # reset multi-round knobs -> default path
         )
 
         # "2,2" (comma) is the real 2-level hierarchical schedule; "2;2" would
@@ -2260,7 +2263,9 @@ class IO_Test(NekTestCase):
         self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
         # userparam02=0 -> CR; userparam03=0 -> not hio mode (avoid leak).
         self.config_parfile(
-            {"GENERAL": {"userparam02": "0", "userparam03": "0"}}
+            {"GENERAL": {"userparam02": "0", "userparam03": "0",
+                         "userparam06": "0", "userparam07": "0",
+                         "loglevel": "2"}}  # reset multi-round knobs -> default path
         )
         # np==1 + h-refine (>=2) exercises the index fix ei=er(e) (PR #908);
         # the original code assigned via ie_map_r2o(er(e),...) and failed here.
@@ -2294,7 +2299,8 @@ class IO_Test(NekTestCase):
         self.config_size()
         self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
         self.config_parfile({"MESH": {"hrefine": "1"}})
-        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "1"}})
+        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "1",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
         self.run_nek(step_limit=None)
         phrase = self.get_phrase_from_log("All I/O tests PASSED")
         self.assertIsNotNullDelayed(phrase, label="hio write (lx1=10 FP64)")
@@ -2306,7 +2312,8 @@ class IO_Test(NekTestCase):
         self.config_size()
         self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
         self.config_parfile({"MESH": {"hrefine": "1"}})
-        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "2"}})
+        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "2",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
         self.run_nek(step_limit=None)
         phrase = self.get_phrase_from_log("All I/O tests PASSED")
         self.assertIsNotNullDelayed(phrase, label="hio read (lx1=6, nxyzr>lrbs_loc)")
@@ -2330,7 +2337,8 @@ class IO_Test(NekTestCase):
         self.config_size()
         self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
         self.config_parfile({"MESH": {"hrefine": "1"}})
-        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "1"}})
+        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "1",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
         self.run_nek(step_limit=None)
         phrase = self.get_phrase_from_log("All I/O tests PASSED")
         self.assertIsNotNullDelayed(phrase, label="hio write (lx1=10 FP64)")
@@ -2342,7 +2350,8 @@ class IO_Test(NekTestCase):
         self.config_size()
         self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
         self.config_parfile({"MESH": {"hrefine": "1"}})
-        self.config_parfile({"GENERAL": {"userparam02": "1", "userparam03": "2"}})
+        self.config_parfile({"GENERAL": {"userparam02": "1", "userparam03": "2",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
         self.run_nek(step_limit=None)
         phrase = self.get_phrase_from_log("All I/O tests PASSED")
         self.assertIsNotNullDelayed(
