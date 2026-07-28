@@ -1953,7 +1953,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine mfi_gets(u,wk,lwk,iskip)
-      use vrthov_mod, only : cb_vrthov
+      use vrthov_mod, only : cb_vrthov, lelem_mx, lread_mx
 
       include 'SIZE'
       include 'INPUT'
@@ -1965,11 +1965,8 @@ c-----------------------------------------------------------------------
 
       real*4 wk(2*lwk) ! redist buffer for both CR and RMA
 
-      parameter(lrbs_loc=20*lx1*ly1*lz1) ! per elem, max read buffer
-      parameter(lrbs=lrbs_loc*lread_mx)  ! lread_mx from RESTART
+      parameter(lrbs=lelem_mx*lread_mx)  ! w2 size (lelem_mx,lread_mx from VRTHOV)
       real*4, pointer :: w2(:)   ! file-order read buffer for a batch, cb_vrthov
-
-      parameter(lelem_mx=2*(lx1+6)*(ly1+6)*(lz1+6)) ! max redist payload size, Cf mapab fp64
 
       real*8 etime0,dnekclock_sync
 
@@ -1993,13 +1990,13 @@ c     mtup = per-round redistribution capacity (elements) to fit in wk (2*lwk re
 c     one element must fit the read buffer w2 ('e') and one element's redist
 c     unit must fit wk ('f'); both broadcast-consistent -> collective abort.
       call lim_chk(nxyzr,lrbs,'     ','     ','mfi_gets e')
+      call lim_chk(nxr,lx1+6,'     ','     ','mfi_gets c') ! src order (mapab)
       if (np.gt.1) then
         if (ifcrrs) then
           call lim_chk(li,2*lwk,'     ','     ','mfi_gets f') ! tuple fits wk
         else
           call lim_chk(nxyzr+1,2*lwk,'     ','     ','mfi_gets f') ! data+id fit
         endif
-        call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_gets c') ! payload/elem
       endif
 
       ! read batch:
@@ -2133,7 +2130,7 @@ c     unit must fit wk ('f'); both broadcast-consistent -> collective abort.
       end
 c-----------------------------------------------------------------------
       subroutine mfi_getv(u,v,w,wk,lwk,iskip)
-      use vrthov_mod, only : cb_vrthov
+      use vrthov_mod, only : cb_vrthov, lelem_mx, lread_mx
 
       include 'SIZE'
       include 'INPUT'
@@ -2146,11 +2143,8 @@ c-----------------------------------------------------------------------
 
       real*4 wk(2*lwk) ! redist buffer for both CR and RMA
 
-      parameter(lrbs_loc=20*lx1*ly1*lz1) ! per elem, max read buffer
-      parameter(lrbs=lrbs_loc*lread_mx)  ! lread_mx from RESTART
+      parameter(lrbs=lelem_mx*lread_mx)  ! w2 size (lelem_mx,lread_mx from VRTHOV)
       real*4, pointer :: w2(:)   ! file-order read buffer for a batch, cb_vrthov
-
-      parameter(lelem_mx=2*ldim*(lx1+6)*(ly1+6)*(lz1+6)) ! max redist payload size, Cf mapab fp64
 
       real*8 etime0,dnekclock_sync
 
@@ -2174,13 +2168,13 @@ c     mtup = per-round redistribution capacity (elements) to fit in wk (2*lwk re
 c     one element must fit w2 ('e') and one element's redist unit must fit wk
 c     ('f'); both broadcast-consistent -> collective abort.
       call lim_chk(nxyzr,lrbs,'     ','     ','mfi_getv e')
+      call lim_chk(nxr,lx1+6,'     ','     ','mfi_getv c') ! src order (mapab)
       if (np.gt.1) then
         if (ifcrrs) then
           call lim_chk(li,2*lwk,'     ','     ','mfi_getv f') ! tuple fits wk
         else
           call lim_chk(nxyzr+1,2*lwk,'     ','     ','mfi_getv f') ! data+id fit
         endif
-        call lim_chk(nxyzr,lelem_mx,'     ','     ','mfi_getv c') ! payload/elem
       endif
 
       ! read batch:

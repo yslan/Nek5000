@@ -20,12 +20,10 @@ c
       integer iHeaderSize
       parameter(iHeaderSize=132)
 
-c     mfi batched-restart sizing parameters:
 c     lidst: RMA idstage (round_rma) length = max read-batch; mfi caps
-c     lbrst<=lidst (limchk 'd'). lread_mx: w2 read buffer = whole local field.
-      integer lread_mx, lidst
-      parameter(lread_mx=lelt)  ! w2 read buffer = whole field (mfi_gets/getv)
-      parameter(lidst   =lelt)  ! idstage length (round_rma); mfi 'd' caps lbrst
+c     lbrst<=lidst (limchk 'd').  (w2 read buffer sizing lives in VRTHOV.)
+      integer lidst
+      parameter(lidst=lelt)  ! idstage length (round_rma); mfi 'd' caps lbrst
 
       real timer
       common /cmfi_r/ timer
