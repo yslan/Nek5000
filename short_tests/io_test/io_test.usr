@@ -366,7 +366,7 @@ c-----------------------------------------------------------------------
 c     This routine to modify element vertices
       subroutine usrdat
       include 'SIZE'
-      include 'INPUT'          ! ifcrrs, lbrst, lrcv, uparam
+      include 'INPUT'          ! ifcrrs, nrst_rd, nrst_cm, uparam
 
 c     Restart redistribution path toggle for I/O tests:
 c       uparam(2) = 0 (default) -> crystal router (ifcrrs=.true.)
@@ -374,10 +374,10 @@ c       uparam(2) = 1           -> MPI-RMA one-sided (ifcrrs=.false.)
       if (int(uparam(2)).eq.1) ifcrrs = .false.
 
 c     Bounded-round CR stress (multi-batch + multi-round) for the CI:
-c       uparam(6) > 0 -> lbrst = uparam(6)  (small read batch -> many batches)
-c       uparam(7) > 0 -> lrcv  = uparam(7)  (small recv cap  -> >1 round/batch)
-      if (int(uparam(6)).gt.0) lbrst = int(uparam(6))
-      if (int(uparam(7)).gt.0) lrcv  = int(uparam(7))
+c       uparam(6) > 0 -> nrst_rd = uparam(6)  (small read batch -> many batches)
+c       uparam(7) > 0 -> nrst_cm  = uparam(7)  (small recv cap  -> >1 round/batch)
+      if (int(uparam(6)).gt.0) nrst_rd = int(uparam(6))
+      if (int(uparam(7)).gt.0) nrst_cm  = int(uparam(7))
 
       return
       end
@@ -508,7 +508,7 @@ c     mode=2: read 'hio' checkpoint back into this build (run at lx1=6) and
 c             compare against the analytic fields; interp tolerance eps_map.
 c     When the read build's lx1 < write order and wdsizr=8, the per-element
 c     payload nxyzr = ldim*nxr^3*2 exceeds the old crystal-router per-element
-c     cap (now lifted to lelem_mx).
+c     cap (now lifted to lrst_elem).
       subroutine hio_highorder_test(mode,eps4,eps_map,ierr)
       include 'SIZE'
       include 'INPUT'           ! PARAM

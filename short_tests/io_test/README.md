@@ -20,7 +20,7 @@ that phrase. (Do not change those literal strings — the harness greps them.)
 ## Test variants (`NekTests.py::IO_Test`)
 
 Seven variants (all run at the default whole-field/single-round batching unless
-noted — `userParam06=lbrst`/`userParam07=lrcv` are reset to 0 in every non-
+noted — `userParam06=nrst_rd`/`userParam07=nrst_cm` are reset to 0 in every non-
 multi-round test so they exercise the default path, not a leftover bounded config):
 
 | Method | np | What it forces |
@@ -30,12 +30,12 @@ multi-round test so they exercise the default path, not a leftover bounded confi
 | `test_PnPn2_Serial`        | 1 | np==1 direct-read bypass, hrefine 1/2/3/2,2. |
 | `test_PnPn2_Parallel_HighOrderFP64` | 2 | Writes an FP64 order-10 checkpoint (`userParam03=1`), reads it into an lx1=6 build (`userParam03=2`) — the PR #900 high-order acceptance case (CR). |
 | `test_PnPn2_Parallel_RMA_HighOrderFP64` | 2 | Same PR #900 high-order FP64 read, but via the MPI-RMA bounded window (`userParam02=1`). |
-| `test_PnPn2_Parallel_MultiRound` | 2 | Forces batched CR (`lbrst=3`, `lrcv=2`, `loglevel=3`) on hrefine 1/2/2,2; asserts max rounds/batch == 2. |
+| `test_PnPn2_Parallel_MultiRound` | 2 | Forces batched CR (`nrst_rd=3`, `nrst_cm=2`, `loglevel=3`) on hrefine 1/2/2,2; asserts max rounds/batch == 2. |
 | `test_PnPn2_Parallel_RMA_MultiRound` | 2 | Same multi-round stress on the MPI-RMA path. |
 
 Toggles (wired in `io_test.usr:usrdat`/`userchk`): `userParam02` 0=crystal
-router / 1=MPI-RMA; `userParam03` 1=hio write / 2=hio read; `userParam06`→`lbrst`
-(read-batch), `userParam07`→`lrcv` (per-round receive cap); `[MESH] hrefine`.
+router / 1=MPI-RMA; `userParam03` 1=hio write / 2=hio read; `userParam06`→`nrst_rd`
+(read-batch), `userParam07`→`nrst_cm` (per-round receive cap); `[MESH] hrefine`.
 
 ## What `io_test.usr` does
 
@@ -101,14 +101,14 @@ project's design notes, kept outside this source tree / in the PR discussion.)
 
 ## Testing the bounded-receive CR path (batches / rounds)
 
-The crystal-router restart splits the read into **batches** (`lbrst`) and each
-batch's redistribution into **rounds** bounded by a receive cap (`lrcv`, runtime;
-0 = auto). Two knobs (wired in `io_test.usr:usrdat`): `uparam06 -> lbrst`,
-`uparam07 -> lrcv`. Set `general:loglevel = 3` to print, per `mfi_gets/getv`
+The crystal-router restart splits the read into **batches** (`nrst_rd`) and each
+batch's redistribution into **rounds** bounded by a receive cap (`nrst_cm`, runtime;
+0 = auto). Two knobs (wired in `io_test.usr:usrdat`): `uparam06 -> nrst_rd`,
+`uparam07 -> nrst_cm`. Set `general:loglevel = 3` to print, per `mfi_gets/getv`
 call, two verbose lines: batch/round shape and buffer sizes.
 
-**Run the dedicated multi-round CI test** (hrefine 1 then 2,2, `lbrst=3`,
-`lrcv=2` → `nrounds=2`; asserts fields pass AND max rounds == 2):
+**Run the dedicated multi-round CI test** (hrefine 1 then 2,2, `nrst_rd=3`,
+`nrst_cm=2` → `nrounds=2`; asserts fields pass AND max rounds == 2):
 ```
 cd short_tests
 NEK_SOURCE_ROOT=<repo>/Nek5000 FC=mpif77 CC=mpicc MPI=1 PARALLEL_PROCS=2 \
@@ -123,18 +123,18 @@ python3 -m pytest NekTests.py -k "IO_Test and MultiRound" -v
 grep -E 'rounds/batch|cap=' io_test/io_test.log.2.pn_pn_2.parallel
 ```
 
-**Demo output** (`lbrst=3`, `lrcv=2`, `loglevel=3`; each field read prints 4
+**Demo output** (`nrst_rd=3`, `nrst_cm=2`, `loglevel=3`; each field read prints 4
 lines — per-call stats, then the `avail`/`batch`/`round` sizing review.
 `ifcrrs= T` is the crystal-router path, `F` is MPI-RMA):
 ```
  mfi_getv: nbatch= 6  rounds/batch min/max/avg= 2 2 2.0  recvmax= 3  ifcrrs= F
  mfi_getv  avail: wk= 6976368  w2= 9966240   need/elem: nxyzr= 648  li= 650
- mfi_getv  batch: nbe= 3  (lbrst= 3  w2fit= 15380  wkfit= 10749 )
- mfi_getv  round: cap= 2  bound by lrcv= 2
+ mfi_getv  batch: nbe= 3  (nrst_rd= 3  w2fit= 15380  wkfit= 10749 )
+ mfi_getv  round: cap= 2  bound by nrst_cm= 2
  mfi_gets: nbatch= 6  rounds/batch min/max/avg= 2 2 2.0  recvmax= 3  ifcrrs= F
  mfi_gets  avail: wk= 6976368  w2= 9966240   need/elem: nxyzr= 216  li= 218
- mfi_gets  batch: nbe= 3  (lbrst= 3  w2fit= 46140  wkfit= 32149 )
- mfi_gets  round: cap= 2  bound by lrcv= 2
+ mfi_gets  batch: nbe= 3  (nrst_rd= 3  w2fit= 46140  wkfit= 32149 )
+ mfi_gets  round: cap= 2  bound by nrst_cm= 2
  ...
  PASSED
 ```
@@ -142,11 +142,11 @@ Reading: `nbatch=6` (the field's `nelr` split into 6 read batches of `nbe=3`),
 `rounds/batch = 2` (each batch's receive split into 2 rounds of `cap=2`),
 `recvmax=3` (largest per-rank incoming per batch). The `avail` line is the
 ceilings (`wk=2*lwk`, `w2=lrbs`) vs per-element need (`nxyzr`, tuple `li`); the
-`batch` line shows which limit binds `nbe` (`lbrst` / `w2fit` / `wkfit`); the
+`batch` line shows which limit binds `nbe` (`nrst_rd` / `w2fit` / `wkfit`); the
 `round` line shows the receive `cap` and its binding limit. `PASSED` confirms
 the fields are byte-clean across the split. At the default `loglevel=2` these
 lines are silent.
 
 **Try it by hand** on any case: in the `.par` set `[GENERAL] loglevel = 3`,
-`userparam06 = <lbrst>`, `userparam07 = <lrcv>`, then run and grep as above.
-`lbrst` small ⇒ more batches; `lrcv` small ⇒ more rounds/batch.
+`userparam06 = <nrst_rd>`, `userparam07 = <nrst_cm>`, then run and grep as above.
+`nrst_rd` small ⇒ more batches; `nrst_cm` small ⇒ more rounds/batch.
