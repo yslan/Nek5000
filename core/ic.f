@@ -2863,8 +2863,11 @@ c     MPI window. lwk is a runtime value = size(cb_wk)/2, set after resize below
 
       pm1(1:lx1*ly1*lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
 
-#ifdef MPI
+c     lbrst<=0 => auto = fill the buffer (nbe later clamps to nw2/nxyzr,mtup).
+      if (lbrst.le.0) lbrst = lelt
       lbrst = min(lbrst, lelt)
+
+#ifdef MPI
       nelt_hr0 = nelt ! upper bound. later reset by href: nelt_hr0=nelt/nhrefblkrs
       if (lbrst.lt.nelt_hr0.AND.nio.eq.0)
      $  write(*,*)'Batched restart with lbrst',lbrst,nelt_hr0
