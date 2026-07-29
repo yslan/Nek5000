@@ -55,7 +55,8 @@ c     Set default logicals
 
       if_full_pres = .false.
       ifcrrs = .true. ! crystal router restart
-      lbrst = min(1024, lelt) ! batch size for restart
+      nrst_rd = 0    ! read batch cap, elems (0=auto=fill buf); IO dial
+      nrst_cm = 1024 ! comm round cap, elems (0=auto); network dial
 
       ifjac0_abort = .true. ! abort if initial mesh (rea/re2) is invalid
 

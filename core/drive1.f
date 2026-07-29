@@ -15,7 +15,6 @@ c
       use hsmg_mod, only : hsmg_init => init
       use mvgeom_mod, only : mvgeom_init => init
       use vproj_mod, only : vproj_init => init
-      use vrthov_mod, only : vrthov_init => init
       use orthot_mod, only : orthot_init => init
       use orthov_mod, only : orthov_init => init
       use screv_mod, only : screv_init => init
@@ -75,7 +74,6 @@ c
       call hsmg_init()
       call mvgeom_init()
       call vproj_init()
-      call vrthov_init()
       call orthot_init()
       call orthov_init()
       call screv_init()
@@ -488,11 +486,9 @@ c      endif
 #endif
 #endif 
  
-#ifdef MPI
-      if (commrs .ne. MPI_COMM_NULL) then
-        call MPI_Win_free(rsH, ierr)
-      endif
-#endif
+c     rsH (the restart RMA window) is now created+freed per restart inside mfi,
+c     so there is nothing to free here. commrs (the communicator dup) is kept
+c     for possible reuse; MPI_Finalize releases it.
 
       call in_situ_end()
       call exitt0()

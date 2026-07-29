@@ -32,10 +32,10 @@ c
       integer matype(-5:10,ldimt1)
      $       ,nktonv,nhis,lochis(4,lhis+maxobj)
      $       ,ipscal,npscal,ipsco, ifldmhd
-     $       ,lbrst,irstv,irstt,irstim,nmember(maxobj),nobj
+     $       ,nrst_rd,nrst_cm,irstv,irstt,irstim,nmember(maxobj),nobj
      $       ,ngeom,idpss(ldimt),fluid_partitioner,solid_partitioner
       common /input2/ matype,nktonv,nhis,lochis,ipscal,npscal,ipsco
-     $               ,ifldmhd,lbrst,irstv,irstt,irstim,nmember,nobj
+     $               ,ifldmhd,nrst_rd,nrst_cm,irstv,irstt,irstim,nmember,nobj
      $               ,ngeom,idpss,fluid_partitioner,solid_partitioner
 
       logical         if3d,ifflow,ifheat,iftran,ifaxis,ifstrs,ifsplit

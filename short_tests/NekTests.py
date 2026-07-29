@@ -3,6 +3,7 @@
 import sys
 from shutil import copyfile
 import os
+import glob
 
 if sys.version_info < (3, 6):
     print("Sorry, requires Python > 3.6")
@@ -13,6 +14,7 @@ from lib.nekTestCase import (
     pn_pn_parallel,
     pn_pn_2_parallel,
     pn_pn_serial,
+    pn_pn_2_serial,
 )
 
 ###############################################################################
@@ -1980,8 +1982,24 @@ class IO_Test(NekTestCase):
         self.run_genmap(rea_file="io_test")
         self.run_genmap(rea_file="io_test_rs")
 
+    def _clean_generated_flds(self):
+        # Remove RUN-GENERATED checkpoints so a test starts from the committed
+        # fixtures only (m1*/m2*/f*/f*.fld). Prevents cross-test pollution when
+        # pytest runs the IO_Test methods in sequence (they share the workdir).
+        d = os.path.join(self.examples_root, self.__class__.example_subdir)
+        for pat in ("io_test0.f*", "io_test1.f*", "hr2io_test*", "hioio_test*",
+                    "io_test_rs*.f*", "rs_io_test*", "ref.fld", "out.fld",
+                    "io_test.fld*"):
+            for f in glob.glob(os.path.join(d, pat)):
+                try:
+                    os.remove(f)
+                except FileNotFoundError:
+                    pass  # tolerate a race; any other error must fail loudly
+
     @pn_pn_2_parallel
     def test_PnPn2_Parallel(self):
+        self.__class__.case_name = "io_test"
+        self._clean_generated_flds()  # start from committed fixtures only
         self.size_params = dict(
             ldim="3",
             lx1="6",
@@ -1996,6 +2014,10 @@ class IO_Test(NekTestCase):
 
         # read write tests
         self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        # userparam02=0 -> CR; userparam03=0 -> not hio mode (avoid leak from
+        # the RMA/high-order tests' par when the suite runs in sequence).
+        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "0",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
         self.config_parfile({"MESH": {"hrefine": "1"}})
         self.run_nek(step_limit=None)
         phrase = self.get_phrase_from_log("All I/O tests PASSED")
@@ -2016,8 +2038,9 @@ class IO_Test(NekTestCase):
         self.assertIsNotNullDelayed(phrase, label="All I/O tests PASSED")
         self.assertDelayedFailures()
 
-        # h-refine restart, test 3
-        self.config_parfile({"MESH": {"hrefine": "2;2"}})
+        # h-refine restart, test 3 (2-level hierarchical; comma separator --
+        # "2;2" would be truncated to "2" by the .par parser, ';'=comment)
+        self.config_parfile({"MESH": {"hrefine": "2,2"}})
         self.run_nek(step_limit=None)
         phrase = self.get_phrase_from_log("All I/O tests PASSED")
         self.assertIsNotNullDelayed(phrase, label="All I/O tests PASSED")
@@ -2076,6 +2099,266 @@ class IO_Test(NekTestCase):
             err1, target_val=0.0, delta=0.0, label="rs err PnPn  "
         )
         self.assertDelayedFailures()
+
+    @pn_pn_2_parallel
+    def test_PnPn2_Parallel_MultiRound(self):
+        # Bounded-round CR redistribution (Plan H) with a small read batch and
+        # a small receive cap, on the hierarchical hrefine 2,2 case, so the
+        # restart read is split across MANY batches (small lbrst) and MULTIPLE
+        # rounds/batch (small lrcv). uparam06->lbrst, uparam07->lrcv
+        # (io_test.usr:usrdat); loglevel=3 emits the "rounds/batch min/max/avg"
+        # verbose line. With lbrst=3, lrcv=2 the per-batch recv (=3) forces
+        # nrounds=2, and the fields must still match (byte-clean across rounds).
+        # NOTE: the h-refine schedule separator is a COMMA; "2;2" would be
+        # silently truncated to "2" by the .par parser (';' = inline comment),
+        # so use "2,2" to actually exercise the 2-level hierarchical restart.
+        self.__class__.case_name = "io_test"
+        self._clean_generated_flds()
+        self.size_params = dict(
+            ldim="3",
+            lx1="6",
+            lxd="9",
+            lx2="lx1-2",
+            lelg="36*64",
+            ldimt="3",
+            lelr="lelg",
+            lx1m="lx1",
+        )
+        self.config_size()
+
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile(
+            {"GENERAL": {"userparam02": "0", "userparam03": "0",
+                         "userparam06": "3", "userparam07": "2",
+                         "loglevel": "3"}}
+        )
+        # hrefine=1 writes io_test0.f*; hrefine=2 writes hr2io_test0.f*;
+        # hrefine=2,2 (hierarchical) then restarts from BOTH. So "2" must
+        # precede "2,2" (it writes the hr2 checkpoint the 2,2 read needs).
+        # All run with lbrst=3 (many batches) + lrcv=2 (>1 round/batch).
+        for href in ("1", "2", "2,2"):
+            self.config_parfile({"MESH": {"hrefine": href}})
+            self.run_nek(step_limit=None)
+            phrase = self.get_phrase_from_log("All I/O tests PASSED")
+            self.assertIsNotNullDelayed(
+                phrase, label="All I/O tests PASSED (multi-round, hrefine=%s)"
+                % href
+            )
+            # confirm multi-round actually happened: max rounds/batch >= 2
+            maxr = self.get_value_from_log(
+                "rounds/batch min/max/avg=", column=6
+            )
+            self.assertAlmostEqualDelayed(
+                maxr, target_val=2.0, delta=0.0,
+                label="max rounds/batch (hrefine=%s)" % href
+            )
+        self.assertDelayedFailures()
+
+    @pn_pn_2_parallel
+    def test_PnPn2_Parallel_RMA_MultiRound(self):
+        # Same as test_PnPn2_Parallel_MultiRound but on the MPI-RMA path
+        # (userparam02=1): batched read (lbrst=3) + bounded compact window
+        # with >1 round/batch (lrcv=2). Exercises the Plan I batched RMA
+        # (mfi_redist_round_rma / MPI_Put into the compact window). The RMA
+        # verbose line uses the same 'rounds/batch min/max/avg=' format, so
+        # the col-6 max-rounds check works here too. Uses the hierarchical
+        # "2,2" schedule (comma separator; see CR multi-round note), so "2"
+        # precedes "2,2" to write the hr2 checkpoint the 2,2 read needs.
+        self.__class__.case_name = "io_test"
+        self._clean_generated_flds()
+        self.size_params = dict(
+            ldim="3",
+            lx1="6",
+            lxd="9",
+            lx2="lx1-2",
+            lelg="36*64",
+            ldimt="3",
+            lelr="lelg",
+            lx1m="lx1",
+        )
+        self.config_size()
+
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile(
+            {"GENERAL": {"userparam02": "1", "userparam03": "0",
+                         "userparam06": "3", "userparam07": "2",
+                         "loglevel": "3"}}
+        )
+        for href in ("1", "2", "2,2"):
+            self.config_parfile({"MESH": {"hrefine": href}})
+            self.run_nek(step_limit=None)
+            phrase = self.get_phrase_from_log("All I/O tests PASSED")
+            self.assertIsNotNullDelayed(
+                phrase,
+                label="All I/O tests PASSED (RMA multi-round, hrefine=%s)"
+                % href,
+            )
+            maxr = self.get_value_from_log(
+                "rounds/batch min/max/avg=", column=6
+            )
+            self.assertAlmostEqualDelayed(
+                maxr, target_val=2.0, delta=0.0,
+                label="max rounds/batch RMA (hrefine=%s)" % href
+            )
+        self.assertDelayedFailures()
+
+    @pn_pn_2_parallel
+    def test_PnPn2_Parallel_RMA(self):
+        # Same read/write + h-refine restart matrix as test_PnPn2_Parallel,
+        # but forces the MPI-RMA one-sided redistribution path (ifcrrs=.false.)
+        # via userParam02=1 (wired in io_test.usr:usrdat). Closes gap G1.
+        self.__class__.case_name = "io_test"  # reset (main test leaves io_test_rs)
+        self._clean_generated_flds()  # start from committed fixtures only
+        self.size_params = dict(
+            ldim="3",
+            lx1="6",
+            lxd="9",
+            lx2="lx1-2",
+            lelg="36*64",
+            ldimt="3",
+            lelr="lelg",
+            lx1m="lx1",
+        )
+        self.config_size()
+
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        # userparam02=1 -> RMA; userparam03=0 -> not hio mode (avoid leak from
+        # the high-order test's par).
+        self.config_parfile(
+            {"GENERAL": {"userparam02": "1", "userparam03": "0",
+                         "userparam06": "0", "userparam07": "0",
+                         "loglevel": "2"}}  # reset multi-round knobs -> default path
+        )
+
+        # "2,2" (comma) is the real 2-level hierarchical schedule; "2;2" would
+        # be truncated to "2" by the .par parser (';' = inline comment). "2"
+        # precedes it so the hr2 checkpoint it restarts from exists.
+        for href in ("1", "2", "3", "2,2"):
+            self.config_parfile({"MESH": {"hrefine": href}})
+            self.run_nek(step_limit=None)
+            phrase = self.get_phrase_from_log("All I/O tests PASSED")
+            self.assertIsNotNullDelayed(
+                phrase, label="All I/O tests PASSED (RMA, hrefine=%s)" % href
+            )
+            self.assertDelayedFailures()
+
+    @pn_pn_2_serial
+    def test_PnPn2_Serial(self):
+        # Serial (np==1) run exercises the direct-read bypass in mfi_get[vs]
+        # (no redistribution; assign from w2 with ei=er(e)). Closes gap G7.
+        self.__class__.case_name = "io_test"  # reset (main test leaves io_test_rs)
+        self._clean_generated_flds()  # start from committed fixtures only
+        self.size_params = dict(
+            ldim="3",
+            lx1="6",
+            lxd="9",
+            lx2="lx1-2",
+            lelg="36*64",
+            ldimt="3",
+            lelr="lelg",
+            lx1m="lx1",
+        )
+        self.config_size()
+
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        # userparam02=0 -> CR; userparam03=0 -> not hio mode (avoid leak).
+        self.config_parfile(
+            {"GENERAL": {"userparam02": "0", "userparam03": "0",
+                         "userparam06": "0", "userparam07": "0",
+                         "loglevel": "2"}}  # reset multi-round knobs -> default path
+        )
+        # np==1 + h-refine (>=2) exercises the index fix ei=er(e) (PR #908);
+        # the original code assigned via ie_map_r2o(er(e),...) and failed here.
+        # "2,2" (comma) is the real 2-level hierarchical schedule; "2;2" would
+        # be truncated to "2" by the .par parser (';' = inline comment). "2"
+        # precedes it so the hr2 checkpoint it restarts from exists.
+        for href in ("1", "2", "3", "2,2"):
+            self.config_parfile({"MESH": {"hrefine": href}})
+            self.run_nek(step_limit=None)
+            phrase = self.get_phrase_from_log("All I/O tests PASSED")
+            self.assertIsNotNullDelayed(
+                phrase, label="All I/O tests PASSED (serial, hrefine=%s)" % href
+            )
+            self.assertDelayedFailures()
+
+    @pn_pn_2_parallel
+    def test_PnPn2_Parallel_HighOrderFP64(self):
+        # PR#900 acceptance (W2): write an FP64 checkpoint at high order (lx1=10),
+        # then read it into an lx1=6 build. On read, the per-element payload
+        # nxyzr = ldim*10^3*2 = 6000 exceeds the OLD crystal-router cap
+        # lrbs_loc = 20*6^3 = 4320 -> aborts on pre-refactor code at
+        # 'mfi_getv c'; passes after W2 widened the tuple item to lelem_mx.
+        self.__class__.case_name = "io_test"  # reset (main test leaves io_test_rs)
+        self._clean_generated_flds()  # start from committed fixtures only
+
+        # 1) build at high order, write FP64 checkpoint (uparam03=1)
+        self.size_params = dict(
+            ldim="3", lx1="10", lxd="15", lx2="lx1-2",
+            lelg="36*64", ldimt="3", lelr="lelg", lx1m="lx1",
+        )
+        self.config_size()
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile({"MESH": {"hrefine": "1"}})
+        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "1",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
+        self.run_nek(step_limit=None)
+        phrase = self.get_phrase_from_log("All I/O tests PASSED")
+        self.assertIsNotNullDelayed(phrase, label="hio write (lx1=10 FP64)")
+        self.assertDelayedFailures()
+
+        # 2) rebuild at lx1=6, read the high-order FP64 checkpoint (uparam03=2)
+        self.size_params["lx1"] = "6"
+        self.size_params["lxd"] = "9"
+        self.config_size()
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile({"MESH": {"hrefine": "1"}})
+        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "2",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
+        self.run_nek(step_limit=None)
+        phrase = self.get_phrase_from_log("All I/O tests PASSED")
+        self.assertIsNotNullDelayed(phrase, label="hio read (lx1=6, nxyzr>lrbs_loc)")
+        self.assertDelayedFailures()
+
+    @pn_pn_2_parallel
+    def test_PnPn2_Parallel_RMA_HighOrderFP64(self):
+        # D2 under RMA: read the high-order (lx1=10) FP64 checkpoint into an
+        # lx1=6 build via the MPI-RMA path (userparam02=1). The OLD full-field
+        # RMA window overflowed here (nxyzr*nelt_hr0 > size(wk)); Plan I's
+        # bounded compact window (lrwin=(2+lelem_mv)*lrcv_mx) fits a column and
+        # the read succeeds.
+        self.__class__.case_name = "io_test"
+        self._clean_generated_flds()
+
+        # 1) build at high order, write FP64 checkpoint (CR write, uparam03=1)
+        self.size_params = dict(
+            ldim="3", lx1="10", lxd="15", lx2="lx1-2",
+            lelg="36*64", ldimt="3", lelr="lelg", lx1m="lx1",
+        )
+        self.config_size()
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile({"MESH": {"hrefine": "1"}})
+        self.config_parfile({"GENERAL": {"userparam02": "0", "userparam03": "1",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
+        self.run_nek(step_limit=None)
+        phrase = self.get_phrase_from_log("All I/O tests PASSED")
+        self.assertIsNotNullDelayed(phrase, label="hio write (lx1=10 FP64)")
+        self.assertDelayedFailures()
+
+        # 2) rebuild at lx1=6, read via RMA (uparam02=1, uparam03=2)
+        self.size_params["lx1"] = "6"
+        self.size_params["lxd"] = "9"
+        self.config_size()
+        self.build_nek(usr_file="io_test", opts={"FFLAGS": "-mcmodel=medium"})
+        self.config_parfile({"MESH": {"hrefine": "1"}})
+        self.config_parfile({"GENERAL": {"userparam02": "1", "userparam03": "2",
+            "userparam06": "0", "userparam07": "0", "loglevel": "2"}})  # default path
+        self.run_nek(step_limit=None)
+        phrase = self.get_phrase_from_log("All I/O tests PASSED")
+        self.assertIsNotNullDelayed(
+            phrase, label="hio read RMA (lx1=6, bounded window)"
+        )
+        self.assertDelayedFailures()
+
 
 
 ####################################################################
