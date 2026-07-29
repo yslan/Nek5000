@@ -1953,7 +1953,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine mfi_gets(u,wk,lwk,iskip)
-      use vrthov_mod, only : cb_vrthov, lelem_mx, lread_mx
+      use vrthov_mod, only : cb_vrthov
 
       include 'SIZE'
       include 'INPUT'
@@ -1963,18 +1963,19 @@ c-----------------------------------------------------------------------
 
       real u(lx1*ly1*lz1,1)
 
-      real*4 wk(2*lwk) ! redist buffer for both CR and RMA
+      real*4 wk(2*lwk) ! redist buffer for both CR and RMA (=> cb_wk)
 
-      parameter(lrbs=lelem_mx*lread_mx)  ! w2 size (lelem_mx,lread_mx from VRTHOV)
       real*4, pointer :: w2(:)   ! file-order read buffer for a batch, cb_vrthov
 
       real*8 etime0,dnekclock_sync
 
       integer r,cap,recvcnt,nrounds,li,mtup ! redist state + wk sizing
+      integer nw2                           ! w2 word count (buffer allocation)
       integer v_nbat,v_rmn,v_rmx,v_rsum,v_rcvmx ! verbose only (loglevel>2)
       logical iskip,is_reader
 
-      w2(1:lrbs) => cb_vrthov(1:lrbs)
+      nw2 = size(cb_vrthov)          ! current w2 buffer size (real*4 words)
+      w2(1:nw2) => cb_vrthov(1:nw2)
 
       nxyzr = nxr*nyr*nzr            ! words per element (x2 if FP64)
       if (wdsizr.eq.8) nxyzr = 2*nxyzr
@@ -1989,7 +1990,7 @@ c     mtup = per-round redistribution capacity (elements) to fit in wk (2*lwk re
 
 c     one element must fit the read buffer w2 ('e') and one element's redist
 c     unit must fit wk ('f'); both broadcast-consistent -> collective abort.
-      call lim_chk(nxyzr,lrbs,'     ','     ','mfi_gets e')
+      call lim_chk(nxyzr,nw2,'     ','     ','mfi_gets e')
       call lim_chk(nxr,lx1+6,'     ','     ','mfi_gets c') ! src order (mapab)
       if (np.gt.1) then
         if (ifcrrs) then
@@ -2007,7 +2008,7 @@ c     unit must fit wk ('f'); both broadcast-consistent -> collective abort.
       nbatch    = 0                  ! # read batches on this rank
       nbe       = 0                  ! # elements per read batch
       if (is_reader) then
-        nbe = min(lbrst,lrbs/nxyzr)
+        nbe = min(lbrst,nw2/nxyzr)
         if (np.gt.1) nbe = min(nbe,mtup) ! wk send buffer holds the batch
         if (nbe.lt.1) nbe = 1
         nbatch = (nelr + nbe - 1)/nbe
@@ -2108,10 +2109,10 @@ c     unit must fit wk ('f'); both broadcast-consistent -> collective abort.
         ! sizing review (words): available ceilings vs per-element need vs the
         ! effective batch/round, and which limit binds -- so the default (whole
         ! field in 1 round) can be confirmed vs a knob (lbrst/lrcv) taking over.
-        write(6,*) 'mfi_gets  avail: wk=',2*lwk,' w2=',lrbs,
+        write(6,*) 'mfi_gets  avail: wk=',2*lwk,' w2=',nw2,
      $             '  need/elem: nxyzr=',nxyzr,' li=',li
         write(6,*) 'mfi_gets  batch: nbe=',nbe,' (lbrst=',lbrst,
-     $             ' w2fit=',lrbs/nxyzr,' wkfit=',mtup,')'
+     $             ' w2fit=',nw2/nxyzr,' wkfit=',mtup,')'
         if (lrcv.gt.0) then
           write(6,*) 'mfi_gets  round: cap=',cap,' bound by lrcv=',lrcv
         else
@@ -2130,7 +2131,7 @@ c     unit must fit wk ('f'); both broadcast-consistent -> collective abort.
       end
 c-----------------------------------------------------------------------
       subroutine mfi_getv(u,v,w,wk,lwk,iskip)
-      use vrthov_mod, only : cb_vrthov, lelem_mx, lread_mx
+      use vrthov_mod, only : cb_vrthov
 
       include 'SIZE'
       include 'INPUT'
@@ -2141,18 +2142,19 @@ c-----------------------------------------------------------------------
       real u(lx1*ly1*lz1,1),v(lx1*ly1*lz1,1),w(lx1*ly1*lz1,1)
       logical iskip
 
-      real*4 wk(2*lwk) ! redist buffer for both CR and RMA
+      real*4 wk(2*lwk) ! redist buffer for both CR and RMA (=> cb_wk)
 
-      parameter(lrbs=lelem_mx*lread_mx)  ! w2 size (lelem_mx,lread_mx from VRTHOV)
       real*4, pointer :: w2(:)   ! file-order read buffer for a batch, cb_vrthov
 
       real*8 etime0,dnekclock_sync
 
       integer r,cap,recvcnt,nrounds,li,mtup ! redist state + wk sizing
+      integer nw2                           ! w2 word count (buffer allocation)
       integer v_nbat,v_rmn,v_rmx,v_rsum,v_rcvmx ! verbose only (loglevel>2)
       logical is_reader
 
-      w2(1:lrbs) => cb_vrthov(1:lrbs)
+      nw2 = size(cb_vrthov)          ! current w2 buffer size (real*4 words)
+      w2(1:nw2) => cb_vrthov(1:nw2)
 
       nxyzr = ldim*nxr*nyr*nzr       ! words per element (all comps, x2 FP64)
       if (wdsizr.eq.8) nxyzr = 2*nxyzr
@@ -2167,7 +2169,7 @@ c     mtup = per-round redistribution capacity (elements) to fit in wk (2*lwk re
 
 c     one element must fit w2 ('e') and one element's redist unit must fit wk
 c     ('f'); both broadcast-consistent -> collective abort.
-      call lim_chk(nxyzr,lrbs,'     ','     ','mfi_getv e')
+      call lim_chk(nxyzr,nw2,'     ','     ','mfi_getv e')
       call lim_chk(nxr,lx1+6,'     ','     ','mfi_getv c') ! src order (mapab)
       if (np.gt.1) then
         if (ifcrrs) then
@@ -2185,7 +2187,7 @@ c     ('f'); both broadcast-consistent -> collective abort.
       nbatch    = 0                  ! # read batches on this rank
       nbe       = 0                  ! # elements per read batch
       if (is_reader) then
-        nbe = min(lbrst,lrbs/nxyzr)
+        nbe = min(lbrst,nw2/nxyzr)
         if (np.gt.1) nbe = min(nbe,mtup) ! wk send buffer holds the batch
         if (nbe.lt.1) nbe = 1
         nbatch = (nelr + nbe - 1)/nbe
@@ -2293,10 +2295,10 @@ c     ('f'); both broadcast-consistent -> collective abort.
         ! sizing review (words): available ceilings vs per-element need vs the
         ! effective batch/round, and which limit binds -- so the default (whole
         ! field in 1 round) can be confirmed vs a knob (lbrst/lrcv) taking over.
-        write(6,*) 'mfi_getv  avail: wk=',2*lwk,' w2=',lrbs,
+        write(6,*) 'mfi_getv  avail: wk=',2*lwk,' w2=',nw2,
      $             '  need/elem: nxyzr=',nxyzr,' li=',li
         write(6,*) 'mfi_getv  batch: nbe=',nbe,' (lbrst=',lbrst,
-     $             ' w2fit=',lrbs/nxyzr,' wkfit=',mtup,')'
+     $             ' w2fit=',nw2/nxyzr,' wkfit=',mtup,')'
         if (lrcv.gt.0) then
           write(6,*) 'mfi_getv  round: cap=',cap,' bound by lrcv=',lrcv
         else
@@ -2814,9 +2816,8 @@ c      ifgtim  = .true.  ! always get time
       end
 c-----------------------------------------------------------------------
       subroutine mfi(fname_in,ifile)
-      use scrns_mod
       use scrcg_mod
-      use, intrinsic :: iso_c_binding, only : c_loc, c_f_pointer
+      use vrthov_mod, only : cb_wk, lidst, vrthov_reserve
 c
 c     (1) Open restart file(s)
 c     (2) Check previous spatial discretization 
@@ -2845,9 +2846,9 @@ c
 
       character*1    frontc
 
-      parameter (lwk = 7*lx1*ly1*lz1*lelt)
-c     wk: real*4 view (2*lwk words) over cb_scrns. CR uses it as the in-place
-c     send+recv tuple buffer. RMA exposes the WHOLE wk as the MPI window
+c     wk => cb_wk (dedicated restart buffer, lrst_mb MB, off /scrns/). CR uses
+c     it as the in-place send+recv tuple buffer; RMA exposes the WHOLE wk as the
+c     MPI window. lwk is a runtime value = size(cb_wk)/2, set after resize below.
       real*4, pointer :: wk(:)
       real, pointer :: pm1(:,:)
       integer e
@@ -2860,7 +2861,6 @@ c     send+recv tuple buffer. RMA exposes the WHOLE wk as the MPI window
 
       integer*8 win_size
 
-      call c_f_pointer(c_loc(cb_scrns(1)), wk, [2*lwk])
       pm1(1:lx1*ly1*lz1,1:lelv) => cb_scrcg(1 : lx1*ly1*lz1*lelv)
 
 #ifdef MPI
@@ -2870,25 +2870,6 @@ c     send+recv tuple buffer. RMA exposes the WHOLE wk as the MPI window
      $  write(*,*)'Batched restart with lbrst',lbrst,nelt_hr0
 
       call rzero(rst_etime,4) ! mpiio / pack / transfer / unpack
-
-      ! Both CR and RMA use crystal handshake (mfi_redist_plan) to size
-      ! batches/rounds; RMA additionally needs an MPI window wk split per round
-      ! into [payload][id] at cap*nxyzr. freed at the end of mfi (per restart)
-      if (np.gt.1) then
-        call lim_chk(lbrst,lidst,'     ','     ','mfi      d') ! lbrst<=idstage len
-        call fgslib_crystal_setup(cr_mfi,nekcomm,np)
-        if (.not.ifcrrs) then
-          if (commrs .eq. MPI_COMM_NULL)
-     $      call mpi_comm_dup(nekcomm,commrs,ierr)
-          win_size = int(2*lwk,8)*4       ! whole wk = 2*lwk real*4 = 2*lwk*4 B
-          call MPI_Win_create(wk,win_size,4,
-     $                        MPI_INFO_NULL,commrs,rsH,ierr)
-          if (ierr .ne. 0 ) call exitti('MPI_Win_create failed!$',0)
-          nwzero = lwk
-          if (wdsize.eq.4) nwzero = 2*lwk
-          call rzero(wk,nwzero) ! rzero default-real (8B): lwk words = 2*lwk real*4
-        endif
-      endif
 #endif
 
       tiostart=dnekclock()
@@ -2917,6 +2898,35 @@ c     send+recv tuple buffer. RMA exposes the WHOLE wk as the MPI window
       if (nhrefrs.gt.0) then
          call h_refine_remap_elem(hrefcutsrs,nhrefrs)
       endif
+
+c     Size the restart buffers with (nxr,nyz,nzr) from file header
+c     reserve() only increases mem (grow-only); must precede MPI_Win_create
+      need_rst = ldim*nxr*nyr*nzr             ! worst per-elem words (getv)
+      if (wdsizr.eq.8) need_rst = 2*need_rst  ! FP64
+      need_rst = need_rst + 2                 ! + CR tuple header [nid,iel]
+      call vrthov_reserve(need_rst)
+      wk => cb_wk                             ! (re)associate after any realloc
+      lwk = size(cb_wk)/2                      ! wk holds 2*lwk real*4 words
+
+#ifdef MPI
+      ! Both CR and RMA use handshake (mfi_redist_plan) to size batches/rounds
+      ! RMA exposes wk as an MPI window, which is freed at the end of mfi
+      if (np.gt.1) then
+        call lim_chk(lbrst,lidst,'     ','     ','mfi      d') ! lbrst<=idstage
+        call fgslib_crystal_setup(cr_mfi,nekcomm,np)
+        if (.not.ifcrrs) then
+          if (commrs .eq. MPI_COMM_NULL)
+     $      call mpi_comm_dup(nekcomm,commrs,ierr)
+          win_size = int(2*lwk,8)*4       ! whole wk = 2*lwk real*4 = 2*lwk*4 B
+          call MPI_Win_create(wk,win_size,4,
+     $                        MPI_INFO_NULL,commrs,rsH,ierr)
+          if (ierr .ne. 0 ) call exitti('MPI_Win_create failed!$',0)
+          nwzero = lwk
+          if (wdsize.eq.4) nwzero = 2*lwk
+          call rzero(wk,nwzero) ! rzero default-real (8B): lwk words=2*lwk real*4
+        endif
+      endif
+#endif
 
       offs0   = nelgr ! cast to int*8
       offs0   = iHeadersize + 4 + isize*offs0

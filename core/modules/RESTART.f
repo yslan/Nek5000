@@ -20,11 +20,6 @@ c
       integer iHeaderSize
       parameter(iHeaderSize=132)
 
-c     lidst: RMA idstage (round_rma) length = max read-batch; mfi caps
-c     lbrst<=lidst (limchk 'd').  (w2 read buffer sizing lives in VRTHOV.)
-      integer lidst
-      parameter(lidst=lelt)  ! idstage length (round_rma); mfi 'd' caps lbrst
-
       real timer
       common /cmfi_r/ timer
 
